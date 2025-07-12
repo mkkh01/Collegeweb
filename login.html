@@ -43,7 +43,7 @@
             border: 1px solid #dddfe2;
             border-radius: 6px;
             font-size: 16px;
-            box-sizing: border-box; /* Important for padding */
+            box-sizing: border-box;
         }
         button {
             width: 100%;
@@ -64,7 +64,7 @@
             color: #fa383e;
             margin-top: 16px;
             font-weight: bold;
-            display: none; /* Hidden by default */
+            display: none;
         }
     </style>
 </head>
@@ -124,9 +124,9 @@
             }
 
             try {
-                // ******** التعديل الأهم هنا ********
+                // 1. البحث باستخدام اسم الحقل الصحيح من الصورة ("User name")
                 const querySnapshot = await db.collection("Users")
-                                             .where("User name", "==", usernameInput) // استخدام اسم الحقل الصحيح
+                                             .where("User name", "==", usernameInput) 
                                              .get();
 
                 if (querySnapshot.empty) {
@@ -137,10 +137,11 @@
                 const userDoc = querySnapshot.docs[0];
                 const userData = userDoc.data();
 
-                // ******** والتعديل الثاني هنا ********
-                if (userData.Password === passwordInput) { // استخدام اسم الحقل الصحيح
+                // 2. المقارنة باستخدام اسم الحقل الصحيح من الصورة ("Password")
+                if (userData.Password === passwordInput) { 
                     // SUCCESS!
-                    alert(`مرحباً بك ${userData.displayName || userData["User name"]}!`); // استخدام اسم الحقل الصحيح
+                    // 3. عرض الاسم باستخدام اسم الحقل الصحيح من الصورة ("displayName")
+                    alert(`مرحباً بك ${userData.displayName}!`); 
                     // window.location.href = 'admin.html'; 
                 } else {
                     // FAILURE!
