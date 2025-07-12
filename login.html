@@ -5,65 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تسجيل الدخول - منظومة الجداول</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f0f2f5;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .login-container {
-            background-color: #ffffff;
-            padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            width: 100%;
-            max-width: 400px;
-            text-align: center;
-        }
-        h1 {
-            color: #1c1e21;
-            margin-bottom: 20px;
-        }
-        .input-group {
-            margin-bottom: 15px;
-            text-align: right;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            color: #606770;
-            font-weight: bold;
-        }
-        input {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #dddfe2;
-            border-radius: 6px;
-            box-sizing: border-box;
-        }
-        button {
-            width: 100%;
-            padding: 12px;
-            background-color: #0056b3;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #004494;
-        }
-        #error-message {
-            color: #d93025;
-            margin-top: 15px;
-            font-weight: bold;
-            display: none; /* مخفي بشكل افتراضي */
-        }
+        /* CSS لا يتغير */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-container { background-color: #ffffff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 100%; max-width: 400px; text-align: center; }
+        h1 { color: #1c1e21; margin-bottom: 20px; }
+        .input-group { margin-bottom: 15px; text-align: right; }
+        label { display: block; margin-bottom: 5px; color: #606770; font-weight: bold; }
+        input { width: 100%; padding: 12px; border: 1px solid #dddfe2; border-radius: 6px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background-color: #0056b3; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; }
+        button:hover { background-color: #004494; }
+        #error-message { color: #d93025; margin-top: 15px; font-weight: bold; display: none; }
     </style>
 </head>
 <body>
@@ -82,12 +33,10 @@
         <p id="error-message"></p>
     </div>
 
-    <!-- استيراد مكتبات Firebase -->
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
 
     <script>
-        // معلومات الربط الخاصة بك (لا تغيير هنا)
         const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
             authDomain: "gggg-dc7d0.firebaseapp.com",
@@ -98,16 +47,17 @@
             measurementId: "G-RQY8V4RZNS"
         };
 
-        // تهيئة Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
         async function handleLogin() {
+            // ================== أداة التشخيص ==================
+            console.log("تم الضغط على زر الدخول.");
+
             const usernameInput = document.getElementById('username').value;
             const passwordInput = document.getElementById('password').value;
             const errorMessage = document.getElementById('error-message');
-
-            errorMessage.style.display = 'none'; // إخفاء رسالة الخطأ عند كل محاولة
+            errorMessage.style.display = 'none';
 
             if (!usernameInput || !passwordInput) {
                 errorMessage.innerText = 'الرجاء إدخال اسم المستخدم وكلمة المرور.';
@@ -115,43 +65,43 @@
                 return;
             }
 
+            // ================== أداة التشخيص ==================
+            console.log("محاولة البحث عن مستخدم:", usernameInput);
+
             try {
-                // 1. ابحث في مجموعة "users" عن اسم المستخدم المدخل
                 const querySnapshot = await db.collection("users").where("username", "==", usernameInput).get();
 
-                // 2. تحقق إذا كان المستخدم غير موجود
+                // ================== أداة التشخيص ==================
+                console.log("تم استلام الرد من Firestore. عدد النتائج:", querySnapshot.size);
+
                 if (querySnapshot.empty) {
+                    console.log("لم يتم العثور على المستخدم في قاعدة البيانات.");
                     errorMessage.innerText = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
                     errorMessage.style.display = 'block';
                     return;
                 }
 
-                // 3. قارن كلمة المرور
-                const userDoc = querySnapshot.docs[0]; // أول مستخدم يطابق (يجب أن يكون واحداً فقط)
+                const userDoc = querySnapshot.docs[0];
                 const userData = userDoc.data();
+                
+                // ================== أداة التشخيص ==================
+                console.log("تم العثور على المستخدم. بياناته:", userData);
+                console.log("كلمة المرور المدخلة:", passwordInput);
+                console.log("كلمة المرور في قاعدة البيانات:", userData.password);
 
                 if (userData.password === passwordInput) {
-                    // نجاح تسجيل الدخول
+                    console.log("كلمة المرور متطابقة. نجاح!");
                     alert('تم تسجيل الدخول بنجاح! مرحباً يا ' + userData.displayName);
-                    
-                    // هنا سنقوم لاحقاً بتوجيه المستخدم حسب صلاحياته
-                    if (userData.role === 'admin') {
-                        // window.location.href = 'admin-dashboard.html'; // سيتم تفعيل هذا السطر لاحقاً
-                        console.log("تم تسجيل دخول آدمن");
-                    } else {
-                        // window.location.href = 'student-dashboard.html'; // سيتم تفعيل هذا السطر لاحقاً
-                        console.log("تم تسجيل دخول مستخدم عادي");
-                    }
-
                 } else {
-                    // كلمة المرور خاطئة
+                    console.log("كلمة المرور غير متطابقة. فشل.");
                     errorMessage.innerText = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
                     errorMessage.style.display = 'block';
                 }
 
             } catch (error) {
-                console.error("حدث خطأ:", error);
-                errorMessage.innerText = 'حدث خطأ في النظام. الرجاء المحاولة لاحقاً.';
+                // ================== أداة التشخيص (الأهم) ==================
+                console.error("حدث خطأ فادح أثناء الاتصال بـ Firestore:", error);
+                errorMessage.innerText = 'حدث خطأ في النظام. لا يمكن الاتصال بقاعدة البيانات.';
                 errorMessage.style.display = 'block';
             }
         }
