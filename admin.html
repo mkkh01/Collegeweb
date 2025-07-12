@@ -3,65 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لوحة تحكم المدير</title>
+    <title>منظومة إدارة الكلية</title>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
+        :root {
+            --primary-bg: #2c3e50;
+            --secondary-bg: #34495e;
+            --primary-accent: #3498db;
+            --text-color: #ecf0f1;
+            --content-bg: #ffffff;
+            --content-text: #333;
+            --danger-color: #e74c3c;
+            --success-color: #2ecc71;
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f0f2f5;
             margin: 0;
-            padding: 20px;
-        }
-        .container {
-            max-width: 800px;
-            margin: auto;
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .header {
+            background-color: #f0f2f5;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid #ddd;
+        }
+        .sidebar {
+            width: 250px;
+            background-color: var(--primary-bg);
+            color: var(--text-color);
+            height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+            position: fixed;
+        }
+        .sidebar h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 22px;
+        }
+        .sidebar .nav-link {
+            display: block;
+            color: var(--text-color);
+            text-decoration: none;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            transition: background-color 0.3s;
+        }
+        .sidebar .nav-link.active, .sidebar .nav-link:hover {
+            background-color: var(--primary-accent);
+        }
+        .sidebar .nav-link i {
+            margin-left: 15px;
+        }
+        .sidebar .logout {
+            position: absolute;
+            bottom: 20px;
+            width: calc(100% - 40px);
+            color: var(--danger-color);
+        }
+        .main-content {
+            margin-right: 250px; /* Same as sidebar width */
+            width: calc(100% - 250px);
+            padding: 30px;
+            box-sizing: border-box;
+        }
+        .page {
+            display: none;
+            background-color: var(--content-bg);
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .page.active {
+            display: block;
+        }
+        h2 {
+            color: var(--content-text);
+            border-bottom: 2px solid var(--primary-accent);
             padding-bottom: 10px;
+            margin-top: 0;
+        }
+        /* General Styles for forms and tables */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            align-items: end;
             margin-bottom: 20px;
         }
-        h1, h2 {
-            color: #1c1e21;
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            box-sizing: border-box;
         }
         button {
-            padding: 10px 15px;
-            background-color: #e4e6eb;
-            color: #050505;
+            padding: 12px 18px;
             border: none;
             border-radius: 6px;
             font-weight: bold;
             cursor: pointer;
             transition: background-color 0.3s;
-        }
-        button.primary {
-            background-color: #1877f2;
+            font-size: 14px;
             color: white;
         }
-        button.danger {
-            background-color: #fa383e;
-            color: white;
-        }
-        button:hover {
-            filter: brightness(0.95);
-        }
-        .form-section, .list-section {
-            margin-top: 30px;
-        }
-        input {
-            width: calc(100% - 24px);
-            padding: 12px;
-            margin-bottom: 10px;
-            border: 1px solid #dddfe2;
-            border-radius: 6px;
-            font-size: 16px;
-        }
+        .btn-primary { background-color: var(--primary-accent); }
+        .btn-danger { background-color: var(--danger-color); }
+        .btn-secondary { background-color: var(--success-color); }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -72,44 +119,101 @@
             padding: 12px;
             text-align: right;
         }
-        th {
-            background-color: #f5f6f7;
+        th { background-color: #f5f6f7; }
+        .status-indicator {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 10px;
         }
+        .status-open { background-color: var(--success-color); }
+        .status-closed { background-color: var(--danger-color); }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <div class="header">
-            <h1 id="welcome-message">مرحباً بك</h1>
-            <button id="logout-button" class="danger">تسجيل الخروج</button>
+    <div class="sidebar">
+        <h1><i class="fas fa-university"></i> منظومة الكلية</h1>
+        <a href="#dashboard" class="nav-link active"><i class="fas fa-tachometer-alt"></i> لوحة التحكم</a>
+        <a href="#users" class="nav-link"><i class="fas fa-users"></i> إدارة المستخدمين</a>
+        <a href="#halls" class="nav-link"><i class="fas fa-door-open"></i> إدارة القاعات</a>
+        <a href="#schedules" class="nav-link"><i class="fas fa-calendar-alt"></i> جدول المحاضرات</a>
+        <a href="#logs" class="nav-link"><i class="fas fa-history"></i> سجلات الدخول</a>
+        <a href="#logout" class="nav-link logout"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</a>
+    </div>
+
+    <div class="main-content">
+        <!-- Dashboard Page -->
+        <div id="dashboard" class="page active">
+            <h2><i class="fas fa-tachometer-alt"></i> لوحة التحكم / حالة القاعات</h2>
+            <table id="halls-status-table">
+                <thead><tr><th>القاعة</th><th>الحالة</th><th>المحاضرة الحالية</th></tr></thead>
+                <tbody id="halls-status-tbody">
+                    <tr><td colspan="3">جاري تحميل حالة القاعات...</td></tr>
+                </tbody>
+            </table>
         </div>
 
-        <div class="form-section">
-            <h2>إضافة مستخدم جديد</h2>
-            <form id="add-user-form">
-                <input type="text" id="new-display-name" placeholder="الاسم المعروض (مثال: محمد علي)" required>
-                <input type="text" id="new-username" placeholder="اسم المستخدم (للدخول)" required>
+        <!-- Users Page -->
+        <div id="users" class="page">
+            <h2><i class="fas fa-users"></i> إدارة المستخدمين</h2>
+            <form id="add-user-form" class="form-grid">
+                <input type="text" id="new-display-name" placeholder="الاسم المعروض" required>
+                <input type="text" id="new-username" placeholder="اسم المستخدم" required>
                 <input type="text" id="new-password" placeholder="كلمة المرور" required>
-                <input type="text" id="new-role" placeholder="الدور (مثال: student, teacher)" required>
-                <button type="submit" class="primary">إضافة المستخدم</button>
+                <input type="text" id="new-barcode" placeholder="رمز الباركود/البطاقة" required>
+                <select id="new-role" required>
+                    <option value="" disabled selected>اختر الدور</option>
+                    <option value="teacher">عضو هيئة تدريس</option>
+                    <option value="supervisor">مشرف</option>
+                    <option value="cleaner">عامل نظافة</option>
+                </select>
+                <button type="submit" class="btn-primary">إضافة مستخدم</button>
             </form>
+            <table id="users-table">
+                <thead><tr><th>الاسم</th><th>اسم المستخدم</th><th>الدور</th><th>رمز الباركود</th><th>إجراءات</th></tr></thead>
+                <tbody id="users-tbody"></tbody>
+            </table>
         </div>
 
-        <div class="list-section">
-            <h2>قائمة المستخدمين</h2>
-            <button id="view-users-button">عرض/تحديث القائمة</button>
-            <table id="users-table">
-                <thead>
-                    <tr>
-                        <th>الاسم المعروض</th>
-                        <th>اسم المستخدم</th>
-                        <th>الدور</th>
-                        <th>إجراء</th>
-                    </tr>
-                </thead>
-                <tbody id="users-tbody">
-                    <!-- سيتم ملء البيانات هنا -->
+        <!-- Halls Page -->
+        <div id="halls" class="page">
+            <h2><i class="fas fa-door-open"></i> إدارة القاعات</h2>
+            <form id="add-hall-form" class="form-grid" style="grid-template-columns: 1fr auto;">
+                <input type="text" id="new-hall-name" placeholder="اسم أو رقم القاعة" required>
+                <button type="submit" class="btn-primary">إضافة قاعة</button>
+            </form>
+            <table id="halls-table">
+                <thead><tr><th>اسم القاعة</th><th>رمز QR</th><th>إجراء</th></tr></thead>
+                <tbody id="halls-tbody"></tbody>
+            </table>
+        </div>
+
+        <!-- Schedules Page -->
+        <div id="schedules" class="page">
+            <h2><i class="fas fa-calendar-alt"></i> إدارة جدول المحاضرات</h2>
+            <form id="add-schedule-form" class="form-grid">
+                <input type="text" id="new-subject" placeholder="اسم المادة" required>
+                <input type="text" id="new-lecturer" placeholder="اسم المحاضر" required>
+                <select id="new-day" required><option value="" disabled selected>اختر اليوم</option><option>السبت</option><option>الأحد</option><option>الاثنين</option><option>الثلاثاء</option><option>الأربعاء</option><option>الخميس</option><option>الجمعة</option></select>
+                <input type="text" id="new-time" placeholder="الوقت (مثال: 10:00-12:00)" required>
+                <select id="new-schedule-hall" required><option value="" disabled selected>اختر القاعة</option></select>
+                <button type="submit" class="btn-primary">إضافة محاضرة</button>
+            </form>
+            <table id="schedules-table">
+                <thead><tr><th>المادة</th><th>المحاضر</th><th>اليوم</th><th>الوقت</th><th>القاعة</th><th>إجراء</th></tr></thead>
+                <tbody id="schedules-tbody"></tbody>
+            </table>
+        </div>
+
+        <!-- Access Logs Page -->
+        <div id="logs" class="page">
+            <h2><i class="fas fa-history"></i> سجلات الدخول</h2>
+            <table id="logs-table">
+                <thead><tr><th>الوقت</th><th>الشخص</th><th>القاعة</th><th>الحالة</th></tr></thead>
+                <tbody id="logs-tbody">
+                    <tr><td colspan="4">لا توجد سجلات حالياً.</td></tr>
                 </tbody>
             </table>
         </div>
@@ -118,9 +222,11 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <!-- QR Code Generation Library -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator/qrcode.js"></script>
 
     <script>
-        // Your web app's Firebase configuration
+        // --- Firebase Config ---
         const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
             authDomain: "gggg-dc7d0.firebaseapp.com",
@@ -128,103 +234,178 @@
             storageBucket: "gggg-dc7d0.appspot.com",
             messagingSenderId: "151376454562",
             appId: "1:151376454562:web:1dc3064431b5c7e35388fb",
-            measurementId: "G-RQY8V4RZNS"
         };
-
-        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // --- Security Check ---
+        // --- Security & Navigation ---
         const loggedInUser = JSON.parse(sessionStorage.getItem('loggedInUser'));
-
         if (!loggedInUser || loggedInUser.role !== 'admin') {
-            // If not logged in or not an admin, redirect to login page
             window.location.href = 'login.html';
-        } else {
-            // --- Page Logic ---
-            document.getElementById('welcome-message').textContent = `مرحباً بك, ${loggedInUser.displayName}`;
-
-            const logoutButton = document.getElementById('logout-button');
-            logoutButton.addEventListener('click', () => {
-                sessionStorage.removeItem('loggedInUser');
-                window.location.href = 'login.html';
-            });
-
-            // --- Add User Logic ---
-            const addUserForm = document.getElementById('add-user-form');
-            addUserForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const newUser = {
-                    displayName: document.getElementById('new-display-name').value,
-                    "User name": document.getElementById('new-username').value,
-                    Password: document.getElementById('new-password').value,
-                    role: document.getElementById('new-role').value,
-                };
-
-                try {
-                    await db.collection("Users").add(newUser);
-                    alert("تمت إضافة المستخدم بنجاح!");
-                    addUserForm.reset();
-                    viewUsers(); // Refresh the list
-                } catch (error) {
-                    console.error("Error adding user: ", error);
-                    alert("حدث خطأ أثناء إضافة المستخدم.");
-                }
-            });
-
-            // --- View Users Logic ---
-            const viewUsersButton = document.getElementById('view-users-button');
-            const usersTbody = document.getElementById('users-tbody');
-
-            async function viewUsers() {
-                usersTbody.innerHTML = '<tr><td colspan="4">جاري التحميل...</td></tr>';
-                try {
-                    const querySnapshot = await db.collection("Users").get();
-                    usersTbody.innerHTML = ''; // Clear loading message
-                    if (querySnapshot.empty) {
-                        usersTbody.innerHTML = '<tr><td colspan="4">لا يوجد مستخدمون لعرضهم.</td></tr>';
-                        return;
-                    }
-                    querySnapshot.forEach(doc => {
-                        const user = doc.data();
-                        const row = document.createElement('tr');
-                        row.innerHTML = `
-                            <td>${user.displayName}</td>
-                            <td>${user["User name"]}</td>
-                            <td>${user.role}</td>
-                            <td><button class="danger" data-id="${doc.id}">حذف</button></td>
-                        `;
-                        usersTbody.appendChild(row);
-                    });
-                } catch (error) {
-                    console.error("Error viewing users: ", error);
-                    usersTbody.innerHTML = '<tr><td colspan="4">حدث خطأ في جلب البيانات.</td></tr>';
-                }
-            }
-
-            viewUsersButton.addEventListener('click', viewUsers);
-
-            // --- Delete User Logic ---
-            usersTbody.addEventListener('click', async (e) => {
-                if (e.target.tagName === 'BUTTON' && e.target.classList.contains('danger')) {
-                    const docId = e.target.dataset.id;
-                    if (confirm("هل أنت متأكد من أنك تريد حذف هذا المستخدم؟")) {
-                        try {
-                            await db.collection("Users").doc(docId).delete();
-                            alert("تم حذف المستخدم بنجاح.");
-                            viewUsers(); // Refresh the list
-                        } catch (error) {
-                            console.error("Error deleting user: ", error);
-                            alert("حدث خطأ أثناء حذف المستخدم.");
-                        }
-                    }
-                }
-            });
-            
-            // Load users automatically on page load
-            viewUsers();
         }
+
+        const navLinks = document.querySelectorAll('.sidebar .nav-link');
+        const pages = document.querySelectorAll('.main-content .page');
+
+        function showPage(pageId) {
+            pages.forEach(p => p.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+            navLinks.forEach(l => l.classList.remove('active'));
+            document.querySelector(`.nav-link[href="#${pageId}"]`).classList.add('active');
+        }
+
+        navLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const pageId = link.getAttribute('href').substring(1);
+                if (pageId === 'logout') {
+                    sessionStorage.removeItem('loggedInUser');
+                    window.location.href = 'login.html';
+                } else {
+                    showPage(pageId);
+                }
+            });
+        });
+        
+        // --- Users Management ---
+        const addUserForm = document.getElementById('add-user-form');
+        const usersTbody = document.getElementById('users-tbody');
+        
+        addUserForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const newUser = {
+                displayName: document.getElementById('new-display-name').value,
+                "User name": document.getElementById('new-username').value,
+                Password: document.getElementById('new-password').value,
+                barcode: document.getElementById('new-barcode').value,
+                role: document.getElementById('new-role').value,
+            };
+            await db.collection("Users").add(newUser);
+            addUserForm.reset();
+            loadUsers();
+        });
+
+        async function loadUsers() {
+            const snapshot = await db.collection("Users").get();
+            usersTbody.innerHTML = '';
+            snapshot.forEach(doc => {
+                const user = doc.data();
+                const row = `<tr>
+                    <td>${user.displayName}</td>
+                    <td>${user["User name"]}</td>
+                    <td>${user.role}</td>
+                    <td>${user.barcode}</td>
+                    <td><button class="btn-danger" onclick="deleteDoc('Users', '${doc.id}', loadUsers)">حذف</button></td>
+                </tr>`;
+                usersTbody.innerHTML += row;
+            });
+        }
+
+        // --- Halls Management ---
+        const addHallForm = document.getElementById('add-hall-form');
+        const hallsTbody = document.getElementById('halls-tbody');
+
+        addHallForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const hallName = document.getElementById('new-hall-name').value;
+            await db.collection("Halls").add({ name: hallName });
+            addHallForm.reset();
+            loadHalls();
+        });
+
+        async function loadHalls() {
+            const snapshot = await db.collection("Halls").get();
+            hallsTbody.innerHTML = '';
+            const scheduleHallSelect = document.getElementById('new-schedule-hall');
+            scheduleHallSelect.innerHTML = '<option value="" disabled selected>اختر القاعة</option>';
+
+            snapshot.forEach(doc => {
+                const hall = doc.data();
+                const qr = qrcode(0, 'L');
+                qr.addData(hall.name); // QR code will contain the hall name
+                qr.make();
+                const qrImgTag = qr.createImgTag(4);
+
+                const row = `<tr>
+                    <td>${hall.name}</td>
+                    <td>${qrImgTag}</td>
+                    <td><button class="btn-danger" onclick="deleteDoc('Halls', '${doc.id}', loadHalls)">حذف</button></td>
+                </tr>`;
+                hallsTbody.innerHTML += row;
+                scheduleHallSelect.innerHTML += `<option value="${hall.name}">${hall.name}</option>`;
+            });
+        }
+
+        // --- Schedules Management ---
+        const addScheduleForm = document.getElementById('add-schedule-form');
+        const schedulesTbody = document.getElementById('schedules-tbody');
+
+        addScheduleForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const newSchedule = {
+                subject: document.getElementById('new-subject').value,
+                lecturer: document.getElementById('new-lecturer').value,
+                day: document.getElementById('new-day').value,
+                time: document.getElementById('new-time').value,
+                hall: document.getElementById('new-schedule-hall').value,
+            };
+            await db.collection("Schedules").add(newSchedule);
+            addScheduleForm.reset();
+            loadSchedules();
+        });
+
+        async function loadSchedules() {
+            const snapshot = await db.collection("Schedules").get();
+            schedulesTbody.innerHTML = '';
+            snapshot.forEach(doc => {
+                const schedule = doc.data();
+                const row = `<tr>
+                    <td>${schedule.subject}</td>
+                    <td>${schedule.lecturer}</td>
+                    <td>${schedule.day}</td>
+                    <td>${schedule.time}</td>
+                    <td>${schedule.hall}</td>
+                    <td><button class="btn-danger" onclick="deleteDoc('Schedules', '${doc.id}', loadSchedules)">حذف</button></td>
+                </tr>`;
+                schedulesTbody.innerHTML += row;
+            });
+        }
+        
+        // --- Dashboard (Halls Status) ---
+        async function updateHallsStatus() {
+            const hallsStatusTbody = document.getElementById('halls-status-tbody');
+            // This is a simplified version. A real implementation would need to check current time against schedules.
+            const hallsSnapshot = await db.collection("Halls").get();
+            hallsStatusTbody.innerHTML = '';
+            hallsSnapshot.forEach(doc => {
+                 const row = `<tr>
+                    <td>${doc.data().name}</td>
+                    <td><span class="status-indicator status-closed"></span> مغلقة</td>
+                    <td>لا يوجد</td>
+                </tr>`;
+                hallsStatusTbody.innerHTML += row;
+            });
+        }
+
+
+        // --- Generic Delete Function ---
+        async function deleteDoc(collectionName, docId, callback) {
+            if (confirm("هل أنت متأكد من الحذف؟")) {
+                await db.collection(collectionName).doc(docId).delete();
+                callback(); // Reload the table
+            }
+        }
+
+        // --- Initial Load ---
+        function initialLoad() {
+            loadUsers();
+            loadHalls();
+            loadSchedules();
+            updateHallsStatus();
+            showPage('dashboard');
+        }
+
+        initialLoad();
     </script>
 
 </body>
