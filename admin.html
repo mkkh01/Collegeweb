@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة تحكم المدير</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            color: #1c1e21;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #e4e6eb;
+            color: #050505;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button.primary {
+            background-color: #1877f2;
+            color: white;
+        }
+        button.danger {
+            background-color: #fa383e;
+            color: white;
+        }
+        button:hover {
+            filter: brightness(0.95);
+        }
+        .form-section, .list-section {
+            margin-top: 30px;
+        }
+        input {
+            width: calc(100% - 24px);
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid #dddfe2;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: right;
+        }
+        th {
+            background-color: #f5f6f7;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1 id="welcome-message">مرحباً بك</h1>
+            <button id="logout-button" class="danger">تسجيل الخروج</button>
+        </div>
+
+        <div class="form-section">
+            <h2>إضافة مستخدم جديد</h2>
+            <form id="add-user-form">
+                <input type="text" id="new-display-name" placeholder="الاسم المعروض (مثال: محمد علي)" required>
+                <input type="text" id="new-username" placeholder="اسم المستخدم (للدخول)" required>
+                <input type="text" id="new-password" placeholder="كلمة المرور" required>
+                <input type="text" id="new-role" placeholder="الدور (مثال: student, teacher)" required>
+                <button type="submit" class="primary">إضافة المستخدم</button>
+            </form>
+        </div>
+
+        <div class="list-section">
+            <h2>قائمة المستخدمين</h2>
+            <button id="view-users-button">عرض/تحديث القائمة</button>
+            <table id="users-table">
+                <thead>
+                    <tr>
+                        <th>الاسم المعروض</th>
+                        <th>اسم المستخدم</th>
+                        <th>الدور</th>
+                        <th>إجراء</th>
+                    </tr>
+                </thead>
+                <tbody id="users-tbody">
+                    <!-- سيتم ملء البيانات هنا -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+
+    <script>
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
+            authDomain: "gggg-dc7d0.firebaseapp.com",
+            projectId: "gggg-dc7d0",
+            storageBucket: "gggg-dc7d0.appspot.com",
+            messagingSenderId: "151376454562",
+            appId: "1:151376454562:web:1dc3064431b5c7e35388fb",
+            measurementId: "G-RQY8V4RZNS"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // --- Security Check ---
+        const loggedInUser = JSON.parse(sessionStorage.getItem('loggedInUser'));
+
+        if (!loggedInUser || loggedInUser.role !== 'admin') {
+            // If not logged in or not an admin, redirect to login page
+            window.location.href = 'login.html';
+        } else {
+            // --- Page Logic ---
+            document.getElementById('welcome-message').textContent = `مرحباً بك, ${loggedInUser.displayName}`;
+
+            const logoutButton = document.getElementById('logout-button');
+            logoutButton.addEventListener('click', () => {
+                sessionStorage.removeItem('loggedInUser');
+                window.location.href = 'login.html';
+            });
+
+            // --- Add User Logic ---
+            const addUserForm = document.getElementById('add-user-form');
+            addUserForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const newUser = {
+                    displayName: document.getElementById('new-display-name').value,
+                    "User name": document.getElementById('new-username').value,
+                    Password: document.getElementById('new-password').value,
+                    role: document.getElementById('new-role').value,
+                };
+
+                try {
+                    await db.collection("Users").add(newUser);
+                    alert("تمت إضافة المستخدم بنجاح!");
+                    addUserForm.reset();
+                    viewUsers(); // Refresh the list
+                } catch (error) {
+                    console.error("Error adding user: ", error);
+                    alert("حدث خطأ أثناء إضافة المستخدم.");
+                }
+            });
+
+            // --- View Users Logic ---
+            const viewUsersButton = document.getElementById('view-users-button');
+            const usersTbody = document.getElementById('users-tbody');
+
+            async function viewUsers() {
+                usersTbody.innerHTML = '<tr><td colspan="4">جاري التحميل...</td></tr>';
+                try {
+                    const querySnapshot = await db.collection("Users").get();
+                    usersTbody.innerHTML = ''; // Clear loading message
+                    if (querySnapshot.empty) {
+                        usersTbody.innerHTML = '<tr><td colspan="4">لا يوجد مستخدمون لعرضهم.</td></tr>';
+                        return;
+                    }
+                    querySnapshot.forEach(doc => {
+                        const user = doc.data();
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${user.displayName}</td>
+                            <td>${user["User name"]}</td>
+                            <td>${user.role}</td>
+                            <td><button class="danger" data-id="${doc.id}">حذف</button></td>
+                        `;
+                        usersTbody.appendChild(row);
+                    });
+                } catch (error) {
+                    console.error("Error viewing users: ", error);
+                    usersTbody.innerHTML = '<tr><td colspan="4">حدث خطأ في جلب البيانات.</td></tr>';
+                }
+            }
+
+            viewUsersButton.addEventListener('click', viewUsers);
+
+            // --- Delete User Logic ---
+            usersTbody.addEventListener('click', async (e) => {
+                if (e.target.tagName === 'BUTTON' && e.target.classList.contains('danger')) {
+                    const docId = e.target.dataset.id;
+                    if (confirm("هل أنت متأكد من أنك تريد حذف هذا المستخدم؟")) {
+                        try {
+                            await db.collection("Users").doc(docId).delete();
+                            alert("تم حذف المستخدم بنجاح.");
+                            viewUsers(); // Refresh the list
+                        } catch (error) {
+                            console.error("Error deleting user: ", error);
+                            alert("حدث خطأ أثناء حذف المستخدم.");
+                        }
+                    }
+                }
+            });
+            
+            // Load users automatically on page load
+            viewUsers();
+        }
+    </script>
+
+</body>
+</html>
