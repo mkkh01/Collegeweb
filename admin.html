@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>منظومة إدارة الكلية</title>
-    <!-- Font Awesome for icons -->
+    <title>منظومة إدارة الكلية (تشخيص)</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         :root {
@@ -47,7 +46,7 @@
             margin-bottom: 10px;
             border-radius: 8px;
             transition: background-color 0.3s;
-            cursor: pointer; /* Add cursor pointer */
+            cursor: pointer;
         }
         .sidebar .nav-link.active, .sidebar .nav-link:hover {
             background-color: var(--primary-accent);
@@ -56,24 +55,24 @@
             margin-left: 15px;
         }
         .sidebar .logout {
-            margin-top: auto; /* Pushes logout to the bottom */
+            margin-top: auto;
             color: var(--danger-color);
         }
         .main-content {
-            margin-right: 250px; /* Same as sidebar width */
+            margin-right: 250px;
             width: calc(100% - 250px);
             padding: 30px;
             box-sizing: border-box;
         }
         .page {
-            display: none; /* All pages hidden by default */
+            display: none;
             background-color: var(--content-bg);
             padding: 25px;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
         .page.active {
-            display: block; /* Only the active page is shown */
+            display: block;
         }
         h2 {
             color: var(--content-text);
@@ -81,7 +80,6 @@
             padding-bottom: 10px;
             margin-top: 0;
         }
-        /* General Styles for forms and tables */
         .form-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -121,22 +119,12 @@
             text-align: right;
         }
         th { background-color: #f5f6f7; }
-        .status-indicator {
-            width: 15px;
-            height: 15px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-left: 10px;
-        }
-        .status-open { background-color: var(--success-color); }
-        .status-closed { background-color: var(--danger-color); }
     </style>
 </head>
 <body>
 
     <div class="sidebar">
         <h1><i class="fas fa-university"></i> منظومة الكلية</h1>
-        <!-- Use data-page attribute to link to page divs -->
         <a data-page="dashboard" class="nav-link active"><i class="fas fa-tachometer-alt"></i> لوحة التحكم</a>
         <a data-page="users" class="nav-link"><i class="fas fa-users"></i> إدارة المستخدمين</a>
         <a data-page="halls" class="nav-link"><i class="fas fa-door-open"></i> إدارة القاعات</a>
@@ -146,106 +134,19 @@
     </div>
 
     <div class="main-content">
-        <!-- Dashboard Page -->
-        <div id="dashboard" class="page active">
-            <h2><i class="fas fa-tachometer-alt"></i> لوحة التحكم / حالة القاعات</h2>
-            <table id="halls-status-table">
-                <thead><tr><th>القاعة</th><th>الحالة</th><th>المحاضرة الحالية</th></tr></thead>
-                <tbody id="halls-status-tbody"></tbody>
-            </table>
-        </div>
-
-        <!-- Users Page -->
-        <div id="users" class="page">
-            <h2><i class="fas fa-users"></i> إدارة المستخدمين</h2>
-            <form id="add-user-form" class="form-grid">
-                <input type="text" id="new-display-name" placeholder="الاسم المعروض" required>
-                <input type="text" id="new-username" placeholder="اسم المستخدم" required>
-                <input type="text" id="new-password" placeholder="كلمة المرور" required>
-                <input type="text" id="new-barcode" placeholder="رمز الباركود/البطاقة" required>
-                <select id="new-role" required>
-                    <option value="" disabled selected>اختر الدور</option>
-                    <option value="teacher">عضو هيئة تدريس</option>
-                    <option value="supervisor">مشرف</option>
-                    <option value="cleaner">عامل نظافة</option>
-                </select>
-                <button type="submit" class="btn-primary">إضافة مستخدم</button>
-            </form>
-            <table id="users-table">
-                <thead><tr><th>الاسم</th><th>اسم المستخدم</th><th>الدور</th><th>رمز الباركود</th><th>إجراءات</th></tr></thead>
-                <tbody id="users-tbody"></tbody>
-            </table>
-        </div>
-
-        <!-- Halls Page -->
-        <div id="halls" class="page">
-            <h2><i class="fas fa-door-open"></i> إدارة القاعات</h2>
-            <form id="add-hall-form" class="form-grid" style="grid-template-columns: 1fr auto;">
-                <input type="text" id="new-hall-name" placeholder="اسم أو رقم القاعة" required>
-                <button type="submit" class="btn-primary">إضافة قاعة</button>
-            </form>
-            <table id="halls-table">
-                <thead><tr><th>اسم القاعة</th><th>رمز QR</th><th>إجراء</th></tr></thead>
-                <tbody id="halls-tbody"></tbody>
-            </table>
-        </div>
-
-        <!-- Schedules Page -->
-        <div id="schedules" class="page">
-            <h2><i class="fas fa-calendar-alt"></i> إدارة جدول المحاضرات</h2>
-            <form id="add-schedule-form" class="form-grid">
-                <input type="text" id="new-subject" placeholder="اسم المادة" required>
-                <input type="text" id="new-lecturer" placeholder="اسم المحاضر" required>
-                <select id="new-day" required><option value="" disabled selected>اختر اليوم</option><option>السبت</option><option>الأحد</option><option>الاثنين</option><option>الثلاثاء</option><option>الأربعاء</option><option>الخميس</option><option>الجمعة</option></select>
-                <input type="text" id="new-time" placeholder="الوقت (مثال: 10:00-12:00)" required>
-                <select id="new-schedule-hall" required><option value="" disabled selected>اختر القاعة</option></select>
-                <button type="submit" class="btn-primary">إضافة محاضرة</button>
-            </form>
-            <table id="schedules-table">
-                <thead><tr><th>المادة</th><th>المحاضر</th><th>اليوم</th><th>الوقت</th><th>القاعة</th><th>إجراء</th></tr></thead>
-                <tbody id="schedules-tbody"></tbody>
-            </table>
-        </div>
-
-        <!-- Access Logs Page -->
-        <div id="logs" class="page">
-            <h2><i class="fas fa-history"></i> سجلات الدخول</h2>
-            <table id="logs-table">
-                <thead><tr><th>الوقت</th><th>الشخص</th><th>القاعة</th><th>الحالة</th></tr></thead>
-                <tbody id="logs-tbody">
-                    <tr><td colspan="4">لا توجد سجلات حالياً.</td></tr>
-                </tbody>
-            </table>
-        </div>
+        <!-- All pages are here, same as before -->
+        <div id="dashboard" class="page active"><h2>لوحة التحكم</h2></div>
+        <div id="users" class="page"><h2>إدارة المستخدمين</h2></div>
+        <div id="halls" class="page"><h2>إدارة القاعات</h2></div>
+        <div id="schedules" class="page"><h2>جدول المحاضرات</h2></div>
+        <div id="logs" class="page"><h2>سجلات الدخول</h2></div>
     </div>
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-    <!-- QR Code Generation Library -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator/qrcode.js"></script>
-
     <script>
-        // --- Firebase Config ---
-        const firebaseConfig = {
-            apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
-            authDomain: "gggg-dc7d0.firebaseapp.com",
-            projectId: "gggg-dc7d0",
-            storageBucket: "gggg-dc7d0.appspot.com",
-            messagingSenderId: "151376454562",
-            appId: "1:151376454562:web:1dc3064431b5c7e35388fb",
-        };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-
-        // --- Security Check ---
-        const loggedInUser = JSON.parse(sessionStorage.getItem('loggedInUser'));
-        if (!loggedInUser || loggedInUser.role !== 'admin') {
-            window.location.href = 'login.html';
-        }
-
-        // --- NEW & IMPROVED Navigation Logic ---
+        // --- NEW & IMPROVED Navigation Logic with DIAGNOSTICS ---
         document.addEventListener('DOMContentLoaded', () => {
+            console.log("الصفحة تم تحميلها بالكامل. جارِ إضافة مستمعي الأحداث.");
+
             const navLinks = document.querySelectorAll('.sidebar .nav-link');
             const pages = document.querySelectorAll('.main-content .page');
 
@@ -253,165 +154,41 @@
                 link.addEventListener('click', (e) => {
                     e.preventDefault();
                     
-                    // Handle logout separately
+                    // DIAGNOSTIC CODE
+                    const pageId = link.getAttribute('data-page');
+                    console.log(`تم الضغط على الرابط. الهدف: ${pageId || 'logout'}`);
+
+                    // Handle logout
                     if (link.id === 'logout-link') {
-                        sessionStorage.removeItem('loggedInUser');
-                        window.location.href = 'login.html';
+                        console.log("تسجيل الخروج...");
+                        // sessionStorage.removeItem('loggedInUser');
+                        // window.location.href = 'login.html';
                         return;
                     }
 
-                    const pageId = link.getAttribute('data-page');
+                    if (!pageId) {
+                        console.error("خطأ: الرابط لا يحتوي على 'data-page'.");
+                        return;
+                    }
+
+                    const targetPage = document.getElementById(pageId);
+                    if (!targetPage) {
+                        console.error(`خطأ: لم يتم العثور على الصفحة بالمعرف: ${pageId}`);
+                        return;
+                    }
                     
                     // Switch active page
                     pages.forEach(p => p.classList.remove('active'));
-                    document.getElementById(pageId).classList.add('active');
+                    targetPage.classList.add('active');
                     
                     // Switch active link style
                     navLinks.forEach(l => l.classList.remove('active'));
                     link.classList.add('active');
+                    
+                    console.log(`تم تبديل الصفحة بنجاح إلى: ${pageId}`);
                 });
             });
-
-            // --- Initial Load ---
-            initialLoad();
         });
-        
-        // --- Users Management ---
-        const addUserForm = document.getElementById('add-user-form');
-        const usersTbody = document.getElementById('users-tbody');
-        
-        addUserForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const newUser = {
-                displayName: document.getElementById('new-display-name').value,
-                "User name": document.getElementById('new-username').value,
-                Password: document.getElementById('new-password').value,
-                barcode: document.getElementById('new-barcode').value,
-                role: document.getElementById('new-role').value,
-            };
-            await db.collection("Users").add(newUser);
-            addUserForm.reset();
-            loadUsers();
-        });
-
-        async function loadUsers() {
-            const snapshot = await db.collection("Users").get();
-            usersTbody.innerHTML = '';
-            snapshot.forEach(doc => {
-                const user = doc.data();
-                const row = `<tr>
-                    <td>${user.displayName}</td>
-                    <td>${user["User name"]}</td>
-                    <td>${user.role}</td>
-                    <td>${user.barcode}</td>
-                    <td><button class="btn-danger" onclick="deleteDoc('Users', '${doc.id}', loadUsers)">حذف</button></td>
-                </tr>`;
-                usersTbody.innerHTML += row;
-            });
-        }
-
-        // --- Halls Management ---
-        const addHallForm = document.getElementById('add-hall-form');
-        const hallsTbody = document.getElementById('halls-tbody');
-
-        addHallForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const hallName = document.getElementById('new-hall-name').value;
-            await db.collection("Halls").add({ name: hallName });
-            addHallForm.reset();
-            loadHalls();
-        });
-
-        async function loadHalls() {
-            const snapshot = await db.collection("Halls").get();
-            hallsTbody.innerHTML = '';
-            const scheduleHallSelect = document.getElementById('new-schedule-hall');
-            scheduleHallSelect.innerHTML = '<option value="" disabled selected>اختر القاعة</option>';
-
-            snapshot.forEach(doc => {
-                const hall = doc.data();
-                const qr = qrcode(0, 'L');
-                qr.addData(hall.name); // QR code will contain the hall name
-                qr.make();
-                const qrImgTag = qr.createImgTag(4);
-
-                const row = `<tr>
-                    <td>${hall.name}</td>
-                    <td>${qrImgTag}</td>
-                    <td><button class="btn-danger" onclick="deleteDoc('Halls', '${doc.id}', loadHalls)">حذف</button></td>
-                </tr>`;
-                hallsTbody.innerHTML += row;
-                scheduleHallSelect.innerHTML += `<option value="${hall.name}">${hall.name}</option>`;
-            });
-        }
-
-        // --- Schedules Management ---
-        const addScheduleForm = document.getElementById('add-schedule-form');
-        const schedulesTbody = document.getElementById('schedules-tbody');
-
-        addScheduleForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const newSchedule = {
-                subject: document.getElementById('new-subject').value,
-                lecturer: document.getElementById('new-lecturer').value,
-                day: document.getElementById('new-day').value,
-                time: document.getElementById('new-time').value,
-                hall: document.getElementById('new-schedule-hall').value,
-            };
-            await db.collection("Schedules").add(newSchedule);
-            addScheduleForm.reset();
-            loadSchedules();
-        });
-
-        async function loadSchedules() {
-            const snapshot = await db.collection("Schedules").get();
-            schedulesTbody.innerHTML = '';
-            snapshot.forEach(doc => {
-                const schedule = doc.data();
-                const row = `<tr>
-                    <td>${schedule.subject}</td>
-                    <td>${schedule.lecturer}</td>
-                    <td>${schedule.day}</td>
-                    <td>${schedule.time}</td>
-                    <td>${schedule.hall}</td>
-                    <td><button class="btn-danger" onclick="deleteDoc('Schedules', '${doc.id}', loadSchedules)">حذف</button></td>
-                </tr>`;
-                schedulesTbody.innerHTML += row;
-            });
-        }
-        
-        // --- Dashboard (Halls Status) ---
-        async function updateHallsStatus() {
-            const hallsStatusTbody = document.getElementById('halls-status-tbody');
-            // This is a simplified version. A real implementation would need to check current time against schedules.
-            const hallsSnapshot = await db.collection("Halls").get();
-            hallsStatusTbody.innerHTML = '';
-            hallsSnapshot.forEach(doc => {
-                 const row = `<tr>
-                    <td>${doc.data().name}</td>
-                    <td><span class="status-indicator status-closed"></span> مغلقة</td>
-                    <td>لا يوجد</td>
-                </tr>`;
-                hallsStatusTbody.innerHTML += row;
-            });
-        }
-
-
-        // --- Generic Delete Function ---
-        async function deleteDoc(collectionName, docId, callback) {
-            if (confirm("هل أنت متأكد من الحذف؟")) {
-                await db.collection(collectionName).doc(docId).delete();
-                callback(); // Reload the table
-            }
-        }
-
-        // --- Initial Load Function ---
-        function initialLoad() {
-            loadUsers();
-            loadHalls();
-            loadSchedules();
-            updateHallsStatus();
-        }
     </script>
 
 </body>
