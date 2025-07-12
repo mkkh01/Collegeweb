@@ -31,6 +31,8 @@
             padding: 20px;
             box-sizing: border-box;
             position: fixed;
+            display: flex;
+            flex-direction: column;
         }
         .sidebar h1 {
             text-align: center;
@@ -45,6 +47,7 @@
             margin-bottom: 10px;
             border-radius: 8px;
             transition: background-color 0.3s;
+            cursor: pointer; /* Add cursor pointer */
         }
         .sidebar .nav-link.active, .sidebar .nav-link:hover {
             background-color: var(--primary-accent);
@@ -53,9 +56,7 @@
             margin-left: 15px;
         }
         .sidebar .logout {
-            position: absolute;
-            bottom: 20px;
-            width: calc(100% - 40px);
+            margin-top: auto; /* Pushes logout to the bottom */
             color: var(--danger-color);
         }
         .main-content {
@@ -65,14 +66,14 @@
             box-sizing: border-box;
         }
         .page {
-            display: none;
+            display: none; /* All pages hidden by default */
             background-color: var(--content-bg);
             padding: 25px;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
         .page.active {
-            display: block;
+            display: block; /* Only the active page is shown */
         }
         h2 {
             color: var(--content-text);
@@ -135,12 +136,13 @@
 
     <div class="sidebar">
         <h1><i class="fas fa-university"></i> منظومة الكلية</h1>
-        <a href="#dashboard" class="nav-link active"><i class="fas fa-tachometer-alt"></i> لوحة التحكم</a>
-        <a href="#users" class="nav-link"><i class="fas fa-users"></i> إدارة المستخدمين</a>
-        <a href="#halls" class="nav-link"><i class="fas fa-door-open"></i> إدارة القاعات</a>
-        <a href="#schedules" class="nav-link"><i class="fas fa-calendar-alt"></i> جدول المحاضرات</a>
-        <a href="#logs" class="nav-link"><i class="fas fa-history"></i> سجلات الدخول</a>
-        <a href="#logout" class="nav-link logout"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</a>
+        <!-- Use data-page attribute to link to page divs -->
+        <a data-page="dashboard" class="nav-link active"><i class="fas fa-tachometer-alt"></i> لوحة التحكم</a>
+        <a data-page="users" class="nav-link"><i class="fas fa-users"></i> إدارة المستخدمين</a>
+        <a data-page="halls" class="nav-link"><i class="fas fa-door-open"></i> إدارة القاعات</a>
+        <a data-page="schedules" class="nav-link"><i class="fas fa-calendar-alt"></i> جدول المحاضرات</a>
+        <a data-page="logs" class="nav-link"><i class="fas fa-history"></i> سجلات الدخول</a>
+        <a id="logout-link" class="nav-link logout"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</a>
     </div>
 
     <div class="main-content">
@@ -149,9 +151,7 @@
             <h2><i class="fas fa-tachometer-alt"></i> لوحة التحكم / حالة القاعات</h2>
             <table id="halls-status-table">
                 <thead><tr><th>القاعة</th><th>الحالة</th><th>المحاضرة الحالية</th></tr></thead>
-                <tbody id="halls-status-tbody">
-                    <tr><td colspan="3">جاري تحميل حالة القاعات...</td></tr>
-                </tbody>
+                <tbody id="halls-status-tbody"></tbody>
             </table>
         </div>
 
@@ -238,33 +238,42 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // --- Security & Navigation ---
+        // --- Security Check ---
         const loggedInUser = JSON.parse(sessionStorage.getItem('loggedInUser'));
         if (!loggedInUser || loggedInUser.role !== 'admin') {
             window.location.href = 'login.html';
         }
 
-        const navLinks = document.querySelectorAll('.sidebar .nav-link');
-        const pages = document.querySelectorAll('.main-content .page');
+        // --- NEW & IMPROVED Navigation Logic ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const navLinks = document.querySelectorAll('.sidebar .nav-link');
+            const pages = document.querySelectorAll('.main-content .page');
 
-        function showPage(pageId) {
-            pages.forEach(p => p.classList.remove('active'));
-            document.getElementById(pageId).classList.add('active');
-            navLinks.forEach(l => l.classList.remove('active'));
-            document.querySelector(`.nav-link[href="#${pageId}"]`).classList.add('active');
-        }
+            navLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    
+                    // Handle logout separately
+                    if (link.id === 'logout-link') {
+                        sessionStorage.removeItem('loggedInUser');
+                        window.location.href = 'login.html';
+                        return;
+                    }
 
-        navLinks.forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                const pageId = link.getAttribute('href').substring(1);
-                if (pageId === 'logout') {
-                    sessionStorage.removeItem('loggedInUser');
-                    window.location.href = 'login.html';
-                } else {
-                    showPage(pageId);
-                }
+                    const pageId = link.getAttribute('data-page');
+                    
+                    // Switch active page
+                    pages.forEach(p => p.classList.remove('active'));
+                    document.getElementById(pageId).classList.add('active');
+                    
+                    // Switch active link style
+                    navLinks.forEach(l => l.classList.remove('active'));
+                    link.classList.add('active');
+                });
             });
+
+            // --- Initial Load ---
+            initialLoad();
         });
         
         // --- Users Management ---
@@ -396,16 +405,13 @@
             }
         }
 
-        // --- Initial Load ---
+        // --- Initial Load Function ---
         function initialLoad() {
             loadUsers();
             loadHalls();
             loadSchedules();
             updateHallsStatus();
-            showPage('dashboard');
         }
-
-        initialLoad();
     </script>
 
 </body>
