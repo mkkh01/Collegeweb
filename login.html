@@ -3,108 +3,156 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تسجيل الدخول - منظومة الجداول</title>
+    <title>تسجيل الدخول</title>
     <style>
-        /* CSS لا يتغير */
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .login-container { background-color: #ffffff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 100%; max-width: 400px; text-align: center; }
-        h1 { color: #1c1e21; margin-bottom: 20px; }
-        .input-group { margin-bottom: 15px; text-align: right; }
-        label { display: block; margin-bottom: 5px; color: #606770; font-weight: bold; }
-        input { width: 100%; padding: 12px; border: 1px solid #dddfe2; border-radius: 6px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background-color: #0056b3; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; }
-        button:hover { background-color: #004494; }
-        #error-message { color: #d93025; margin-top: 15px; font-weight: bold; display: none; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .login-container {
+            background-color: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        h1 {
+            color: #1c1e21;
+            margin-bottom: 24px;
+        }
+        .input-group {
+            margin-bottom: 20px;
+            text-align: right;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #606770;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #dddfe2;
+            border-radius: 6px;
+            font-size: 16px;
+            box-sizing: border-box; /* Important for padding */
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #1877f2;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #166fe5;
+        }
+        #error-message {
+            color: #fa383e;
+            margin-top: 16px;
+            font-weight: bold;
+            display: none; /* Hidden by default */
+        }
     </style>
 </head>
 <body>
 
     <div class="login-container">
         <h1>تسجيل الدخول</h1>
-        <div class="input-group">
-            <label for="username">اسم المستخدم</label>
-            <input type="text" id="username" required>
-        </div>
-        <div class="input-group">
-            <label for="password">كلمة المرور</label>
-            <input type="password" id="password" required>
-        </div>
-        <button onclick="handleLogin()">دخول</button>
-        <p id="error-message"></p>
+        <form id="login-form">
+            <div class="input-group">
+                <label for="username">اسم المستخدم</label>
+                <input type="text" id="username" required>
+            </div>
+            <div class="input-group">
+                <label for="password">كلمة المرور</label>
+                <input type="password" id="password" required>
+            </div>
+            <button type="submit">دخول</button>
+        </form>
+        <p id="error-message">اسم المستخدم أو كلمة المرور غير صحيحة.</p>
     </div>
 
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
 
     <script>
+        // Your web app's Firebase configuration
         const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
             authDomain: "gggg-dc7d0.firebaseapp.com",
             projectId: "gggg-dc7d0",
-            storageBucket: "gggg-dc7d0.firebasestorage.app",
+            storageBucket: "gggg-dc7d0.appspot.com",
             messagingSenderId: "151376454562",
             appId: "1:151376454562:web:1dc3064431b5c7e35388fb",
             measurementId: "G-RQY8V4RZNS"
         };
 
+        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        async function handleLogin() {
-            // ================== أداة التشخيص ==================
-            console.log("تم الضغط على زر الدخول.");
+        // Login Logic
+        const loginForm = document.getElementById('login-form');
+        const errorMessage = document.getElementById('error-message');
 
-            const usernameInput = document.getElementById('username').value;
-            const passwordInput = document.getElementById('password').value;
-            const errorMessage = document.getElementById('error-message');
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault(); 
+
+            const usernameInput = document.getElementById('username').value.trim();
+            const passwordInput = document.getElementById('password').value.trim();
             errorMessage.style.display = 'none';
 
             if (!usernameInput || !passwordInput) {
-                errorMessage.innerText = 'الرجاء إدخال اسم المستخدم وكلمة المرور.';
+                errorMessage.textContent = "الرجاء إدخال اسم المستخدم وكلمة المرور.";
                 errorMessage.style.display = 'block';
                 return;
             }
 
-            // ================== أداة التشخيص ==================
-            console.log("محاولة البحث عن مستخدم:", usernameInput);
-
             try {
-                const querySnapshot = await db.collection("users").where("username", "==", usernameInput).get();
-
-                // ================== أداة التشخيص ==================
-                console.log("تم استلام الرد من Firestore. عدد النتائج:", querySnapshot.size);
+                // ******** التعديل الأهم هنا ********
+                const querySnapshot = await db.collection("Users")
+                                             .where("User name", "==", usernameInput) // استخدام اسم الحقل الصحيح
+                                             .get();
 
                 if (querySnapshot.empty) {
-                    console.log("لم يتم العثور على المستخدم في قاعدة البيانات.");
-                    errorMessage.innerText = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
                     errorMessage.style.display = 'block';
                     return;
                 }
 
                 const userDoc = querySnapshot.docs[0];
                 const userData = userDoc.data();
-                
-                // ================== أداة التشخيص ==================
-                console.log("تم العثور على المستخدم. بياناته:", userData);
-                console.log("كلمة المرور المدخلة:", passwordInput);
-                console.log("كلمة المرور في قاعدة البيانات:", userData.password);
 
-                if (userData.password === passwordInput) {
-                    console.log("كلمة المرور متطابقة. نجاح!");
-                    alert('تم تسجيل الدخول بنجاح! مرحباً يا ' + userData.displayName);
+                // ******** والتعديل الثاني هنا ********
+                if (userData.Password === passwordInput) { // استخدام اسم الحقل الصحيح
+                    // SUCCESS!
+                    alert(`مرحباً بك ${userData.displayName || userData["User name"]}!`); // استخدام اسم الحقل الصحيح
+                    // window.location.href = 'admin.html'; 
                 } else {
-                    console.log("كلمة المرور غير متطابقة. فشل.");
-                    errorMessage.innerText = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
+                    // FAILURE!
                     errorMessage.style.display = 'block';
                 }
 
             } catch (error) {
-                // ================== أداة التشخيص (الأهم) ==================
-                console.error("حدث خطأ فادح أثناء الاتصال بـ Firestore:", error);
-                errorMessage.innerText = 'حدث خطأ في النظام. لا يمكن الاتصال بقاعدة البيانات.';
+                console.error("Error connecting to Firebase: ", error);
+                errorMessage.textContent = "حدث خطأ في الاتصال. الرجاء المحاولة مرة أخرى.";
                 errorMessage.style.display = 'block';
             }
-        }
+        });
     </script>
 
 </body>
