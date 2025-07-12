@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الجداول الزمنية</title>
+
+    <!-- هذا هو كود التصميم (CSS) -->
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            color: #1c1e21;
+            margin: 0;
+            padding: 15px;
+        }
+        h1 {
+            text-align: center;
+            color: #0056b3;
+        }
+        #schedule-container {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 10px;
+        }
+        .schedule-item {
+            background-color: #ffffff;
+            border: 1px solid #dddfe2;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        }
+        .schedule-item p {
+            margin: 8px 0;
+            font-size: 16px;
+        }
+        .schedule-item p strong {
+            color: #333;
+            min-width: 60px;
+            display: inline-block;
+        }
+        #loading-message {
+            text-align: center;
+            font-size: 18px;
+            color: #606770;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>الجداول الزمنية للكلية</h1>
+    <div id="schedule-container">
+        <p id="loading-message">جاري تحميل البيانات...</p>
+    </div>
+
+    <!-- 1. استيراد مكتبات Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+
+    <!-- 2. هذا هو كود الربط والجلب من قاعدة البيانات -->
+    <script>
+        // ===============================================================
+        // Your web app's Firebase configuration
+        // تم وضع الكود الذي أرسلته هنا
+        const firebaseConfig = {
+            apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
+            authDomain: "gggg-dc7d0.firebaseapp.com",
+            projectId: "gggg-dc7d0",
+            storageBucket: "gggg-dc7d0.firebasestorage.app",
+            messagingSenderId: "151376454562",
+            appId: "1:151376454562:web:1dc3064431b5c7e35388fb",
+            measurementId: "G-RQY8V4RZNS"
+        };
+        // ===============================================================
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+
+        // Initialize Cloud Firestore
+        const db = firebase.firestore();
+
+        // جلب البيانات وعرضها
+        const container = document.getElementById('schedule-container');
+        const loadingMessage = document.getElementById('loading-message');
+
+        db.collection("الجداول الزمنية").get().then((querySnapshot) => {
+            loadingMessage.style.display = 'none'; // إخفاء رسالة التحميل
+
+            if (querySnapshot.empty) {
+                container.innerHTML = '<p>لا توجد بيانات لعرضها حالياً.</p>';
+                return;
+            }
+
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'schedule-item';
+
+                // بناء محتوى العنصر بناءً على الحقول الموجودة في المستند
+                let content = '';
+                if(data.يوم) content += `<p><strong>اليوم:</strong> ${data.يوم}</p>`;
+                if(data.القاعة) content += `<p><strong>القاعة:</strong> ${data.القاعة}</p>`;
+                if(data.مدرس) content += `<p><strong>المدرس:</strong> ${data.مدرس}</p>`;
+                if(data.وقت) content += `<p><strong>الوقت:</strong> ${data.وقت}</p>`;
+                
+                itemDiv.innerHTML = content;
+                container.appendChild(itemDiv);
+            });
+        }).catch((error) => {
+            console.error("Error getting documents: ", error);
+            loadingMessage.innerText = 'حدث خطأ أثناء تحميل البيانات.';
+        });
+    </script>
+
+</body>
+</html>
