@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تسجيل الدخول</title>
+    <title>تسجيل الدخول - وضع التشخيص</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -124,7 +124,6 @@
             }
 
             try {
-                // 1. البحث باستخدام اسم الحقل الصحيح من الصورة ("User name")
                 const querySnapshot = await db.collection("Users")
                                              .where("User name", "==", usernameInput) 
                                              .get();
@@ -137,16 +136,27 @@
                 const userDoc = querySnapshot.docs[0];
                 const userData = userDoc.data();
 
-                // 2. المقارنة باستخدام اسم الحقل الصحيح من الصورة ("Password")
-                if (userData.Password === passwordInput) { 
-                    // SUCCESS!
-                    // 3. عرض الاسم باستخدام اسم الحقل الصحيح من الصورة ("displayName")
-                    alert(`مرحباً بك ${userData.displayName}!`); 
-                    // window.location.href = 'admin.html'; 
+                // --- بداية كود التشخيص ---
+
+                // 1. احصل على كلمة المرور المخزنة في قاعدة البيانات
+                const storedPassword = userData.Password;
+
+                // 2. اعرض لنا مقارنة واضحة
+                alert(
+                    `--- تشخيص كلمة المرور ---\n\n` +
+                    `المدخلة في الصندوق: "${passwordInput}"\n` +
+                    `المخزنة في القاعدة: "${storedPassword}"\n\n` +
+                    `هل هما متطابقتان؟ ${storedPassword === passwordInput}`
+                );
+
+                // 3. قم بالمقارنة الحقيقية
+                if (storedPassword === passwordInput) {
+                    alert("نجح! تم تسجيل الدخول.");
                 } else {
-                    // FAILURE!
                     errorMessage.style.display = 'block';
                 }
+
+                // --- نهاية كود التشخيص ---
 
             } catch (error) {
                 console.error("Error connecting to Firebase: ", error);
