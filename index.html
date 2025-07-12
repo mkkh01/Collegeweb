@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>الجداول الزمنية</title>
 
-    <!-- هذا هو كود التصميم (CSS) -->
+    <!-- CSS (لا تغيير هنا) -->
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -13,7 +13,7 @@
             color: #1c1e21;
             margin: 0;
             padding: 15px;
-         }
+        }
         h1 {
             text-align: center;
             color: #0056b3;
@@ -54,15 +54,13 @@
         <p id="loading-message">جاري تحميل البيانات...</p>
     </div>
 
-    <!-- 1. استيراد مكتبات Firebase -->
+    <!-- استيراد مكتبات Firebase (لا تغيير هنا) -->
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
 
-    <!-- 2. هذا هو كود الربط والجلب من قاعدة البيانات -->
+    <!-- كود الربط والجلب من قاعدة البيانات (هنا التعديلات المهمة) -->
     <script>
-        // ===============================================================
-        // Your web app's Firebase configuration
-        // تم وضع الكود الذي أرسلته هنا
+        // معلومات الربط (لا تغيير هنا)
         const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
             authDomain: "gggg-dc7d0.firebaseapp.com",
@@ -72,20 +70,18 @@
             appId: "1:151376454562:web:1dc3064431b5c7e35388fb",
             measurementId: "G-RQY8V4RZNS"
         };
-        // ===============================================================
 
-        // Initialize Firebase
+        // تهيئة Firebase (لا تغيير هنا)
         firebase.initializeApp(firebaseConfig);
-
-        // Initialize Cloud Firestore
         const db = firebase.firestore();
 
-        // جلب البيانات وعرضها
         const container = document.getElementById('schedule-container');
         const loadingMessage = document.getElementById('loading-message');
 
-        db.collection("الجداول الزمنية").get().then((querySnapshot) => {
-            loadingMessage.style.display = 'none'; // إخفاء رسالة التحميل
+        // =================== التغيير الأول هنا ===================
+        // تم تغيير اسم المجموعة إلى "Schedules"
+        db.collection("Schedules").get().then((querySnapshot) => {
+            loadingMessage.style.display = 'none'; 
 
             if (querySnapshot.empty) {
                 container.innerHTML = '<p>لا توجد بيانات لعرضها حالياً.</p>';
@@ -97,12 +93,13 @@
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'schedule-item';
 
-                // بناء محتوى العنصر بناءً على الحقول الموجودة في المستند
+                // =================== التغيير الثاني هنا ===================
+                // تم تغيير أسماء الحقول لتطابق الصورة (Day, Room, Teacher, Time)
                 let content = '';
-                if(data.يوم) content += `<p><strong>اليوم:</strong> ${data.يوم}</p>`;
-                if(data.القاعة) content += `<p><strong>القاعة:</strong> ${data.القاعة}</p>`;
-                if(data.مدرس) content += `<p><strong>المدرس:</strong> ${data.مدرس}</p>`;
-                if(data.وقت) content += `<p><strong>الوقت:</strong> ${data.وقت}</p>`;
+                if(data.Day) content += `<p><strong>اليوم:</strong> ${data.Day}</p>`;
+                if(data.Room) content += `<p><strong>القاعة:</strong> ${data.Room}</p>`;
+                if(data.Teacher) content += `<p><strong>المدرس:</strong> ${data.Teacher}</p>`;
+                if(data.Time) content += `<p><strong>الوقت:</strong> ${data.Time}</p>`;
                 
                 itemDiv.innerHTML = content;
                 container.appendChild(itemDiv);
