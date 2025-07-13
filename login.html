@@ -61,14 +61,17 @@
             messageElement.style.color = '#6c757d';
 
             try {
-                // ===============================================================
-                // ==== هذا هو السطر الذي تم تصحيحه ليتوافق مع قاعدة بياناتك ====
-                // ===============================================================
                 const usersRef = collection(db, "Users");
-                const q = query(usersRef, where("User name", "==", usernameInput));
-                // ===============================================================
                 
-                const querySnapshot = await getDocs(q);
+                // البحث باستخدام اسم الحقل الجديد 'username'
+                const qNew = query(usersRef, where("username", "==", usernameInput));
+                let querySnapshot = await getDocs(qNew);
+
+                // إذا لم يتم العثور على شيء، جرب اسم الحقل القديم 'User name'
+                if (querySnapshot.empty) {
+                    const qOld = query(usersRef, where("User name", "==", usernameInput));
+                    querySnapshot = await getDocs(qOld);
+                }
 
                 if (querySnapshot.empty) {
                     messageElement.textContent = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
@@ -80,20 +83,17 @@
                 querySnapshot.forEach((doc) => {
                     const userData = doc.data();
                     
-                    // اسم حقل كلمة المرور في قاعدة بياناتك هو Password
-                    if (userData.Password === passwordInput) {
+                    // التحقق من كلمة المرور باستخدام الحقل الجديد 'password' أو القديم 'Password'
+                    if (userData.password === passwordInput || userData.Password === passwordInput) {
                         userFound = true;
                         messageElement.textContent = 'تم تسجيل الدخول بنجاح! جاري التوجيه...';
                         messageElement.style.color = '#28a745';
                         
-                        // تخزين بيانات المستخدم في المتصفح
                         sessionStorage.setItem('user', JSON.stringify({ id: doc.id, ...userData }));
 
-                        // التحقق من الدور وتحديد وجهة التوجيه
                         if (userData.role && userData.role.trim().toLowerCase() === 'admin') {
                             setTimeout(() => { window.location.href = 'admin.html'; }, 1000);
                         } else {
-                            // أي مستخدم آخر يذهب إلى صفحة المستخدم
                             setTimeout(() => { window.location.href = 'user.html'; }, 1000);
                         }
                     }
