@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>لوحة تحكم الأدمن</title>
-    <!-- مكتبات إنشاء الرموز -->
+    <!-- مكتبات إنشاء الرموز وتحويلها لـ PDF -->
     <script src="https://cdn.jsdelivr.net/npm/qrcode-generator/qrcode.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         :root { --primary-color: #007bff; --secondary-color: #6c757d; --success-color: #28a745; --danger-color: #dc3545; --warning-color: #ffc107; --light-color: #f8f9fa; --dark-color: #343a40; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; }
@@ -40,17 +41,24 @@
         .qr-code-container img { max-width: 80px; height: auto; }
         .barcode-container svg { height: 50px; width: auto; }
         
-        /* --- قسم الطباعة --- */
-        @media print {
-            body * { visibility: hidden; }
-            #print-area, #print-area * { visibility: visible; }
-            #print-area { position: absolute; left: 0; top: 0; width: 100%; }
-            .id-card { border: 2px solid #343a40; padding: 20px; border-radius: 10px; width: 320px; margin: 50px auto; text-align: center; }
-            .id-card h4 { margin: 0 0 10px 0; }
-            .id-card p { margin: 5px 0; }
-            .id-card svg { height: 60px; width: 100%; }
-            .id-card img { max-width: 200px; height: auto; margin-top: 10px; }
+        /* --- منطقة التجهيز للـ PDF (مخفية) --- */
+        .pdf-prepare-area {
+            position: absolute;
+            left: -9999px; /* إبعادها عن الشاشة */
+            opacity: 0;
         }
+        .id-card {
+            border: 2px solid #343a40;
+            padding: 20px;
+            border-radius: 10px;
+            width: 320px;
+            background: white;
+            text-align: center;
+        }
+        .id-card h4 { margin: 0 0 10px 0; font-size: 20px; }
+        .id-card p { margin: 5px 0; font-size: 16px; }
+        .id-card svg { height: 60px; width: 100%; }
+        .id-card img { max-width: 200px; height: auto; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -79,8 +87,8 @@
         <div id="rooms" class="page"><div class="card"><h3>القاعات الدراسية</h3><button class="btn btn-primary" onclick="openModal('room-modal')">إضافة قاعة</button><table id="rooms-table"><thead><tr><th>اسم القاعة</th><th>السعة</th><th>رمز QR</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
     </div>
 
-    <!-- منطقة الطباعة المخفية -->
-    <div id="print-area" style="display:none;"></div>
+    <!-- منطقة تجهيز الـ PDF المخفية -->
+    <div id="pdf-prepare-area" class="pdf-prepare-area"></div>
 
     <!-- Modals -->
     <div id="user-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('user-modal')">&times;</span><h3 id="user-modal-title"></h3><form id="user-form"><input type="hidden" id="userId"><div class="form-group"><label>الاسم الكامل</label><input type="text" id="displayName" required></div><div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div><div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم التغيير</small></div><div class="form-group"><label>الدور</label><select id="role" required><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option></select></div><div class="form-group"><label>رمز الباركود (رقم)</label><input type="text" id="barcodeId" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
@@ -110,7 +118,7 @@
         };
         window.openModal = (modalId) => {
             const form = document.querySelector(`#${modalId} form`);
-            form.querySelectorAll('input:not([type=hidden]), select').forEach(el => el.value = '');
+            form.reset();
             const hiddenId = form.querySelector(`input[type=hidden]`);
             if (hiddenId) hiddenId.value = '';
             document.querySelector(`#${modalId} h3`).textContent = 'إضافة جديد';
@@ -185,7 +193,7 @@
                     <td>
                         <button class="btn btn-warning" onclick="editItem('Users', '${d.id}', 'user')">تعديل</button>
                         <button class="btn btn-danger" onclick="deleteItem('Users', '${d.id}', 'المستخدم')">حذف</button>
-                        <button class="btn btn-primary" onclick="printIdCard('${u.displayName}', '${u.role}', '${u.barcodeId}')">طباعة بطاقة</button>
+                        <button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}', '${u.role}', '${u.barcodeId}')">تحميل بطاقة</button>
                     </td>
                 </tr>`;
                 if (u.barcodeId) {
@@ -216,7 +224,7 @@
                     <td>
                         <button class="btn btn-warning" onclick="editItem('Rooms', '${d.id}', 'room')">تعديل</button>
                         <button class="btn btn-danger" onclick="deleteItem('Rooms', '${d.id}', 'القاعة')">حذف</button>
-                        <button class="btn btn-primary" onclick="printRoomCard('${r.name}', '${r.qrUrl}')">طباعة بطاقة</button>
+                        <button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}', '${r.qrUrl}')">تحميل بطاقة</button>
                     </td>
                 </tr>`;
             });
@@ -303,18 +311,21 @@
             if (confirmDelete(itemName)) await deleteDoc(doc(db, collectionName, id));
         };
 
-        // --- Print Functions ---
-        window.printIdCard = (name, role, barcodeValue) => {
-            const printArea = document.getElementById('print-area');
-            printArea.innerHTML = `
-                <div class="id-card">
-                    <h4>${name}</h4>
-                    <p>${role}</p>
-                    <svg id="print-barcode"></svg>
-                </div>
+        // --- PDF Download Functions ---
+        window.downloadIdCardAsPDF = (name, role, barcodeValue) => {
+            const prepareArea = document.getElementById('pdf-prepare-area');
+            const cardElement = document.createElement('div');
+            cardElement.className = 'id-card';
+            cardElement.innerHTML = `
+                <h4>${name}</h4>
+                <p>${role}</p>
+                <svg id="pdf-barcode"></svg>
             `;
+            prepareArea.innerHTML = ''; // Clear previous
+            prepareArea.appendChild(cardElement);
+
             if (barcodeValue) {
-                JsBarcode("#print-barcode", barcodeValue, {
+                JsBarcode("#pdf-barcode", barcodeValue, {
                     format: "CODE128",
                     lineColor: "#000",
                     width: 3,
@@ -322,20 +333,40 @@
                     displayValue: true
                 });
             }
-            window.print();
+            
+            const options = {
+                margin: 1,
+                filename: `${name}_ID_Card.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+            };
+            
+            html2pdf().from(cardElement).set(options).save();
         };
 
-        window.printRoomCard = (name, qrUrl) => {
-            const printArea = document.getElementById('print-area');
+        window.downloadRoomCardAsPDF = (name, qrUrl) => {
+            const prepareArea = document.getElementById('pdf-prepare-area');
+            const cardElement = document.createElement('div');
+            cardElement.className = 'id-card';
             const qrCodeDataUrl = generateQRCode(qrUrl || '');
-            printArea.innerHTML = `
-                <div class="id-card">
-                    <h4>بطاقة تعريف القاعة</h4>
-                    <p>${name}</p>
-                    <img src="${qrCodeDataUrl}" alt="QR Code">
-                </div>
+            cardElement.innerHTML = `
+                <h4>بطاقة تعريف القاعة</h4>
+                <p>${name}</p>
+                <img src="${qrCodeDataUrl}" alt="QR Code">
             `;
-            window.print();
+            prepareArea.innerHTML = ''; // Clear previous
+            prepareArea.appendChild(cardElement);
+
+            const options = {
+                margin: 1,
+                filename: `${name}_QR_Card.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+            };
+
+            html2pdf().from(cardElement).set(options).save();
         };
 
         showPage('dashboard');
