@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>منظومة إدارة الكلية (تشخيص)</title>
+    <title>منظومة إدارة الكلية</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         :root {
             --primary-bg: #2c3e50;
@@ -15,6 +17,7 @@
             --content-text: #333;
             --danger-color: #e74c3c;
             --success-color: #2ecc71;
+            --warning-color: #f39c12;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -32,6 +35,7 @@
             position: fixed;
             display: flex;
             flex-direction: column;
+            overflow-y: auto;
         }
         .sidebar h1 {
             text-align: center;
@@ -66,13 +70,16 @@
         }
         .page {
             display: none;
+        }
+        .page.active {
+            display: block;
+        }
+        .card {
             background-color: var(--content-bg);
             padding: 25px;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        .page.active {
-            display: block;
+            margin-bottom: 20px;
         }
         h2 {
             color: var(--content-text);
@@ -108,17 +115,35 @@
         .btn-primary { background-color: var(--primary-accent); }
         .btn-danger { background-color: var(--danger-color); }
         .btn-secondary { background-color: var(--success-color); }
+        .btn-warning { background-color: var(--warning-color); }
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
+            table-layout: fixed;
         }
         th, td {
             border: 1px solid #ddd;
             padding: 12px;
             text-align: right;
+            word-wrap: break-word;
         }
         th { background-color: #f5f6f7; }
+        .status-indicator {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        .status-open { background-color: var(--success-color); }
+        .status-closed { background-color: var(--danger-color); }
+        #qrcode-container {
+            margin-top: 15px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
@@ -129,66 +154,480 @@
         <a data-page="users" class="nav-link"><i class="fas fa-users"></i> إدارة المستخدمين</a>
         <a data-page="halls" class="nav-link"><i class="fas fa-door-open"></i> إدارة القاعات</a>
         <a data-page="schedules" class="nav-link"><i class="fas fa-calendar-alt"></i> جدول المحاضرات</a>
+        <a data-page="barcodes" class="nav-link"><i class="fas fa-id-card"></i> طباعة البطاقات</a>
         <a data-page="logs" class="nav-link"><i class="fas fa-history"></i> سجلات الدخول</a>
         <a id="logout-link" class="nav-link logout"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</a>
     </div>
 
     <div class="main-content">
-        <!-- All pages are here, same as before -->
-        <div id="dashboard" class="page active"><h2>لوحة التحكم</h2></div>
-        <div id="users" class="page"><h2>إدارة المستخدمين</h2></div>
-        <div id="halls" class="page"><h2>إدارة القاعات</h2></div>
-        <div id="schedules" class="page"><h2>جدول المحاضرات</h2></div>
-        <div id="logs" class="page"><h2>سجلات الدخول</h2></div>
+        <!-- Dashboard Page -->
+        <div id="dashboard" class="page active">
+            <div class="card">
+                <h2>لوحة التحكم والإعلانات</h2>
+                <p>حالة القاعات في الوقت الحالي:</p>
+                <div id="halls-status-container"></div>
+            </div>
+        </div>
+
+        <!-- Users Page -->
+        <div id="users" class="page">
+            <div class="card">
+                <h2>إضافة أو تعديل مستخدم</h2>
+                <div class="form-grid">
+                    <input id="user-id" type="hidden">
+                    <input id="user-name" type="text" placeholder="الاسم الكامل">
+                    <input id="user-username" type="text" placeholder="اسم المستخدم (للدخول)">
+                    <input id="user-password" type="password" placeholder="كلمة المرور">
+                    <input id="user-barcode" type="text" placeholder="رمز الباركود (ID)">
+                    <select id="user-role">
+                        <option value="عضو هيئة تدريس">عضو هيئة تدريس</option>
+                        <option value="مشرف">مشرف</option>
+                        <option value="عامل نظافة">عامل نظافة</option>
+                    </select>
+                    <button id="add-user-btn" class="btn-primary">إضافة مستخدم</button>
+                    <button id="update-user-btn" class="btn-warning" style="display:none;">تحديث المستخدم</button>
+                </div>
+            </div>
+            <div class="card">
+                <h2>قائمة المستخدمين</h2>
+                <table id="users-table">
+                    <thead><tr><th>الاسم</th><th>اسم المستخدم</th><th>الدور</th><th>رمز الباركود</th><th>إجراءات</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Halls Page -->
+        <div id="halls" class="page">
+            <div class="card">
+                <h2>إضافة قاعة جديدة</h2>
+                <div class="form-grid">
+                    <input id="hall-name" type="text" placeholder="اسم القاعة (مثال: قاعة 101)">
+                    <button id="add-hall-btn" class="btn-primary">إضافة قاعة</button>
+                </div>
+            </div>
+            <div class="card">
+                <h2>قائمة القاعات</h2>
+                <table id="halls-table">
+                    <thead><tr><th>اسم القاعة</th><th>رمز QR</th><th>إجراءات</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Schedules Page -->
+        <div id="schedules" class="page">
+            <div class="card">
+                <h2>إضافة محاضرة جديدة</h2>
+                <div class="form-grid">
+                    <input id="schedule-subject" type="text" placeholder="اسم المادة">
+                    <select id="schedule-teacher"></select>
+                    <select id="schedule-hall"></select>
+                    <select id="schedule-day">
+                        <option value="الأحد">الأحد</option>
+                        <option value="الاثنين">الاثنين</option>
+                        <option value="الثلاثاء">الثلاثاء</option>
+                        <option value="الأربعاء">الأربعاء</option>
+                        <option value="الخميس">الخميس</option>
+                    </select>
+                    <input id="schedule-time" type="time" placeholder="الوقت">
+                    <button id="add-schedule-btn" class="btn-primary">إضافة محاضرة</button>
+                </div>
+            </div>
+            <div class="card">
+                <h2>جدول المحاضرات</h2>
+                <table id="schedules-table">
+                    <thead><tr><th>المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>إجراءات</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Barcodes Page -->
+        <div id="barcodes" class="page">
+            <div class="card">
+                <h2>طباعة بطاقة المستخدم</h2>
+                <p>اختر مستخدماً لطباعة بطاقته التعريفية.</p>
+                <select id="barcode-user-select"></select>
+                <button id="print-card-btn" class="btn-secondary">طباعة البطاقة (PDF)</button>
+            </div>
+        </div>
+
+        <!-- Logs Page -->
+        <div id="logs" class="page">
+            <div class="card">
+                <h2>سجلات الدخول</h2>
+                <table id="logs-table">
+                    <thead><tr><th>المستخدم</th><th>القاعة</th><th>الوقت والتاريخ</th><th>الحالة</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
-    <script>
-        // --- NEW & IMPROVED Navigation Logic with DIAGNOSTICS ---
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log("الصفحة تم تحميلها بالكامل. جارِ إضافة مستمعي الأحداث.");
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
 
+    <script>
+        // --- Firebase Configuration ---
+        const firebaseConfig = {
+          apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
+          authDomain: "gggg-dc7d0.firebaseapp.com",
+          projectId: "gggg-dc7d0",
+          storageBucket: "gggg-dc7d0.appspot.com",
+          messagingSenderId: "151376454562",
+          appId: "1:151376454562:web:1dc3064431b5c7e35388fb",
+          measurementId: "G-RQY8V4RZNS"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // --- Navigation Logic ---
+        document.addEventListener('DOMContentLoaded', () => {
             const navLinks = document.querySelectorAll('.sidebar .nav-link');
             const pages = document.querySelectorAll('.main-content .page');
 
             navLinks.forEach(link => {
                 link.addEventListener('click', (e) => {
                     e.preventDefault();
-                    
-                    // DIAGNOSTIC CODE
                     const pageId = link.getAttribute('data-page');
-                    console.log(`تم الضغط على الرابط. الهدف: ${pageId || 'logout'}`);
+                    if (!pageId) return;
 
-                    // Handle logout
-                    if (link.id === 'logout-link') {
-                        console.log("تسجيل الخروج...");
-                        // sessionStorage.removeItem('loggedInUser');
-                        // window.location.href = 'login.html';
-                        return;
-                    }
-
-                    if (!pageId) {
-                        console.error("خطأ: الرابط لا يحتوي على 'data-page'.");
-                        return;
-                    }
-
-                    const targetPage = document.getElementById(pageId);
-                    if (!targetPage) {
-                        console.error(`خطأ: لم يتم العثور على الصفحة بالمعرف: ${pageId}`);
-                        return;
-                    }
-                    
-                    // Switch active page
                     pages.forEach(p => p.classList.remove('active'));
-                    targetPage.classList.add('active');
+                    document.getElementById(pageId).classList.add('active');
                     
-                    // Switch active link style
                     navLinks.forEach(l => l.classList.remove('active'));
                     link.classList.add('active');
-                    
-                    console.log(`تم تبديل الصفحة بنجاح إلى: ${pageId}`);
                 });
             });
+            
+            // Initial data load
+            loadAllData();
+
+            // Add event listeners for buttons
+            document.getElementById('add-user-btn').addEventListener('click', addUser);
+            document.getElementById('update-user-btn').addEventListener('click', updateUser);
+            document.getElementById('add-hall-btn').addEventListener('click', addHall);
+            document.getElementById('add-schedule-btn').addEventListener('click', addSchedule);
+            document.getElementById('print-card-btn').addEventListener('click', printCard);
+            document.getElementById('logout-link').addEventListener('click', () => {
+                window.location.href = 'login.html';
+            });
         });
+
+        function loadAllData() {
+            loadUsers();
+            loadHalls();
+            loadSchedules();
+            loadLogs();
+        }
+
+        // --- Users Management ---
+        async function addUser() {
+            const name = document.getElementById('user-name').value;
+            const username = document.getElementById('user-username').value;
+            const password = document.getElementById('user-password').value;
+            const barcode = document.getElementById('user-barcode').value;
+            const role = document.getElementById('user-role').value;
+
+            if (!name || !username || !password || !barcode) {
+                alert('يرجى ملء جميع الحقول');
+                return;
+            }
+
+            try {
+                await db.collection('Users').add({ name, username, password, barcode, role });
+                alert('تمت إضافة المستخدم بنجاح');
+                document.getElementById('user-name').value = '';
+                document.getElementById('user-username').value = '';
+                document.getElementById('user-password').value = '';
+                document.getElementById('user-barcode').value = '';
+                loadUsers();
+            } catch (error) {
+                console.error("Error adding user: ", error);
+                alert('حدث خطأ أثناء إضافة المستخدم');
+            }
+        }
+
+        async function loadUsers() {
+            const tableBody = document.querySelector('#users-table tbody');
+            const barcodeSelect = document.getElementById('barcode-user-select');
+            const teacherSelect = document.getElementById('schedule-teacher');
+            tableBody.innerHTML = '';
+            barcodeSelect.innerHTML = '<option>اختر مستخدماً...</option>';
+            teacherSelect.innerHTML = '<option>اختر محاضراً...</option>';
+
+            try {
+                const snapshot = await db.collection('Users').get();
+                snapshot.forEach(doc => {
+                    const user = doc.data();
+                    const row = `
+                        <tr>
+                            <td>${user.name}</td>
+                            <td>${user.username}</td>
+                            <td>${user.role}</td>
+                            <td>${user.barcode}</td>
+                            <td>
+                                <button class="btn-warning" onclick="editUser('${doc.id}', '${user.name}', '${user.username}', '${user.password}', '${user.barcode}', '${user.role}')">تعديل</button>
+                                <button class="btn-danger" onclick="deleteUser('${doc.id}')">حذف</button>
+                            </td>
+                        </tr>`;
+                    tableBody.innerHTML += row;
+                    
+                    const option = `<option value="${doc.id}|${user.name}|${user.role}|${user.barcode}">${user.name} (${user.role})</option>`;
+                    barcodeSelect.innerHTML += option;
+
+                    if (user.role === 'عضو هيئة تدريس') {
+                        teacherSelect.innerHTML += `<option value="${user.name}">${user.name}</option>`;
+                    }
+                });
+            } catch (error) {
+                console.error("Error loading users: ", error);
+            }
+        }
+
+        function editUser(id, name, username, password, barcode, role) {
+            document.getElementById('user-id').value = id;
+            document.getElementById('user-name').value = name;
+            document.getElementById('user-username').value = username;
+            document.getElementById('user-password').value = password;
+            document.getElementById('user-barcode').value = barcode;
+            document.getElementById('user-role').value = role;
+
+            document.getElementById('add-user-btn').style.display = 'none';
+            document.getElementById('update-user-btn').style.display = 'block';
+            window.scrollTo(0, 0);
+        }
+
+        async function updateUser() {
+            const id = document.getElementById('user-id').value;
+            const name = document.getElementById('user-name').value;
+            const username = document.getElementById('user-username').value;
+            const password = document.getElementById('user-password').value;
+            const barcode = document.getElementById('user-barcode').value;
+            const role = document.getElementById('user-role').value;
+
+            try {
+                await db.collection('Users').doc(id).update({ name, username, password, barcode, role });
+                alert('تم تحديث المستخدم بنجاح');
+                // Reset form
+                document.getElementById('user-id').value = '';
+                document.getElementById('user-name').value = '';
+                document.getElementById('user-username').value = '';
+                document.getElementById('user-password').value = '';
+                document.getElementById('user-barcode').value = '';
+                document.getElementById('add-user-btn').style.display = 'block';
+                document.getElementById('update-user-btn').style.display = 'none';
+                loadUsers();
+            } catch (error) {
+                console.error("Error updating user: ", error);
+                alert('حدث خطأ أثناء تحديث المستخدم');
+            }
+        }
+
+        async function deleteUser(id) {
+            if (confirm('هل أنت متأكد من حذف هذا المستخدم؟')) {
+                try {
+                    await db.collection('Users').doc(id).delete();
+                    alert('تم حذف المستخدم بنجاح');
+                    loadUsers();
+                } catch (error) {
+                    console.error("Error deleting user: ", error);
+                    alert('حدث خطأ أثناء حذف المستخدم');
+                }
+            }
+        }
+
+        // --- Halls Management ---
+        async function addHall() {
+            const name = document.getElementById('hall-name').value;
+            if (!name) {
+                alert('يرجى إدخال اسم القاعة');
+                return;
+            }
+            try {
+                await db.collection('Halls').add({ name });
+                alert('تمت إضافة القاعة بنجاح');
+                document.getElementById('hall-name').value = '';
+                loadHalls();
+            } catch (error) {
+                console.error("Error adding hall: ", error);
+                alert('حدث خطأ أثناء إضافة القاعة');
+            }
+        }
+
+        async function loadHalls() {
+            const tableBody = document.querySelector('#halls-table tbody');
+            const hallSelect = document.getElementById('schedule-hall');
+            tableBody.innerHTML = '';
+            hallSelect.innerHTML = '<option>اختر قاعة...</option>';
+            try {
+                const snapshot = await db.collection('Halls').get();
+                snapshot.forEach(doc => {
+                    const hall = doc.data();
+                    const row = `
+                        <tr>
+                            <td>${hall.name}</td>
+                            <td><div id="qr-${doc.id}"></div></td>
+                            <td><button class="btn-danger" onclick="deleteHall('${doc.id}')">حذف</button></td>
+                        </tr>`;
+                    tableBody.innerHTML += row;
+                    
+                    // Generate QR Code
+                    new QRCode(document.getElementById(`qr-${doc.id}`), {
+                        text: `hall_id:${doc.id}`,
+                        width: 80,
+                        height: 80
+                    });
+
+                    hallSelect.innerHTML += `<option value="${hall.name}">${hall.name}</option>`;
+                });
+            } catch (error) {
+                console.error("Error loading halls: ", error);
+            }
+        }
+
+        async function deleteHall(id) {
+            if (confirm('هل أنت متأكد من حذف هذه القاعة؟')) {
+                try {
+                    await db.collection('Halls').doc(id).delete();
+                    alert('تم حذف القاعة بنجاح');
+                    loadHalls();
+                } catch (error) {
+                    console.error("Error deleting hall: ", error);
+                    alert('حدث خطأ أثناء حذف القاعة');
+                }
+            }
+        }
+
+        // --- Schedules Management ---
+        async function addSchedule() {
+            const subject = document.getElementById('schedule-subject').value;
+            const teacher = document.getElementById('schedule-teacher').value;
+            const hall = document.getElementById('schedule-hall').value;
+            const day = document.getElementById('schedule-day').value;
+            const time = document.getElementById('schedule-time').value;
+
+            if (!subject || !teacher || !hall || !day || !time) {
+                alert('يرجى ملء جميع حقول المحاضرة');
+                return;
+            }
+
+            try {
+                await db.collection('Schedules').add({ subject, teacher, hall, day, time });
+                alert('تمت إضافة المحاضرة بنجاح');
+                // Reset form
+                document.getElementById('schedule-subject').value = '';
+                document.getElementById('schedule-time').value = '';
+                loadSchedules();
+            } catch (error) {
+                console.error("Error adding schedule: ", error);
+                alert('حدث خطأ أثناء إضافة المحاضرة');
+            }
+        }
+
+        async function loadSchedules() {
+            const tableBody = document.querySelector('#schedules-table tbody');
+            tableBody.innerHTML = '';
+            try {
+                const snapshot = await db.collection('Schedules').orderBy('day').orderBy('time').get();
+                snapshot.forEach(doc => {
+                    const schedule = doc.data();
+                    const row = `
+                        <tr>
+                            <td>${schedule.subject}</td>
+                            <td>${schedule.teacher}</td>
+                            <td>${schedule.hall}</td>
+                            <td>${schedule.day}</td>
+                            <td>${schedule.time}</td>
+                            <td><button class="btn-danger" onclick="deleteSchedule('${doc.id}')">حذف</button></td>
+                        </tr>`;
+                    tableBody.innerHTML += row;
+                });
+            } catch (error) {
+                console.error("Error loading schedules: ", error);
+            }
+        }
+
+        async function deleteSchedule(id) {
+            if (confirm('هل أنت متأكد من حذف هذه المحاضرة؟')) {
+                try {
+                    await db.collection('Schedules').doc(id).delete();
+                    alert('تم حذف المحاضرة بنجاح');
+                    loadSchedules();
+                } catch (error) {
+                    console.error("Error deleting schedule: ", error);
+                    alert('حدث خطأ أثناء حذف المحاضرة');
+                }
+            }
+        }
+
+        // --- Card Printing ---
+        function printCard() {
+            const { jsPDF } = window.jspdf;
+            const selected = document.getElementById('barcode-user-select').value;
+            if (!selected.includes('|')) {
+                alert('يرجى اختيار مستخدم لطباعة بطاقته');
+                return;
+            }
+            const [id, name, role, barcode] = selected.split('|');
+
+            const doc = new jsPDF();
+            
+            // Add Arabic font support (this is a simplified example)
+            // For full support, you might need to embed a font
+            doc.setFont("helvetica", "normal");
+            doc.setRtl(true);
+
+            doc.text("بطاقة تعريف", 105, 20, { align: 'center' });
+            doc.text(`الاسم: ${name}`, 190, 40, { align: 'right' });
+            doc.text(`الدور: ${role}`, 190, 50, { align: 'right' });
+            doc.text(`ID: ${barcode}`, 190, 60, { align: 'right' });
+
+            // Generate barcode as an image and add to PDF
+            const barcodeCanvas = document.createElement('canvas');
+            // Note: This requires a barcode generation library like JsBarcode
+            // For simplicity, we'll just show the number.
+            // JsBarcode(barcodeCanvas, barcode);
+            // const barcodeImage = barcodeCanvas.toDataURL('image/png');
+            // doc.addImage(barcodeImage, 'PNG', 15, 80, 80, 40);
+            
+            doc.save(`${name}_card.pdf`);
+        }
+
+        // --- Logs ---
+        async function loadLogs() {
+            const tableBody = document.querySelector('#logs-table tbody');
+            tableBody.innerHTML = '';
+            try {
+                const snapshot = await db.collection('AccessLogs').orderBy('timestamp', 'desc').limit(50).get();
+                snapshot.forEach(doc => {
+                    const log = doc.data();
+                    const date = new Date(log.timestamp.seconds * 1000).toLocaleString('ar-EG');
+                    const statusText = log.status === 'granted' ? 'ناجح' : 'فاشل';
+                    const row = `
+                        <tr>
+                            <td>${log.user}</td>
+                            <td>${log.hall || 'N/A'}</td>
+                            <td>${date}</td>
+                            <td style="color:${log.status === 'granted' ? 'green' : 'red'}">${statusText}</td>
+                        </tr>`;
+                    tableBody.innerHTML += row;
+                });
+            } catch (error) {
+                console.error("Error loading logs: ", error);
+            }
+        }
+
+        // --- Dashboard Status ---
+        async function updateHallsStatus() {
+            // This is a placeholder. Real-time status requires more complex logic
+            // involving IoT devices reporting their state.
+            const container = document.getElementById('halls-status-container');
+            container.innerHTML = '<i>ميزة الحالة الحية قيد التطوير...</i>';
+        }
+
     </script>
 
 </body>
