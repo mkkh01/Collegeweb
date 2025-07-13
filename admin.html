@@ -17,18 +17,7 @@
         .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; overflow-x: auto; }
         h3 { color: var(--dark-color); border-bottom: 2px solid #eee; padding-bottom: 10px; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        
-        /* =============================================================== */
-        /* ==== هذا هو التصحيح الخاص بمشكلة التفاف النص في الجدول ==== */
-        /* =============================================================== */
-        th, td { 
-            padding: 12px 15px; 
-            text-align: right; 
-            border-bottom: 1px solid #ddd; 
-            white-space: nowrap; /* يمنع كسر النص إلى سطر جديد */
-        }
-        /* =============================================================== */
-
+        th, td { padding: 12px 15px; text-align: right; border-bottom: 1px solid #ddd; white-space: nowrap; }
         th { background-color: #f2f2f2; }
         .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; margin-left: 5px; }
         .btn-primary { background-color: var(--primary-color); } .btn-warning { background-color: var(--warning-color); }
@@ -96,23 +85,28 @@
             document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
             document.querySelector(`.nav-link[href="#${pageId}"]`).classList.add('active');
         };
+
+        // ===============================================================
+        // ==== هذا هو التصحيح النهائي لدالة فتح النافذة المنبثقة ====
+        // ===============================================================
         window.openModal = (modalId) => {
             const form = document.querySelector(`#${modalId} form`);
-            form.reset();
+            // مسح الحقول يدويًا بدلاً من form.reset()
+            form.querySelectorAll('input:not([type=hidden]), select').forEach(el => el.value = '');
+            // مسح حقل الـ ID المخفي بشكل منفصل
             const hiddenId = form.querySelector(`input[type=hidden]`);
             if (hiddenId) hiddenId.value = '';
+            
             document.querySelector(`#${modalId} h3`).textContent = 'إضافة جديد';
             if (modalId === 'schedule-modal') populateSelects();
             document.getElementById(modalId).style.display = 'block';
         };
+        // ===============================================================
+
         window.closeModal = (modalId) => { document.getElementById(modalId).style.display = 'none'; };
         const confirmDelete = (item) => confirm(`هل أنت متأكد من حذف هذا ${item}؟`);
 
-        // ===============================================================
-        // ==== هذا هو التصحيح الخاص بمشكلة التعديل ====
-        // ===============================================================
-        
-        // Users
+        // --- دوال الحفظ (Submit Handlers) ---
         document.getElementById('user-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('userId').value;
@@ -124,17 +118,13 @@
             };
             const password = document.getElementById('password').value;
             if (password) data.password = password;
-
-            if (id) { // إذا كان هناك ID، قم بالتحديث
-                await updateDoc(doc(db, "Users", id), data);
-            } else { // وإلا، قم بالإضافة
+            if (id) await updateDoc(doc(db, "Users", id), data);
+            else {
                 if (!password) { alert('كلمة المرور مطلوبة للمستخدم الجديد.'); return; }
                 await addDoc(collection(db, "Users"), data);
             }
             closeModal('user-modal');
         });
-
-        // Rooms
         document.getElementById('room-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('roomId').value;
@@ -143,16 +133,13 @@
                 capacity: parseInt(document.getElementById('roomCapacity').value),
                 qrUrl: document.getElementById('roomQR').value,
             };
-            if (id) { // إذا كان هناك ID، قم بالتحديث
-                await updateDoc(doc(db, "Rooms", id), data);
-            } else { // وإلا، قم بالإضافة
+            if (id) await updateDoc(doc(db, "Rooms", id), data);
+            else {
                 data.status = 'closed';
                 await addDoc(collection(db, "Rooms"), data);
             }
             closeModal('room-modal');
         });
-
-        // Schedules
         document.getElementById('schedule-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('scheduleId').value;
@@ -161,16 +148,12 @@
                 lecturer: document.getElementById('lecturer').value, room: document.getElementById('scheduleRoom').value,
                 day: document.getElementById('day').value, time: document.getElementById('time').value,
             };
-            if (id) { // إذا كان هناك ID، قم بالتحديث
-                await updateDoc(doc(db, "Schedules", id), data);
-            } else { // وإلا، قم بالإضافة
-                await addDoc(collection(db, "Schedules"), data);
-            }
+            if (id) await updateDoc(doc(db, "Schedules", id), data);
+            else await addDoc(collection(db, "Schedules"), data);
             closeModal('schedule-modal');
         });
-        // ===============================================================
 
-        // --- دوال عرض البيانات (تبقى كما هي) ---
+        // --- دوال عرض البيانات (Data Display) ---
         onSnapshot(collection(db, "Users"), (snap) => {
             const tbody = document.querySelector('#users-table tbody');
             tbody.innerHTML = '';
@@ -229,37 +212,37 @@
             await updateDoc(doc(db, "Rooms", id), { status: currentStatus === 'open' ? 'closed' : 'open' });
         };
 
-        // Generic Edit/Delete
+        // --- دالة التعديل (Edit Function) ---
         window.editItem = async (collectionName, id, type) => {
+            // فتح النافذة أولاً (وهذا سيقوم بمسح الحقول بشكل صحيح)
+            openModal(`${type}-modal`); 
+            
+            // الآن، املأ الحقول بالبيانات
             const itemDoc = await getDoc(doc(db, collectionName, id));
             const data = itemDoc.data();
+            
+            // ضع الـ ID في الحقل المخفي بعد فتح النافذة
+            document.getElementById(`${type}Id`).value = id;
+            document.querySelector(`#${type}-modal h3`).textContent = `تعديل ${type === 'user' ? 'مستخدم' : (type === 'room' ? 'قاعة' : 'جدول')}`;
+
             if (type === 'user') {
-                document.getElementById('userId').value = id;
                 document.getElementById('displayName').value = data.displayName;
                 document.getElementById('username').value = data.username || data["User name"];
                 document.getElementById('role').value = data.role;
                 document.getElementById('barcodeId').value = data.barcodeId;
                 document.getElementById('password').value = '';
-                document.getElementById('user-modal-title').textContent = 'تعديل مستخدم';
-                openModal('user-modal');
             } else if (type === 'room') {
-                document.getElementById('roomId').value = id;
                 document.getElementById('roomName').value = data.name;
                 document.getElementById('roomCapacity').value = data.capacity;
                 document.getElementById('roomQR').value = data.qrUrl || '';
-                document.getElementById('room-modal-title').textContent = 'تعديل قاعة';
-                openModal('room-modal');
             } else if (type === 'schedule') {
                 await populateSelects();
-                document.getElementById('scheduleId').value = id;
                 document.getElementById('courseCode').value = data.courseCode;
                 document.getElementById('courseName').value = data.courseName;
                 document.getElementById('lecturer').value = data.lecturer;
                 document.getElementById('scheduleRoom').value = data.room;
                 document.getElementById('day').value = data.day;
                 document.getElementById('time').value = data.time;
-                document.getElementById('schedule-modal-title').textContent = 'تعديل جدول';
-                openModal('schedule-modal');
             }
         };
         window.deleteItem = async (collectionName, id, itemName) => {
