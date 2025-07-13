@@ -113,8 +113,12 @@
             messageElement.style.color = '#6c757d';
 
             try {
+                // ===============================================================
+                // ==== هذا هو السطر الذي تم تصحيحه ====
+                // ===============================================================
                 const usersRef = collection(db, "Users");
-                const q = query(usersRef, where("username", "==", usernameInput));
+                const q = query(usersRef, where("User name", "==", usernameInput));
+                // ===============================================================
                 
                 const querySnapshot = await getDocs(q);
 
@@ -128,7 +132,7 @@
                 querySnapshot.forEach((doc) => {
                     const userData = doc.data();
                     
-                    if (userData.password === passwordInput) {
+                    if (userData.Password === passwordInput) {
                         userFound = true;
                         messageElement.textContent = 'تم تسجيل الدخول بنجاح! جاري التوجيه...';
                         messageElement.style.color = '#28a745';
