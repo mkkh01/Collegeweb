@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تسجيل الدخول - نظام الكلية</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .login-container {
+            background: #ffffff;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        h1 {
+            color: #0056b3;
+            margin-bottom: 25px;
+        }
+        .input-group {
+            margin-bottom: 20px;
+            text-align: right;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #495057;
+        }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #message {
+            color: #dc3545;
+            margin-top: 15px;
+            font-weight: bold;
+            min-height: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="login-container">
+        <h1>تسجيل الدخول</h1>
+        <form id="login-form">
+            <div class="input-group">
+                <label for="username">اسم المستخدم</label>
+                <input type="text" id="username" required>
+            </div>
+            <div class="input-group">
+                <label for="password">كلمة المرور</label>
+                <input type="password" id="password" required>
+            </div>
+            <button type="submit">تسجيل الدخول</button>
+        </form>
+        <p id="message"></p>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        // 1. استيراد الدوال اللازمة
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        // 2. معلومات إعداد Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
+            authDomain: "gggg-dc7d0.firebaseapp.com",
+            projectId: "gggg-dc7d0",
+            storageBucket: "gggg-dc7d0.appspot.com",
+            messagingSenderId: "151376454562",
+            appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
+        };
+
+        // 3. تهيئة Firebase و Firestore
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // 4. التعامل مع عملية تسجيل الدخول
+        const loginForm = document.getElementById('login-form');
+        const messageElement = document.getElementById('message');
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault(); // منع التحديث التلقائي للصفحة
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            messageElement.textContent = 'جاري التحقق...';
+            messageElement.style.color = '#6c757d';
+
+            try {
+                // إنشاء استعلام للبحث عن اسم المستخدم
+                const usersRef = collection(db, "Users");
+                const q = query(usersRef, where("User name", "==", username));
+                
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    // لم يتم العثور على المستخدم
+                    messageElement.textContent = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
+                    messageElement.style.color = '#dc3545';
+                    return;
+                }
+
+                // التحقق من كلمة المرور
+                let userFound = false;
+                querySnapshot.forEach((doc) => {
+                    const userData = doc.data();
+                    if (userData.Password === password) {
+                        userFound = true;
+                        // تم تسجيل الدخول بنجاح
+                        messageElement.textContent = 'تم تسجيل الدخول بنجاح! جاري التوجيه...';
+                        messageElement.style.color = '#28a745';
+                        
+                        // (اختياري) تخزين معلومات المستخدم في المتصفح
+                        sessionStorage.setItem('user', JSON.stringify(userData));
+
+                        // توجيه المستخدم إلى الصفحة الرئيسية بعد ثانية واحدة
+                        setTimeout(() => {
+                            window.location.href = 'index.html';
+                        }, 1000);
+                    }
+                });
+
+                if (!userFound) {
+                    messageElement.textContent = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
+                    messageElement.style.color = '#dc3545';
+                }
+
+            } catch (error) {
+                console.error("خطأ أثناء تسجيل الدخول: ", error);
+                messageElement.textContent = 'حدث خطأ في النظام. يرجى المحاولة مرة أخرى.';
+                messageElement.style.color = '#dc3545';
+            }
+        });
+    </script>
+
+</body>
+</html>
