@@ -3,91 +3,244 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تسجيل الدخول - نظام الكلية</title>
+    <title>لوحة تحكم الأدمن</title>
     <style>
+        :root {
+            --primary-color: #007bff;
+            --secondary-color: #6c757d;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --light-color: #f8f9fa;
+            --dark-color: #343a40;
+        }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #f0f2f5;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
             margin: 0;
         }
-        .login-container {
-            background: #ffffff;
-            padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            width: 100%;
-            max-width: 400px;
-            text-align: center;
-        }
-        h1 {
-            color: #0056b3;
-            margin-bottom: 25px;
-        }
-        .input-group {
-            margin-bottom: 20px;
-            text-align: right;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 600;
-            color: #495057;
-        }
-        input[type="text"], input[type="password"] {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #ced4da;
-            border-radius: 5px;
-            box-sizing: border-box;
-        }
-        button {
-            width: 100%;
-            padding: 12px;
-            background-color: #007bff;
+        .sidebar {
+            width: 250px;
+            background-color: var(--dark-color);
             color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
+            position: fixed;
+            height: 100%;
+            padding-top: 20px;
+        }
+        .sidebar h2 {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        .sidebar a {
+            display: block;
+            color: white;
+            padding: 15px 20px;
+            text-decoration: none;
             transition: background-color 0.3s;
         }
-        button:hover {
-            background-color: #0056b3;
+        .sidebar a:hover, .sidebar a.active {
+            background-color: #495057;
         }
-        #message {
-            color: #dc3545;
-            margin-top: 15px;
+        .main-content {
+            margin-right: 250px; /* نفس عرض الـ sidebar */
+            padding: 30px;
+        }
+        .page {
+            display: none;
+        }
+        .page.active {
+            display: block;
+        }
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1, h3 {
+            color: var(--dark-color);
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: right;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            color: white;
+            font-size: 14px;
+        }
+        .btn-primary { background-color: var(--primary-color); }
+        .btn-warning { background-color: var(--warning-color); }
+        .btn-danger { background-color: var(--danger-color); }
+        .btn-success { background-color: var(--success-color); }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto;
+            padding: 30px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
+        }
+        .close-btn {
+            color: #aaa;
+            float: left;
+            font-size: 28px;
             font-weight: bold;
-            min-height: 20px;
+            cursor: pointer;
         }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        /* Room Status Styles */
+        .room-status-card {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        .room-card {
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            color: white;
+            font-weight: bold;
+        }
+        .room-card.open { background-color: var(--success-color); }
+        .room-card.closed { background-color: var(--danger-color); }
+
     </style>
 </head>
 <body>
 
-    <div class="login-container">
-        <h1>تسجيل الدخول</h1>
-        <form id="login-form">
-            <div class="input-group">
-                <label for="username">اسم المستخدم</label>
-                <input type="text" id="username" required>
+    <!-- كود الحماية: يتأكد أن المستخدم هو أدمن قبل عرض أي شيء -->
+    <script>
+        const loggedInUser = JSON.parse(sessionStorage.getItem('user'));
+        if (!loggedInUser || loggedInUser.role.trim().toLowerCase() !== 'admin') {
+            alert('ليس لديك صلاحية للوصول إلى هذه الصفحة. سيتم توجيهك لصفحة الدخول.');
+            window.location.href = 'login.html';
+        }
+    </script>
+
+    <div class="sidebar">
+        <h2>لوحة التحكم</h2>
+        <a href="#users" class="nav-link active" onclick="showPage('users')">إدارة المستخدمين</a>
+        <a href="#schedules" class="nav-link" onclick="showPage('schedules')">إدارة الجداول</a>
+        <a href="#rooms" class="nav-link" onclick="showPage('rooms')">إدارة القاعات</a>
+        <a href="#dashboard" class="nav-link" onclick="showPage('dashboard')">لوحة المراقبة</a>
+        <a href="login.html" style="color: var(--warning-color); margin-top: 30px;" onclick="sessionStorage.clear()">تسجيل الخروج</a>
+    </div>
+
+    <div class="main-content">
+        <!-- صفحة إدارة المستخدمين -->
+        <div id="users" class="page active">
+            <div class="card">
+                <h3>المستخدمون</h3>
+                <button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم جديد</button>
+                <table id="users-table">
+                    <thead>
+                        <tr>
+                            <th>الاسم الكامل</th>
+                            <th>اسم المستخدم</th>
+                            <th>الدور (الصفة)</th>
+                            <th>رمز الباركود</th>
+                            <th>إجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- البيانات ستضاف هنا -->
+                    </tbody>
+                </table>
             </div>
-            <div class="input-group">
-                <label for="password">كلمة المرور</label>
-                <input type="password" id="password" required>
-            </div>
-            <button type="submit">تسجيل الدخول</button>
-        </form>
-        <p id="message"></p>
+        </div>
+
+        <!-- (يمكنك إضافة محتوى الصفحات الأخرى هنا بنفس الطريقة) -->
+        <div id="schedules" class="page"><div class="card"><h3>إدارة الجداول (سيتم بناؤها لاحقًا)</h3></div></div>
+        <div id="rooms" class="page"><div class="card"><h3>إدارة القاعات (سيتم بناؤها لاحقًا)</h3></div></div>
+        <div id="dashboard" class="page"><div class="card"><h3>لوحة المراقبة (سيتم بناؤها لاحقًا)</h3></div></div>
+    </div>
+
+    <!-- نافذة منبثقة لإضافة/تعديل مستخدم -->
+    <div id="user-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal('user-modal')">&times;</span>
+            <h3 id="modal-title">إضافة مستخدم جديد</h3>
+            <form id="user-form">
+                <input type="hidden" id="userId">
+                <div class="form-group">
+                    <label for="displayName">الاسم الكامل</label>
+                    <input type="text" id="displayName" required>
+                </div>
+                <div class="form-group">
+                    <label for="username">اسم المستخدم</label>
+                    <input type="text" id="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">كلمة المرور</label>
+                    <input type="password" id="password" required>
+                </div>
+                <div class="form-group">
+                    <label for="role">الدور (الصفة)</label>
+                    <select id="role" required>
+                        <option value="عضو هيئة تدريس">عضو هيئة تدريس</option>
+                        <option value="مشرف">مشرف</option>
+                        <option value="عامل نظافة">عامل نظافة</option>
+                        <option value="أدمن">أدمن</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="barcodeId">رمز الباركود</label>
+                    <input type="text" id="barcodeId" required>
+                </div>
+                <button type="submit" class="btn btn-success">حفظ</button>
+            </form>
+        </div>
     </div>
 
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
@@ -101,64 +254,98 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        const loginForm = document.getElementById('login-form');
-        const messageElement = document.getElementById('message');
+        // --- منطق التنقل بين الصفحات ---
+        window.showPage = (pageId) => {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            document.querySelector(`.nav-link[href="#${pageId}"]`).classList.add('active');
+        }
 
-        loginForm.addEventListener('submit', async (e) => {
+        // --- منطق النوافذ المنبثقة (Modal) ---
+        window.openModal = (modalId) => {
+            document.getElementById('modal-title').textContent = 'إضافة مستخدم جديد';
+            document.getElementById('user-form').reset();
+            document.getElementById('userId').value = '';
+            document.getElementById(modalId).style.display = 'block';
+        }
+        window.closeModal = (modalId) => {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // --- إدارة المستخدمين ---
+        const usersTableBody = document.querySelector('#users-table tbody');
+        const userForm = document.getElementById('user-form');
+
+        onSnapshot(collection(db, "Users"), (snapshot) => {
+            usersTableBody.innerHTML = '';
+            snapshot.forEach(doc => {
+                const user = doc.data();
+                const row = `
+                    <tr>
+                        <td>${user.displayName}</td>
+                        <td>${user.username}</td>
+                        <td>${user.role}</td>
+                        <td>${user.barcodeId}</td>
+                        <td>
+                            <button class="btn btn-warning" onclick="editUser('${doc.id}', '${user.displayName}', '${user.username}', '${user.role}', '${user.barcodeId}')">تعديل</button>
+                            <button class="btn btn-danger" onclick="deleteUser('${doc.id}')">حذف</button>
+                        </td>
+                    </tr>
+                `;
+                usersTableBody.innerHTML += row;
+            });
+        });
+
+        userForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const username = document.getElementById('username').value;
+            const userId = document.getElementById('userId').value;
             const password = document.getElementById('password').value;
             
-            messageElement.textContent = 'جاري التحقق...';
-            messageElement.style.color = '#6c757d';
+            const userData = {
+                displayName: document.getElementById('displayName').value,
+                username: document.getElementById('username').value,
+                role: document.getElementById('role').value,
+                barcodeId: document.getElementById('barcodeId').value,
+            };
 
-            try {
-                const usersRef = collection(db, "Users");
-                const q = query(usersRef, where("User name", "==", username));
-                
-                const querySnapshot = await getDocs(q);
+            // إضافة أو تحديث كلمة المرور فقط إذا تم إدخالها
+            if (password) {
+                userData.password = password;
+            }
 
-                if (querySnapshot.empty) {
-                    messageElement.textContent = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
-                    messageElement.style.color = '#dc3545';
+            if (userId) {
+                await updateDoc(doc(db, "Users", userId), userData);
+            } else {
+                if (!password) {
+                    alert('يجب إدخال كلمة مرور للمستخدم الجديد.');
                     return;
                 }
-
-                let userFound = false;
-                querySnapshot.forEach((doc) => {
-                    const userData = doc.data();
-                    if (userData.Password === password) {
-                        userFound = true;
-                        messageElement.textContent = 'تم تسجيل الدخول بنجاح! جاري التوجيه...';
-                        messageElement.style.color = '#28a745';
-                        
-                        sessionStorage.setItem('user', JSON.stringify(userData));
-
-                        // ===============================================================
-                        // ==== هذا هو السطر الذي تم تصحيحه ====
-                        // ===============================================================
-                        const destination = userData.role === 'admin' ? 'admin.html' : 'index.html';
-                        setTimeout(() => {
-                            window.location.href = destination;
-                        }, 1000);
-                        // ===============================================================
-                        // ==== نهاية الجزء المصحح ====
-                        // ===============================================================
-                    }
-                });
-
-                if (!userFound) {
-                    messageElement.textContent = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
-                    messageElement.style.color = '#dc3545';
-                }
-
-            } catch (error) {
-                console.error("خطأ أثناء تسجيل الدخول: ", error);
-                messageElement.textContent = 'حدث خطأ في النظام. يرجى المحاولة مرة أخرى.';
-                messageElement.style.color = '#dc3545';
+                await addDoc(collection(db, "Users"), userData);
             }
+            closeModal('user-modal');
         });
-    </script>
 
+        window.editUser = (id, displayName, username, role, barcodeId) => {
+            document.getElementById('userId').value = id;
+            document.getElementById('displayName').value = displayName;
+            document.getElementById('username').value = username;
+            document.getElementById('role').value = role;
+            document.getElementById('barcodeId').value = barcodeId;
+            document.getElementById('password').value = '';
+            document.getElementById('password').placeholder = 'اترك الحقل فارغًا لعدم التغيير';
+            document.getElementById('modal-title').textContent = 'تعديل مستخدم';
+            document.getElementById('user-modal').style.display = 'block';
+        };
+
+        window.deleteUser = async (id) => {
+            if (confirm('هل أنت متأكد من حذف هذا المستخدم؟')) {
+                await deleteDoc(doc(db, "Users", id));
+            }
+        };
+
+        // تهيئة الصفحة الأولى عند التحميل
+        showPage('users');
+    </script>
 </body>
 </html>
