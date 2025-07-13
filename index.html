@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام إدارة الكلية</title>
+    <style>
+        /* تصميم أساسي لجعل الصفحة تبدو أفضل */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f0f2f5;
+            color: #1c1e21;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        h1, h2 {
+            color: #0056b3;
+            border-bottom: 2px solid #f0f2f5;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: right;
+            border: 1px solid #ddd;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+            font-weight: 600;
+        }
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        tr:hover {
+            background-color: #e9ecef;
+        }
+        .loading, .error {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #6c757d;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>لوحة معلومات الكلية</h1>
+
+        <!-- قسم المدرسين -->
+        <section>
+            <h2>قائمة المدرسين</h2>
+            <table id="teachers-table">
+                <thead>
+                    <tr>
+                        <th>اسم المدرس</th>
+                        <th>المادة الدراسية</th>
+                    </tr>
+                </thead>
+                <tbody id="teachers-body">
+                    <tr><td colspan="2" class="loading">جاري تحميل البيانات...</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- قسم القاعات -->
+        <section>
+            <h2>القاعات الدراسية</h2>
+            <table id="rooms-table">
+                <thead>
+                    <tr>
+                        <th>اسم القاعة</th>
+                        <th>السعة</th>
+                    </tr>
+                </thead>
+                <tbody id="rooms-body">
+                     <tr><td colspan="2" class="loading">جاري تحميل البيانات...</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- قسم الجداول -->
+        <section>
+            <h2>جدول المحاضرات</h2>
+            <table id="schedules-table">
+                <thead>
+                    <tr>
+                        <th>اليوم</th>
+                        <th>الوقت</th>
+                        <th>القاعة</th>
+                        <th>المدرس</th>
+                    </tr>
+                </thead>
+                <tbody id="schedules-body">
+                     <tr><td colspan="4" class="loading">جاري تحميل البيانات...</td></tr>
+                </tbody>
+            </table>
+        </section>
+    </div>
+
+    <!-- SDKs الخاصة بـ Firebase -->
+    <script type="module">
+        // 1. استيراد الدوال من مكتبات Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        // 2. معلومات إعداد Firebase (استخدم معلوماتك الخاصة)
+        const firebaseConfig = {
+            apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
+            authDomain: "gggg-dc7d0.firebaseapp.com",
+            projectId: "gggg-dc7d0",
+            storageBucket: "gggg-dc7d0.appspot.com",
+            messagingSenderId: "151376454562",
+            appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
+        };
+
+        // 3. تهيئة Firebase وقاعدة البيانات
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // 4. دالة عامة لجلب البيانات وعرضها
+        async function displayData(collectionName, tableBodyId, fields) {
+            const tableBody = document.getElementById(tableBodyId);
+            try {
+                const querySnapshot = await getDocs(collection(db, collectionName));
+                
+                tableBody.innerHTML = ''; // إفراغ الجدول من رسالة التحميل
+
+                if (querySnapshot.empty) {
+                    tableBody.innerHTML = `<tr><td colspan="${fields.length}" class="loading">لا توجد بيانات في هذه المجموعة.</td></tr>`;
+                    return;
+                }
+
+                querySnapshot.forEach((doc) => {
+                    const row = tableBody.insertRow();
+                    const data = doc.data();
+                    
+                    // إضافة خلايا الصف بالترتيب المحدد
+                    fields.forEach(field => {
+                        const cell = row.insertCell();
+                        // عرض قيمة الحقل أو رسالة بديلة إذا كان فارغًا
+                        cell.textContent = data[field] || 'غير محدد'; 
+                    });
+                });
+            } catch (error) {
+                console.error(`خطأ في جلب بيانات '${collectionName}': `, error);
+                tableBody.innerHTML = `<tr><td colspan="${fields.length}" class="error">فشل تحميل البيانات. تحقق من وحدة التحكم (Console).</td></tr>`;
+            }
+        }
+
+        // 5. عند تحميل الصفحة، قم بجلب كل البيانات
+        document.addEventListener('DOMContentLoaded', () => {
+            displayData('Teachers', 'teachers-body', ['Name', 'Subject']);
+            displayData('Room', 'rooms-body', ['Name', 'السعة']);
+            displayData('schedules', 'schedules-body', ['Day', 'Time', 'Room', 'Teacher']);
+        });
+    </script>
+
+</body>
+</html>
