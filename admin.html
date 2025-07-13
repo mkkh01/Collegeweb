@@ -14,10 +14,21 @@
         .main-content { margin-right: 250px; padding: 30px; }
         .page { display: none; }
         .page.active { display: block; }
-        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; overflow-x: auto; }
         h3 { color: var(--dark-color); border-bottom: 2px solid #eee; padding-bottom: 10px; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 12px; text-align: right; border-bottom: 1px solid #ddd; word-break: break-all; }
+        
+        /* =============================================================== */
+        /* ==== هذا هو التصحيح الخاص بمشكلة التفاف النص في الجدول ==== */
+        /* =============================================================== */
+        th, td { 
+            padding: 12px 15px; 
+            text-align: right; 
+            border-bottom: 1px solid #ddd; 
+            white-space: nowrap; /* يمنع كسر النص إلى سطر جديد */
+        }
+        /* =============================================================== */
+
         th { background-color: #f2f2f2; }
         .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; margin-left: 5px; }
         .btn-primary { background-color: var(--primary-color); } .btn-warning { background-color: var(--warning-color); }
@@ -68,7 +79,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         const db = getFirestore(initializeApp({
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
@@ -87,8 +98,8 @@
         };
         window.openModal = (modalId) => {
             const form = document.querySelector(`#${modalId} form`);
-            if (form) form.reset();
-            const hiddenId = document.querySelector(`#${modalId} input[type=hidden]`);
+            form.reset();
+            const hiddenId = form.querySelector(`input[type=hidden]`);
             if (hiddenId) hiddenId.value = '';
             document.querySelector(`#${modalId} h3`).textContent = 'إضافة جديد';
             if (modalId === 'schedule-modal') populateSelects();
@@ -97,15 +108,11 @@
         window.closeModal = (modalId) => { document.getElementById(modalId).style.display = 'none'; };
         const confirmDelete = (item) => confirm(`هل أنت متأكد من حذف هذا ${item}؟`);
 
+        // ===============================================================
+        // ==== هذا هو التصحيح الخاص بمشكلة التعديل ====
+        // ===============================================================
+        
         // Users
-        onSnapshot(collection(db, "Users"), (snap) => {
-            const tbody = document.querySelector('#users-table tbody');
-            tbody.innerHTML = '';
-            snap.forEach(d => {
-                const u = d.data();
-                tbody.innerHTML += `<tr><td>${u.displayName}</td><td>${u.username || u["User name"]}</td><td>${u.role}</td><td>${u.barcodeId}</td><td><button class="btn btn-warning" onclick="editItem('Users', '${d.id}', 'user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users', '${d.id}', 'المستخدم')">حذف</button></td></tr>`;
-            });
-        });
         document.getElementById('user-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('userId').value;
@@ -117,8 +124,10 @@
             };
             const password = document.getElementById('password').value;
             if (password) data.password = password;
-            if (id) await updateDoc(doc(db, "Users", id), data);
-            else {
+
+            if (id) { // إذا كان هناك ID، قم بالتحديث
+                await updateDoc(doc(db, "Users", id), data);
+            } else { // وإلا، قم بالإضافة
                 if (!password) { alert('كلمة المرور مطلوبة للمستخدم الجديد.'); return; }
                 await addDoc(collection(db, "Users"), data);
             }
@@ -126,14 +135,6 @@
         });
 
         // Rooms
-        onSnapshot(collection(db, "Rooms"), (snap) => {
-            const tbody = document.querySelector('#rooms-table tbody');
-            tbody.innerHTML = '';
-            snap.forEach(d => {
-                const r = d.data();
-                tbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td>${r.qrUrl || ''}</td><td><button class="btn btn-warning" onclick="editItem('Rooms', '${d.id}', 'room')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms', '${d.id}', 'القاعة')">حذف</button></td></tr>`;
-            });
-        });
         document.getElementById('room-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('roomId').value;
@@ -142,8 +143,9 @@
                 capacity: parseInt(document.getElementById('roomCapacity').value),
                 qrUrl: document.getElementById('roomQR').value,
             };
-            if (id) await updateDoc(doc(db, "Rooms", id), data);
-            else {
+            if (id) { // إذا كان هناك ID، قم بالتحديث
+                await updateDoc(doc(db, "Rooms", id), data);
+            } else { // وإلا، قم بالإضافة
                 data.status = 'closed';
                 await addDoc(collection(db, "Rooms"), data);
             }
@@ -151,14 +153,6 @@
         });
 
         // Schedules
-        onSnapshot(collection(db, "Schedules"), (snap) => {
-            const tbody = document.querySelector('#schedules-table tbody');
-            tbody.innerHTML = '';
-            snap.forEach(d => {
-                const s = d.data();
-                tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.lecturer}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td><button class="btn btn-warning" onclick="editItem('Schedules', '${d.id}', 'schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules', '${d.id}', 'الجدول')">حذف</button></td></tr>`;
-            });
-        });
         document.getElementById('schedule-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('scheduleId').value;
@@ -167,40 +161,59 @@
                 lecturer: document.getElementById('lecturer').value, room: document.getElementById('scheduleRoom').value,
                 day: document.getElementById('day').value, time: document.getElementById('time').value,
             };
-            if (id) await updateDoc(doc(db, "Schedules", id), data);
-            else await addDoc(collection(db, "Schedules"), data);
+            if (id) { // إذا كان هناك ID، قم بالتحديث
+                await updateDoc(doc(db, "Schedules", id), data);
+            } else { // وإلا، قم بالإضافة
+                await addDoc(collection(db, "Schedules"), data);
+            }
             closeModal('schedule-modal');
         });
-        
         // ===============================================================
-        // ==== هذه هي الدالة التي تم تحسينها لضمان عملها بشكل صحيح ====
-        // ===============================================================
+
+        // --- دوال عرض البيانات (تبقى كما هي) ---
+        onSnapshot(collection(db, "Users"), (snap) => {
+            const tbody = document.querySelector('#users-table tbody');
+            tbody.innerHTML = '';
+            snap.forEach(d => {
+                const u = d.data();
+                tbody.innerHTML += `<tr><td>${u.displayName}</td><td>${u.username || u["User name"]}</td><td>${u.role}</td><td>${u.barcodeId}</td><td><button class="btn btn-warning" onclick="editItem('Users', '${d.id}', 'user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users', '${d.id}', 'المستخدم')">حذف</button></td></tr>`;
+            });
+        });
+        onSnapshot(collection(db, "Rooms"), (snap) => {
+            const tbody = document.querySelector('#rooms-table tbody');
+            tbody.innerHTML = '';
+            snap.forEach(d => {
+                const r = d.data();
+                tbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td>${r.qrUrl || ''}</td><td><button class="btn btn-warning" onclick="editItem('Rooms', '${d.id}', 'room')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms', '${d.id}', 'القاعة')">حذف</button></td></tr>`;
+            });
+        });
+        onSnapshot(collection(db, "Schedules"), (snap) => {
+            const tbody = document.querySelector('#schedules-table tbody');
+            tbody.innerHTML = '';
+            snap.forEach(d => {
+                const s = d.data();
+                tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.lecturer}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td><button class="btn btn-warning" onclick="editItem('Schedules', '${d.id}', 'schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules', '${d.id}', 'الجدول')">حذف</button></td></tr>`;
+            });
+        });
+
         async function populateSelects() {
-            // جلب جميع المستخدمين أولاً
             const usersSnap = await getDocs(collection(db, "Users"));
             const roomsSnap = await getDocs(collection(db, "Rooms"));
-            
             const lecturerSelect = document.getElementById('lecturer');
             const roomSelect = document.getElementById('scheduleRoom');
-            
             lecturerSelect.innerHTML = '<option value="">اختر محاضر</option>';
             roomSelect.innerHTML = '<option value="">اختر قاعة</option>';
-            
-            // فلترة المستخدمين الذين لديهم دور "عضو هيئة تدريس" هنا في الكود
             usersSnap.forEach(d => {
                 const user = d.data();
-                // التحقق من وجود حقل الدور وأن قيمته هي المطلوبة
                 if (user.role && user.role.trim() === "عضو هيئة تدريس") {
                     lecturerSelect.innerHTML += `<option value="${user.displayName}">${user.displayName}</option>`;
                 }
             });
-
             roomsSnap.forEach(d => {
                 const room = d.data();
                 roomSelect.innerHTML += `<option value="${room.name}">${room.name}</option>`;
             });
         }
-        // ===============================================================
 
         // Dashboard
         onSnapshot(collection(db, "Rooms"), (snap) => {
