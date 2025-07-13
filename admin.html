@@ -173,22 +173,31 @@
         });
         
         // ===============================================================
-        // ==== هذه هي الدالة التي تم تصحيحها لملء القوائم المنسدلة ====
+        // ==== هذه هي الدالة التي تم تحسينها لضمان عملها بشكل صحيح ====
         // ===============================================================
         async function populateSelects() {
-            const usersSnap = await getDocs(query(collection(db, "Users"), where("role", "==", "عضو هيئة تدريس")));
+            // جلب جميع المستخدمين أولاً
+            const usersSnap = await getDocs(collection(db, "Users"));
             const roomsSnap = await getDocs(collection(db, "Rooms"));
+            
             const lecturerSelect = document.getElementById('lecturer');
             const roomSelect = document.getElementById('scheduleRoom');
+            
             lecturerSelect.innerHTML = '<option value="">اختر محاضر</option>';
             roomSelect.innerHTML = '<option value="">اختر قاعة</option>';
+            
+            // فلترة المستخدمين الذين لديهم دور "عضو هيئة تدريس" هنا في الكود
             usersSnap.forEach(d => {
-                // استخدام حقل displayName لعرض اسم المحاضر
-                lecturerSelect.innerHTML += `<option value="${d.data().displayName}">${d.data().displayName}</option>`;
+                const user = d.data();
+                // التحقق من وجود حقل الدور وأن قيمته هي المطلوبة
+                if (user.role && user.role.trim() === "عضو هيئة تدريس") {
+                    lecturerSelect.innerHTML += `<option value="${user.displayName}">${user.displayName}</option>`;
+                }
             });
+
             roomsSnap.forEach(d => {
-                // استخدام حقل name لعرض اسم القاعة
-                roomSelect.innerHTML += `<option value="${d.data().name}">${d.data().name}</option>`;
+                const room = d.data();
+                roomSelect.innerHTML += `<option value="${room.name}">${room.name}</option>`;
             });
         }
         // ===============================================================
@@ -214,7 +223,7 @@
             if (type === 'user') {
                 document.getElementById('userId').value = id;
                 document.getElementById('displayName').value = data.displayName;
-                document.getElementById('username').value = data.username || data["User name"]; // يعمل للحالتين
+                document.getElementById('username').value = data.username || data["User name"];
                 document.getElementById('role').value = data.role;
                 document.getElementById('barcodeId').value = data.barcodeId;
                 document.getElementById('password').value = '';
