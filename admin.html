@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>لوحة تحكم الأدمن</title>
+    <!-- مكتبات إنشاء الرموز -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator/qrcode.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <style>
         :root { --primary-color: #007bff; --secondary-color: #6c757d; --success-color: #28a745; --danger-color: #dc3545; --warning-color: #ffc107; --light-color: #f8f9fa; --dark-color: #343a40; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; }
@@ -17,7 +20,7 @@
         .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; overflow-x: auto; }
         h3 { color: var(--dark-color); border-bottom: 2px solid #eee; padding-bottom: 10px; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 12px 15px; text-align: right; border-bottom: 1px solid #ddd; white-space: nowrap; }
+        th, td { padding: 12px 15px; text-align: right; border-bottom: 1px solid #ddd; white-space: nowrap; vertical-align: middle; }
         th { background-color: #f2f2f2; }
         .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; margin-left: 5px; }
         .btn-primary { background-color: var(--primary-color); } .btn-warning { background-color: var(--warning-color); }
@@ -33,6 +36,21 @@
         .room-card.open { background-color: var(--success-color); }
         .room-card.closed { background-color: var(--danger-color); }
         .room-card h4 { margin-top: 0; }
+        .qr-code-container, .barcode-container { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        .qr-code-container img { max-width: 80px; height: auto; }
+        .barcode-container svg { height: 50px; width: auto; }
+        
+        /* --- قسم الطباعة --- */
+        @media print {
+            body * { visibility: hidden; }
+            #print-area, #print-area * { visibility: visible; }
+            #print-area { position: absolute; left: 0; top: 0; width: 100%; }
+            .id-card { border: 2px solid #343a40; padding: 20px; border-radius: 10px; width: 320px; margin: 50px auto; text-align: center; }
+            .id-card h4 { margin: 0 0 10px 0; }
+            .id-card p { margin: 5px 0; }
+            .id-card svg { height: 60px; width: 100%; }
+            .id-card img { max-width: 200px; height: auto; margin-top: 10px; }
+        }
     </style>
 </head>
 <body>
@@ -56,14 +74,17 @@
 
     <div class="main-content">
         <div id="dashboard" class="page"><div class="card"><h3>حالة القاعات الحالية</h3><div id="room-status-container" class="room-status-container"></div></div></div>
-        <div id="users" class="page"><div class="card"><h3>المستخدمون</h3><button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم</button><table id="users-table"><thead><tr><th>الاسم الكامل</th><th>اسم المستخدم</th><th>الدور</th><th>باركود</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
+        <div id="users" class="page"><div class="card"><h3>المستخدمون</h3><button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم</button><table id="users-table"><thead><tr><th>الاسم الكامل</th><th>الدور</th><th>رمز الباركود</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
         <div id="schedules" class="page"><div class="card"><h3>الجداول الدراسية</h3><button class="btn btn-primary" onclick="openModal('schedule-modal')">إضافة جدول</button><table id="schedules-table"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
-        <div id="rooms" class="page"><div class="card"><h3>القاعات الدراسية</h3><button class="btn btn-primary" onclick="openModal('room-modal')">إضافة قاعة</button><table id="rooms-table"><thead><tr><th>اسم القاعة</th><th>السعة</th><th>رابط QR</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
+        <div id="rooms" class="page"><div class="card"><h3>القاعات الدراسية</h3><button class="btn btn-primary" onclick="openModal('room-modal')">إضافة قاعة</button><table id="rooms-table"><thead><tr><th>اسم القاعة</th><th>السعة</th><th>رمز QR</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
     </div>
 
+    <!-- منطقة الطباعة المخفية -->
+    <div id="print-area" style="display:none;"></div>
+
     <!-- Modals -->
-    <div id="user-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('user-modal')">&times;</span><h3 id="user-modal-title"></h3><form id="user-form"><input type="hidden" id="userId"><div class="form-group"><label>الاسم الكامل</label><input type="text" id="displayName" required></div><div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div><div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم التغيير</small></div><div class="form-group"><label>الدور</label><select id="role" required><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option></select></div><div class="form-group"><label>رمز الباركود</label><input type="text" id="barcodeId" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
-    <div id="room-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('room-modal')">&times;</span><h3 id="room-modal-title"></h3><form id="room-form"><input type="hidden" id="roomId"><div class="form-group"><label>اسم القاعة</label><input type="text" id="roomName" required></div><div class="form-group"><label>السعة</label><input type="number" id="roomCapacity" required></div><div class="form-group"><label>رابط QR</label><input type="text" id="roomQR" placeholder="https://yoursite.netlify.app/open.html?room=..." required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
+    <div id="user-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('user-modal')">&times;</span><h3 id="user-modal-title"></h3><form id="user-form"><input type="hidden" id="userId"><div class="form-group"><label>الاسم الكامل</label><input type="text" id="displayName" required></div><div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div><div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم التغيير</small></div><div class="form-group"><label>الدور</label><select id="role" required><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option></select></div><div class="form-group"><label>رمز الباركود (رقم)</label><input type="text" id="barcodeId" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
+    <div id="room-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('room-modal')">&times;</span><h3 id="room-modal-title"></h3><form id="room-form"><input type="hidden" id="roomId"><div class="form-group"><label>اسم القاعة</label><input type="text" id="roomName" required></div><div class="form-group"><label>السعة</label><input type="number" id="roomCapacity" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
     <div id="schedule-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('schedule-modal')">&times;</span><h3 id="schedule-modal-title"></h3><form id="schedule-form"><input type="hidden" id="scheduleId"><div class="form-group"><label>رمز المادة</label><input type="text" id="courseCode" required></div><div class="form-group"><label>اسم المادة</label><input type="text" id="courseName" required></div><div class="form-group"><label>المحاضر</label><select id="lecturer" required></select></div><div class="form-group"><label>القاعة</label><select id="scheduleRoom" required></select></div><div class="form-group"><label>اليوم</label><select id="day" required><option>الأحد</option><option>الاثنين</option><option>الثلاثاء</option><option>الأربعاء</option><option>الخميس</option></select></div><div class="form-group"><label>الوقت</label><input type="text" id="time" placeholder="مثال: 08:00-10:00" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
 
     <script type="module">
@@ -79,34 +100,27 @@
             appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
         }));
 
+        const SITE_URL = "https://vocal-bunny-9c482d.netlify.app";
+
         window.showPage = (pageId) => {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(pageId).classList.add('active');
             document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
             document.querySelector(`.nav-link[href="#${pageId}"]`).classList.add('active');
         };
-
-        // ===============================================================
-        // ==== هذا هو التصحيح النهائي لدالة فتح النافذة المنبثقة ====
-        // ===============================================================
         window.openModal = (modalId) => {
             const form = document.querySelector(`#${modalId} form`);
-            // مسح الحقول يدويًا بدلاً من form.reset()
             form.querySelectorAll('input:not([type=hidden]), select').forEach(el => el.value = '');
-            // مسح حقل الـ ID المخفي بشكل منفصل
             const hiddenId = form.querySelector(`input[type=hidden]`);
             if (hiddenId) hiddenId.value = '';
-            
             document.querySelector(`#${modalId} h3`).textContent = 'إضافة جديد';
             if (modalId === 'schedule-modal') populateSelects();
             document.getElementById(modalId).style.display = 'block';
         };
-        // ===============================================================
-
         window.closeModal = (modalId) => { document.getElementById(modalId).style.display = 'none'; };
         const confirmDelete = (item) => confirm(`هل أنت متأكد من حذف هذا ${item}؟`);
 
-        // --- دوال الحفظ (Submit Handlers) ---
+        // --- Submit Handlers ---
         document.getElementById('user-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('userId').value;
@@ -128,10 +142,11 @@
         document.getElementById('room-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('roomId').value;
+            const roomName = document.getElementById('roomName').value;
             const data = {
-                name: document.getElementById('roomName').value,
+                name: roomName,
                 capacity: parseInt(document.getElementById('roomCapacity').value),
-                qrUrl: document.getElementById('roomQR').value,
+                qrUrl: `${SITE_URL}/open.html?room=${encodeURIComponent(roomName)}`
             };
             if (id) await updateDoc(doc(db, "Rooms", id), data);
             else {
@@ -153,13 +168,35 @@
             closeModal('schedule-modal');
         });
 
-        // --- دوال عرض البيانات (Data Display) ---
+        // --- Data Display ---
         onSnapshot(collection(db, "Users"), (snap) => {
             const tbody = document.querySelector('#users-table tbody');
             tbody.innerHTML = '';
             snap.forEach(d => {
                 const u = d.data();
-                tbody.innerHTML += `<tr><td>${u.displayName}</td><td>${u.username || u["User name"]}</td><td>${u.role}</td><td>${u.barcodeId}</td><td><button class="btn btn-warning" onclick="editItem('Users', '${d.id}', 'user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users', '${d.id}', 'المستخدم')">حذف</button></td></tr>`;
+                tbody.innerHTML += `<tr>
+                    <td>${u.displayName}</td>
+                    <td>${u.role}</td>
+                    <td>
+                        <div class="barcode-container">
+                            <svg id="barcode-${d.id}"></svg>
+                        </div>
+                    </td>
+                    <td>
+                        <button class="btn btn-warning" onclick="editItem('Users', '${d.id}', 'user')">تعديل</button>
+                        <button class="btn btn-danger" onclick="deleteItem('Users', '${d.id}', 'المستخدم')">حذف</button>
+                        <button class="btn btn-primary" onclick="printIdCard('${u.displayName}', '${u.role}', '${u.barcodeId}')">طباعة بطاقة</button>
+                    </td>
+                </tr>`;
+                if (u.barcodeId) {
+                    JsBarcode(`#barcode-${d.id}`, u.barcodeId, {
+                        format: "CODE128",
+                        lineColor: "#000",
+                        width: 2,
+                        height: 40,
+                        displayValue: true
+                    });
+                }
             });
         });
         onSnapshot(collection(db, "Rooms"), (snap) => {
@@ -167,7 +204,21 @@
             tbody.innerHTML = '';
             snap.forEach(d => {
                 const r = d.data();
-                tbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td>${r.qrUrl || ''}</td><td><button class="btn btn-warning" onclick="editItem('Rooms', '${d.id}', 'room')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms', '${d.id}', 'القاعة')">حذف</button></td></tr>`;
+                const qrCodeDataUrl = generateQRCode(r.qrUrl || '');
+                tbody.innerHTML += `<tr>
+                    <td>${r.name}</td>
+                    <td>${r.capacity}</td>
+                    <td>
+                        <div class="qr-code-container">
+                            <img src="${qrCodeDataUrl}" alt="QR Code">
+                        </div>
+                    </td>
+                    <td>
+                        <button class="btn btn-warning" onclick="editItem('Rooms', '${d.id}', 'room')">تعديل</button>
+                        <button class="btn btn-danger" onclick="deleteItem('Rooms', '${d.id}', 'القاعة')">حذف</button>
+                        <button class="btn btn-primary" onclick="printRoomCard('${r.name}', '${r.qrUrl}')">طباعة بطاقة</button>
+                    </td>
+                </tr>`;
             });
         });
         onSnapshot(collection(db, "Schedules"), (snap) => {
@@ -178,6 +229,16 @@
                 tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.lecturer}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td><button class="btn btn-warning" onclick="editItem('Schedules', '${d.id}', 'schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules', '${d.id}', 'الجدول')">حذف</button></td></tr>`;
             });
         });
+
+        function generateQRCode(text) {
+            if (!text) return '';
+            const typeNumber = 4;
+            const errorCorrectionLevel = 'L';
+            const qr = qrcode(typeNumber, errorCorrectionLevel);
+            qr.addData(text);
+            qr.make();
+            return qr.createDataURL(4);
+        }
 
         async function populateSelects() {
             const usersSnap = await getDocs(collection(db, "Users"));
@@ -212,19 +273,13 @@
             await updateDoc(doc(db, "Rooms", id), { status: currentStatus === 'open' ? 'closed' : 'open' });
         };
 
-        // --- دالة التعديل (Edit Function) ---
+        // Edit Function
         window.editItem = async (collectionName, id, type) => {
-            // فتح النافذة أولاً (وهذا سيقوم بمسح الحقول بشكل صحيح)
             openModal(`${type}-modal`); 
-            
-            // الآن، املأ الحقول بالبيانات
             const itemDoc = await getDoc(doc(db, collectionName, id));
             const data = itemDoc.data();
-            
-            // ضع الـ ID في الحقل المخفي بعد فتح النافذة
             document.getElementById(`${type}Id`).value = id;
             document.querySelector(`#${type}-modal h3`).textContent = `تعديل ${type === 'user' ? 'مستخدم' : (type === 'room' ? 'قاعة' : 'جدول')}`;
-
             if (type === 'user') {
                 document.getElementById('displayName').value = data.displayName;
                 document.getElementById('username').value = data.username || data["User name"];
@@ -234,7 +289,6 @@
             } else if (type === 'room') {
                 document.getElementById('roomName').value = data.name;
                 document.getElementById('roomCapacity').value = data.capacity;
-                document.getElementById('roomQR').value = data.qrUrl || '';
             } else if (type === 'schedule') {
                 await populateSelects();
                 document.getElementById('courseCode').value = data.courseCode;
@@ -247,6 +301,41 @@
         };
         window.deleteItem = async (collectionName, id, itemName) => {
             if (confirmDelete(itemName)) await deleteDoc(doc(db, collectionName, id));
+        };
+
+        // --- Print Functions ---
+        window.printIdCard = (name, role, barcodeValue) => {
+            const printArea = document.getElementById('print-area');
+            printArea.innerHTML = `
+                <div class="id-card">
+                    <h4>${name}</h4>
+                    <p>${role}</p>
+                    <svg id="print-barcode"></svg>
+                </div>
+            `;
+            if (barcodeValue) {
+                JsBarcode("#print-barcode", barcodeValue, {
+                    format: "CODE128",
+                    lineColor: "#000",
+                    width: 3,
+                    height: 80,
+                    displayValue: true
+                });
+            }
+            window.print();
+        };
+
+        window.printRoomCard = (name, qrUrl) => {
+            const printArea = document.getElementById('print-area');
+            const qrCodeDataUrl = generateQRCode(qrUrl || '');
+            printArea.innerHTML = `
+                <div class="id-card">
+                    <h4>بطاقة تعريف القاعة</h4>
+                    <p>${name}</p>
+                    <img src="${qrCodeDataUrl}" alt="QR Code">
+                </div>
+            `;
+            window.print();
         };
 
         showPage('dashboard');
