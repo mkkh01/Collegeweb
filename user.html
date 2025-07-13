@@ -54,11 +54,20 @@
         }));
 
         const user = JSON.parse(sessionStorage.getItem('user'));
-        document.getElementById('welcome-message').textContent = `أهلاً بك، ${user.displayName}`;
+        
+        // ===============================================================
+        // ==== هذا هو السطر الذي تم تصحيحه لضمان عمله بشكل صحيح ====
+        // ===============================================================
+        const userDisplayName = user.displayName; // استخدام حقل الاسم الكامل دائمًا
+        // ===============================================================
+
+        document.getElementById('welcome-message').textContent = `أهلاً بك، ${userDisplayName}`;
 
         const schedulesTableBody = document.querySelector('#my-schedules-table tbody');
         const schedulesRef = collection(db, "Schedules");
-        const q = query(schedulesRef, where("lecturer", "==", user.displayName));
+        
+        // البحث عن الجداول باستخدام الاسم الكامل للمستخدم
+        const q = query(schedulesRef, where("lecturer", "==", userDisplayName));
 
         onSnapshot(q, (snapshot) => {
             schedulesTableBody.innerHTML = '';
