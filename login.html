@@ -86,11 +86,9 @@
 
     <!-- Firebase SDK -->
     <script type="module">
-        // 1. استيراد الدوال اللازمة
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-        // 2. معلومات إعداد Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
             authDomain: "gggg-dc7d0.firebaseapp.com",
@@ -100,54 +98,49 @@
             appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
         };
 
-        // 3. تهيئة Firebase و Firestore
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // 4. التعامل مع عملية تسجيل الدخول
         const loginForm = document.getElementById('login-form');
         const messageElement = document.getElementById('message');
 
         loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault(); // منع التحديث التلقائي للصفحة
-
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
+            e.preventDefault();
+            const usernameInput = document.getElementById('username').value;
+            const passwordInput = document.getElementById('password').value;
             
             messageElement.textContent = 'جاري التحقق...';
             messageElement.style.color = '#6c757d';
 
             try {
-                // إنشاء استعلام للبحث عن اسم المستخدم
                 const usersRef = collection(db, "Users");
-                const q = query(usersRef, where("User name", "==", username));
+                const q = query(usersRef, where("User name", "==", usernameInput));
                 
                 const querySnapshot = await getDocs(q);
 
                 if (querySnapshot.empty) {
-                    // لم يتم العثور على المستخدم
                     messageElement.textContent = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
                     messageElement.style.color = '#dc3545';
                     return;
                 }
 
-                // التحقق من كلمة المرور
                 let userFound = false;
                 querySnapshot.forEach((doc) => {
                     const userData = doc.data();
-                    if (userData.Password === password) {
+                    
+                    if (userData.Password === passwordInput) {
                         userFound = true;
-                        // تم تسجيل الدخول بنجاح
                         messageElement.textContent = 'تم تسجيل الدخول بنجاح! جاري التوجيه...';
                         messageElement.style.color = '#28a745';
                         
-                        // (اختياري) تخزين معلومات المستخدم في المتصفح
                         sessionStorage.setItem('user', JSON.stringify(userData));
 
-                        // توجيه المستخدم إلى الصفحة الرئيسية بعد ثانية واحدة
-                        setTimeout(() => {
-                            window.location.href = 'index.html';
-                        }, 1000);
+                        // التحقق من الدور وتحديد وجهة التوجيه
+                        if (userData.role && userData.role.trim().toLowerCase() === 'admin') {
+                            setTimeout(() => { window.location.href = 'admin.html'; }, 1000);
+                        } else {
+                            setTimeout(() => { window.location.href = 'index.html'; }, 1000);
+                        }
                     }
                 });
 
