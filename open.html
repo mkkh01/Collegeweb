@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>فتح القاعة</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { background: #ffffff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); width: 100%; max-width: 450px; text-align: center; }
+        h1 { color: #333; margin-bottom: 10px; }
+        p { color: #666; margin-bottom: 25px; }
+        .form-group { margin-bottom: 20px; text-align: right; }
+        .form-group label { display: block; margin-bottom: 8px; color: #555; font-weight: 600; }
+        .form-group input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        .btn { width: 100%; padding: 12px; background-color: #28a745; border: none; border-radius: 5px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; transition: background-color 0.3s; }
+        .btn:hover { background-color: #218838; }
+        #message { margin-top: 20px; font-weight: 500; }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 id="room-title"></h1>
+        <p>أدخل بياناتك للمصادقة وفتح الباب</p>
+        <form id="auth-form">
+            <div class="form-group">
+                <label for="username">اسم المستخدم</label>
+                <input type="text" id="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">كلمة المرور</label>
+                <input type="password" id="password" required>
+            </div>
+            <button type="submit" class="btn">مصادقة وفتح</button>
+        </form>
+        <p id="message"></p>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getFirestore, collection, query, where, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        const db = getFirestore(initializeApp({
+            apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
+            authDomain: "gggg-dc7d0.firebaseapp.com",
+            projectId: "gggg-dc7d0",
+            storageBucket: "gggg-dc7d0.appspot.com",
+            messagingSenderId: "151376454562",
+            appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
+        }));
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomName = urlParams.get('room');
+        document.getElementById('room-title').textContent = `قاعة: ${roomName || 'غير محددة'}`;
+
+        const authForm = document.getElementById('auth-form');
+        const messageElement = document.getElementById('message');
+
+        authForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!roomName) {
+                messageElement.textContent = 'خطأ: اسم القاعة غير محدد في الرابط.';
+                messageElement.className = 'error';
+                return;
+            }
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            messageElement.textContent = 'جارٍ التحقق...';
+            messageElement.className = '';
+
+            try {
+                const userQuery = query(collection(db, "Users"), where("username", "==", username), where("password", "==", password));
+                const userSnapshot = await getDocs(userQuery);
+
+                if (userSnapshot.empty) {
+                    messageElement.textContent = 'فشل المصادقة. تحقق من بياناتك.';
+                    messageElement.className = 'error';
+                    return;
+                }
+
+                const user = userSnapshot.docs[0].data();
+                
+                let hasAccess = false;
+                const userRole = user.role.trim();
+
+                if (userRole === 'مشرف' || userRole === 'عامل نظافة' || userRole === 'admin') {
+                    hasAccess = true;
+                } else if (userRole === 'عضو هيئة تدريس') {
+                    hasAccess = true; // يمكنك لاحقًا إضافة منطق التحقق من الوقت هنا
+                }
+
+                if (hasAccess) {
+                    messageElement.textContent = 'تمت المصادقة بنجاح! سيتم فتح الباب.';
+                    messageElement.className = 'success';
+                    
+                    const roomQuery = query(collection(db, "Rooms"), where("name", "==", roomName));
+                    const roomSnapshot = await getDocs(roomQuery);
+                    
+                    if (!roomSnapshot.empty) {
+                        const roomDocId = roomSnapshot.docs[0].id;
+                        await updateDoc(doc(db, "Rooms", roomDocId), { status: 'open' });
+                        console.log(`تم تحديث حالة القاعة ${roomName} إلى "مفتوحة"`);
+                    }
+
+                } else {
+                    messageElement.textContent = 'ليس لديك صلاحية لفتح هذه القاعة في هذا الوقت.';
+                    messageElement.className = 'error';
+                }
+
+            } catch (error) {
+                console.error("خطأ أثناء المصادقة: ", error);
+                messageElement.textContent = 'حدث خطأ في النظام.';
+                messageElement.className = 'error';
+            }
+        });
+    </script>
+</body>
+</html>
