@@ -114,7 +114,7 @@
 
             try {
                 const usersRef = collection(db, "Users");
-                const q = query(usersRef, where("User name", "==", usernameInput));
+                const q = query(usersRef, where("username", "==", usernameInput));
                 
                 const querySnapshot = await getDocs(q);
 
@@ -128,7 +128,7 @@
                 querySnapshot.forEach((doc) => {
                     const userData = doc.data();
                     
-                    if (userData.Password === passwordInput) {
+                    if (userData.password === passwordInput) {
                         userFound = true;
                         messageElement.textContent = 'تم تسجيل الدخول بنجاح! جاري التوجيه...';
                         messageElement.style.color = '#28a745';
