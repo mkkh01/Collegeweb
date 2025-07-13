@@ -40,8 +40,6 @@
         .qr-code-container, .barcode-container { display: flex; flex-direction: column; align-items: center; gap: 10px; }
         .qr-code-container img { max-width: 80px; height: auto; }
         .barcode-container svg { height: 50px; width: auto; }
-        
-        /* --- منطقة التجهيز للـ PDF (مخفية) --- */
         .pdf-prepare-area { position: absolute; left: -9999px; opacity: 0; }
         .id-card { border: 2px solid #343a40; padding: 20px; border-radius: 10px; width: 320px; background: white; text-align: center; }
         .id-card h4 { margin: 0 0 10px 0; font-size: 20px; }
@@ -56,7 +54,7 @@
         const loggedInUser = JSON.parse(sessionStorage.getItem('user'));
         if (!loggedInUser || !loggedInUser.role || loggedInUser.role.trim().toLowerCase() !== 'admin') {
             alert('ليس لديك صلاحية للوصول إلى هذه الصفحة.');
-            window.location.href = 'login.html';
+            window.location.href = 'index.html';
         }
     </script>
 
@@ -66,23 +64,21 @@
         <a href="#users" class="nav-link" onclick="showPage('users')">إدارة المستخدمين</a>
         <a href="#schedules" class="nav-link" onclick="showPage('schedules')">إدارة الجداول</a>
         <a href="#rooms" class="nav-link" onclick="showPage('rooms')">إدارة القاعات</a>
-        <a href="login.html" style="color: var(--warning-color); margin-top: 30px;" onclick="sessionStorage.clear()">تسجيل الخروج</a>
+        <a href="index.html" style="color: var(--warning-color); margin-top: 30px;" onclick="sessionStorage.clear()">تسجيل الخروج</a>
     </div>
 
     <div class="main-content">
         <div id="dashboard" class="page"><div class="card"><h3>حالة القاعات الحالية</h3><div id="room-status-container" class="room-status-container"></div></div></div>
-        <div id="users" class="page"><div class="card"><h3>المستخدمون</h3><button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم</button><table id="users-table"><thead><tr><th>الاسم الكامل</th><th>الدور</th><th>رمز الباركود</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
+        <div id="users" class="page"><div class="card"><h3>المستخدمون</h3><button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم</button><table id="users-table"><thead><tr><th>الاسم الكامل</th><th>الدور</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
         <div id="schedules" class="page"><div class="card"><h3>الجداول الدراسية</h3><button class="btn btn-primary" onclick="openModal('schedule-modal')">إضافة جدول</button><table id="schedules-table"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
         <div id="rooms" class="page"><div class="card"><h3>القاعات الدراسية</h3><button class="btn btn-primary" onclick="openModal('room-modal')">إضافة قاعة</button><table id="rooms-table"><thead><tr><th>اسم القاعة</th><th>السعة</th><th>رمز QR</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
     </div>
 
-    <!-- منطقة تجهيز الـ PDF المخفية -->
     <div id="pdf-prepare-area" class="pdf-prepare-area"></div>
 
-    <!-- Modals -->
-    <div id="user-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('user-modal')">&times;</span><h3 id="user-modal-title"></h3><form id="user-form"><input type="hidden" id="userId"><div class="form-group"><label>الاسم الكامل</label><input type="text" id="displayName" required></div><div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div><div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم التغيير</small></div><div class="form-group"><label>الدور</label><select id="role" required><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option></select></div><div class="form-group"><label>رمز الباركود (رقم)</label><input type="text" id="barcodeId" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
+    <div id="user-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('user-modal')">&times;</span><h3 id="user-modal-title"></h3><form id="user-form"><input type="hidden" id="userId"><div class="form-group"><label>الاسم الكامل</label><input type="text" id="displayName" required></div><div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div><div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم التغيير</small></div><div class="form-group"><label>الدور</label><select id="role" required><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option></select></div><div class="form-group"><label>رمز الباركود (رقم)</label><input type="text" id="barcodeId"></div><div class="form-group"><label>رمز RFID (اختياري)</label><input type="text" id="rfid"></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
     <div id="room-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('room-modal')">&times;</span><h3 id="room-modal-title"></h3><form id="room-form"><input type="hidden" id="roomId"><div class="form-group"><label>اسم القاعة</label><input type="text" id="roomName" required></div><div class="form-group"><label>السعة</label><input type="number" id="roomCapacity" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
-    <div id="schedule-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('schedule-modal')">&times;</span><h3 id="schedule-modal-title"></h3><form id="schedule-form"><input type="hidden" id="scheduleId"><div class="form-group"><label>رمز المادة</label><input type="text" id="courseCode" required></div><div class="form-group"><label>اسم المادة</label><input type="text" id="courseName" required></div><div class="form-group"><label>المحاضر</label><select id="lecturer" required></select></div><div class="form-group"><label>القاعة</label><select id="scheduleRoom" required></select></div><div class="form-group"><label>اليوم</label><select id="day" required><option>الأحد</option><option>الاثنين</option><option>الثلاثاء</option><option>الأربعاء</option><option>الخميس</option></select></div><div class="form-group"><label>الوقت</label><input type="text" id="time" placeholder="مثال: 08:00-10:00" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
+    <div id="schedule-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('schedule-modal')">&times;</span><h3 id="schedule-modal-title"></h3><form id="schedule-form"><input type="hidden" id="scheduleId"><div class="form-group"><label>رمز المادة</label><input type="text" id="courseCode" required></div><div class="form-group"><label>اسم المادة</label><input type="text" id="courseName" required></div><div class="form-group"><label>المحاضر</label><select id="lecturer" required></select></div><div class="form-group"><label>القاعة</label><select id="scheduleRoom" required></select></div><div class="form-group"><label>اليوم</label><select id="day" required><option>السبت</option><option>الأحد</option><option>الاثنين</option><option>الثلاثاء</option><option>الأربعاء</option><option>الخميس</option></select></div><div class="form-group"><label>الوقت</label><input type="text" id="time" placeholder="مثال: 08:00-10:00" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -97,7 +93,7 @@
             appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
         }));
 
-        const SITE_URL = "https://vocal-bunny-9c482d.netlify.app";
+        const SITE_URL = "https://cpld.netlify.app";
 
         window.showPage = (pageId) => {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -117,7 +113,6 @@
         window.closeModal = (modalId) => { document.getElementById(modalId).style.display = 'none'; };
         const confirmDelete = (item) => confirm(`هل أنت متأكد من حذف هذا ${item}؟`);
 
-        // --- Submit Handlers ---
         document.getElementById('user-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('userId').value;
@@ -126,6 +121,7 @@
                 username: document.getElementById('username').value,
                 role: document.getElementById('role').value,
                 barcodeId: document.getElementById('barcodeId').value,
+                rfid: document.getElementById('rfid').value,
             };
             const password = document.getElementById('password').value;
             if (password) data.password = password;
@@ -165,20 +161,20 @@
             closeModal('schedule-modal');
         });
 
-        // --- Data Display ---
         onSnapshot(collection(db, "Users"), (snap) => {
             const tbody = document.querySelector('#users-table tbody');
             tbody.innerHTML = '';
             snap.forEach(d => {
                 const u = d.data();
                 tbody.innerHTML += `<tr>
-                    <td>${u.displayName}</td>
-                    <td>${u.role}</td>
+                    <td>${u.displayName || ''}</td>
+                    <td>${u.role || ''}</td>
                     <td>
                         <div class="barcode-container">
-                            <svg id="barcode-${d.id}"></svg>
+                            ${u.barcodeId ? `<svg id="barcode-${d.id}"></svg>` : 'لا يوجد'}
                         </div>
                     </td>
+                    <td>${u.rfid || 'لا يوجد'}</td>
                     <td>
                         <button class="btn btn-warning" onclick="editItem('Users', '${d.id}', 'user')">تعديل</button>
                         <button class="btn btn-danger" onclick="deleteItem('Users', '${d.id}', 'المستخدم')">حذف</button>
@@ -208,7 +204,7 @@
                     <td>${r.capacity}</td>
                     <td>
                         <div class="qr-code-container">
-                            <img src="${qrCodeDataUrl}" alt="QR Code">
+                            ${r.qrUrl ? `<img src="${qrCodeDataUrl}" alt="QR Code">` : 'لا يوجد'}
                         </div>
                     </td>
                     <td>
@@ -258,7 +254,6 @@
             });
         }
 
-        // Dashboard
         onSnapshot(collection(db, "Rooms"), (snap) => {
             const container = document.getElementById('room-status-container');
             container.innerHTML = '';
@@ -272,7 +267,6 @@
             await updateDoc(doc(db, "Rooms", id), { status: currentStatus === 'open' ? 'closed' : 'open' });
         };
 
-        // Edit Function
         window.editItem = async (collectionName, id, type) => {
             openModal(`${type}-modal`); 
             const itemDoc = await getDoc(doc(db, collectionName, id));
@@ -281,9 +275,10 @@
             document.querySelector(`#${type}-modal h3`).textContent = `تعديل ${type === 'user' ? 'مستخدم' : (type === 'room' ? 'قاعة' : 'جدول')}`;
             if (type === 'user') {
                 document.getElementById('displayName').value = data.displayName;
-                document.getElementById('username').value = data.username || data["User name"];
+                document.getElementById('username').value = data.username;
                 document.getElementById('role').value = data.role;
-                document.getElementById('barcodeId').value = data.barcodeId;
+                document.getElementById('barcodeId').value = data.barcodeId || '';
+                document.getElementById('rfid').value = data.rfid || '';
                 document.getElementById('password').value = '';
             } else if (type === 'room') {
                 document.getElementById('roomName').value = data.name;
@@ -302,7 +297,6 @@
             if (confirmDelete(itemName)) await deleteDoc(doc(db, collectionName, id));
         };
 
-        // --- PDF Download Functions ---
         window.downloadIdCardAsPDF = (name, role, barcodeValue) => {
             const prepareArea = document.getElementById('pdf-prepare-area');
             const cardElement = document.createElement('div');
@@ -310,6 +304,7 @@
             cardElement.innerHTML = `<h4>${name}</h4><p>${role}</p><svg id="pdf-barcode"></svg>`;
             prepareArea.innerHTML = ''; prepareArea.appendChild(cardElement);
             if (barcodeValue) JsBarcode("#pdf-barcode", barcodeValue, { format: "CODE128", width: 3, height: 80, displayValue: true });
+            else cardElement.querySelector('svg').remove();
             html2pdf().from(cardElement).set({ filename: `${name}_ID_Card.pdf`, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).save();
         };
         window.downloadRoomCardAsPDF = (name, qrUrl) => {
@@ -321,15 +316,16 @@
             html2pdf().from(cardElement).set({ filename: `${name}_QR_Card.pdf`, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).save();
         };
 
-        // --- PNG Download Functions ---
         window.downloadQRCodeAsPNG = (name, qrUrl) => {
-            const dataUrl = generateQRCode(qrUrl || '');
+            if (!qrUrl) { alert('لا يوجد رمز QR لهذه القاعة.'); return; }
+            const dataUrl = generateQRCode(qrUrl);
             const link = document.createElement('a');
             link.download = `${name}_QR_Code.png`;
             link.href = dataUrl;
             link.click();
         };
         window.downloadBarcodeAsPNG = (name, barcodeValue) => {
+            if (!barcodeValue) { alert('لا يوجد رمز باركود لهذا المستخدم.'); return; }
             const canvas = document.createElement('canvas');
             JsBarcode(canvas, barcodeValue, { format: "CODE128" });
             const link = document.createElement('a');
