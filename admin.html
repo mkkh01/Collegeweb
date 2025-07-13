@@ -6,157 +6,43 @@
     <title>لوحة تحكم الأدمن</title>
     <style>
         :root {
-            --primary-color: #007bff;
-            --secondary-color: #6c757d;
-            --success-color: #28a745;
-            --danger-color: #dc3545;
-            --warning-color: #ffc107;
-            --light-color: #f8f9fa;
-            --dark-color: #343a40;
+            --primary-color: #007bff; --secondary-color: #6c757d; --success-color: #28a745;
+            --danger-color: #dc3545; --warning-color: #ffc107; --light-color: #f8f9fa; --dark-color: #343a40;
         }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f0f2f5;
-            margin: 0;
-        }
-        .sidebar {
-            width: 250px;
-            background-color: var(--dark-color);
-            color: white;
-            position: fixed;
-            height: 100%;
-            padding-top: 20px;
-        }
-        .sidebar h2 {
-            text-align: center;
-            color: white;
-            margin-bottom: 30px;
-        }
-        .sidebar a {
-            display: block;
-            color: white;
-            padding: 15px 20px;
-            text-decoration: none;
-            transition: background-color 0.3s;
-        }
-        .sidebar a:hover, .sidebar a.active {
-            background-color: #495057;
-        }
-        .main-content {
-            margin-right: 250px; /* نفس عرض الـ sidebar */
-            padding: 30px;
-        }
-        .page {
-            display: none;
-        }
-        .page.active {
-            display: block;
-        }
-        .card {
-            background: white;
-            padding: 25px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-        }
-        h1, h3 {
-            color: var(--dark-color);
-            border-bottom: 2px solid #eee;
-            padding-bottom: 10px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        th, td {
-            padding: 12px;
-            text-align: right;
-            border-bottom: 1px solid #ddd;
-        }
-        th {
-            background-color: #f2f2f2;
-        }
-        .btn {
-            padding: 8px 12px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            color: white;
-            font-size: 14px;
-        }
-        .btn-primary { background-color: var(--primary-color); }
-        .btn-warning { background-color: var(--warning-color); }
-        .btn-danger { background-color: var(--danger-color); }
-        .btn-success { background-color: var(--success-color); }
-
-        /* Modal Styles */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.5);
-        }
-        .modal-content {
-            background-color: #fefefe;
-            margin: 10% auto;
-            padding: 30px;
-            border: 1px solid #888;
-            width: 80%;
-            max-width: 500px;
-            border-radius: 8px;
-        }
-        .close-btn {
-            color: #aaa;
-            float: left;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-        }
-        .form-group input, .form-group select {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        
-        /* Room Status Styles */
-        .room-status-card {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 20px;
-        }
-        .room-card {
-            padding: 20px;
-            border-radius: 8px;
-            text-align: center;
-            color: white;
-            font-weight: bold;
-        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; }
+        .sidebar { width: 250px; background-color: var(--dark-color); color: white; position: fixed; height: 100%; padding-top: 20px; }
+        .sidebar h2 { text-align: center; color: white; margin-bottom: 30px; }
+        .sidebar a { display: block; color: white; padding: 15px 20px; text-decoration: none; transition: background-color 0.3s; }
+        .sidebar a:hover, .sidebar a.active { background-color: #495057; }
+        .main-content { margin-right: 250px; padding: 30px; }
+        .page { display: none; }
+        .page.active { display: block; }
+        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h1, h3 { color: var(--dark-color); border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; text-align: right; border-bottom: 1px solid #ddd; }
+        th { background-color: #f2f2f2; }
+        .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; margin-left: 5px; }
+        .btn-primary { background-color: var(--primary-color); } .btn-warning { background-color: var(--warning-color); }
+        .btn-danger { background-color: var(--danger-color); } .btn-success { background-color: var(--success-color); }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: #fefefe; margin: 10% auto; padding: 30px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px; }
+        .close-btn { color: #aaa; float: left; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; }
+        .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .room-status-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+        .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; }
         .room-card.open { background-color: var(--success-color); }
         .room-card.closed { background-color: var(--danger-color); }
-
+        .room-card h4 { margin-top: 0; }
     </style>
 </head>
 <body>
 
-    <!-- كود الحماية: يتأكد أن المستخدم هو أدمن قبل عرض أي شيء -->
     <script>
         const loggedInUser = JSON.parse(sessionStorage.getItem('user'));
-        if (!loggedInUser || loggedInUser.role.trim().toLowerCase() !== 'admin') {
+        if (!loggedInUser || !loggedInUser.role || loggedInUser.role.trim().toLowerCase() !== 'admin') {
             alert('ليس لديك صلاحية للوصول إلى هذه الصفحة. سيتم توجيهك لصفحة الدخول.');
             window.location.href = 'login.html';
         }
@@ -164,83 +50,70 @@
 
     <div class="sidebar">
         <h2>لوحة التحكم</h2>
-        <a href="#users" class="nav-link active" onclick="showPage('users')">إدارة المستخدمين</a>
+        <a href="#dashboard" class="nav-link" onclick="showPage('dashboard')">لوحة المراقبة</a>
+        <a href="#users" class="nav-link" onclick="showPage('users')">إدارة المستخدمين</a>
         <a href="#schedules" class="nav-link" onclick="showPage('schedules')">إدارة الجداول</a>
         <a href="#rooms" class="nav-link" onclick="showPage('rooms')">إدارة القاعات</a>
-        <a href="#dashboard" class="nav-link" onclick="showPage('dashboard')">لوحة المراقبة</a>
         <a href="login.html" style="color: var(--warning-color); margin-top: 30px;" onclick="sessionStorage.clear()">تسجيل الخروج</a>
     </div>
 
     <div class="main-content">
-        <!-- صفحة إدارة المستخدمين -->
-        <div id="users" class="page active">
+        <!-- Dashboard Page -->
+        <div id="dashboard" class="page">
+            <div class="card">
+                <h3>حالة القاعات الحالية</h3>
+                <div id="room-status-container" class="room-status-container">
+                    <!-- Room statuses will be loaded here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Users Page -->
+        <div id="users" class="page">
             <div class="card">
                 <h3>المستخدمون</h3>
                 <button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم جديد</button>
                 <table id="users-table">
-                    <thead>
-                        <tr>
-                            <th>الاسم الكامل</th>
-                            <th>اسم المستخدم</th>
-                            <th>الدور (الصفة)</th>
-                            <th>رمز الباركود</th>
-                            <th>إجراء</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- البيانات ستضاف هنا -->
-                    </tbody>
+                    <thead><tr><th>الاسم الكامل</th><th>اسم المستخدم</th><th>الدور</th><th>باركود</th><th>إجراء</th></tr></thead>
+                    <tbody></tbody>
                 </table>
             </div>
         </div>
 
-        <!-- (يمكنك إضافة محتوى الصفحات الأخرى هنا بنفس الطريقة) -->
-        <div id="schedules" class="page"><div class="card"><h3>إدارة الجداول (سيتم بناؤها لاحقًا)</h3></div></div>
-        <div id="rooms" class="page"><div class="card"><h3>إدارة القاعات (سيتم بناؤها لاحقًا)</h3></div></div>
-        <div id="dashboard" class="page"><div class="card"><h3>لوحة المراقبة (سيتم بناؤها لاحقًا)</h3></div></div>
-    </div>
+        <!-- Schedules Page -->
+        <div id="schedules" class="page">
+            <div class="card">
+                <h3>الجداول الدراسية</h3>
+                <button class="btn btn-primary" onclick="openModal('schedule-modal')">إضافة جدول جديد</button>
+                <table id="schedules-table">
+                    <thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>إجراء</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
 
-    <!-- نافذة منبثقة لإضافة/تعديل مستخدم -->
-    <div id="user-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-btn" onclick="closeModal('user-modal')">&times;</span>
-            <h3 id="modal-title">إضافة مستخدم جديد</h3>
-            <form id="user-form">
-                <input type="hidden" id="userId">
-                <div class="form-group">
-                    <label for="displayName">الاسم الكامل</label>
-                    <input type="text" id="displayName" required>
-                </div>
-                <div class="form-group">
-                    <label for="username">اسم المستخدم</label>
-                    <input type="text" id="username" required>
-                </div>
-                <div class="form-group">
-                    <label for="password">كلمة المرور</label>
-                    <input type="password" id="password" required>
-                </div>
-                <div class="form-group">
-                    <label for="role">الدور (الصفة)</label>
-                    <select id="role" required>
-                        <option value="عضو هيئة تدريس">عضو هيئة تدريس</option>
-                        <option value="مشرف">مشرف</option>
-                        <option value="عامل نظافة">عامل نظافة</option>
-                        <option value="أدمن">أدمن</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="barcodeId">رمز الباركود</label>
-                    <input type="text" id="barcodeId" required>
-                </div>
-                <button type="submit" class="btn btn-success">حفظ</button>
-            </form>
+        <!-- Rooms Page -->
+        <div id="rooms" class="page">
+            <div class="card">
+                <h3>القاعات الدراسية</h3>
+                <button class="btn btn-primary" onclick="openModal('room-modal')">إضافة قاعة جديدة</button>
+                <table id="rooms-table">
+                    <thead><tr><th>اسم القاعة</th><th>السعة</th><th>إجراء</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
         </div>
     </div>
+
+    <!-- Modals -->
+    <div id="user-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('user-modal')">&times;</span><h3 id="user-modal-title"></h3><form id="user-form"><input type="hidden" id="userId"><div class="form-group"><label>الاسم الكامل</label><input type="text" id="displayName" required></div><div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div><div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم تغيير كلمة المرور عند التعديل</small></div><div class="form-group"><label>الدور</label><select id="role" required><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option></select></div><div class="form-group"><label>رمز الباركود</label><input type="text" id="barcodeId" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
+    <div id="room-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('room-modal')">&times;</span><h3 id="room-modal-title"></h3><form id="room-form"><input type="hidden" id="roomId"><div class="form-group"><label>اسم القاعة</label><input type="text" id="roomName" required></div><div class="form-group"><label>السعة</label><input type="number" id="roomCapacity" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
+    <div id="schedule-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('schedule-modal')">&times;</span><h3 id="schedule-modal-title"></h3><form id="schedule-form"><input type="hidden" id="scheduleId"><div class="form-group"><label>رمز المادة</label><input type="text" id="courseCode" required></div><div class="form-group"><label>اسم المادة</label><input type="text" id="courseName" required></div><div class="form-group"><label>المحاضر</label><select id="lecturer" required></select></div><div class="form-group"><label>القاعة</label><select id="scheduleRoom" required></select></div><div class="form-group"><label>اليوم</label><select id="day" required><option>الأحد</option><option>الاثنين</option><option>الثلاثاء</option><option>الأربعاء</option><option>الخميس</option></select></div><div class="form-group"><label>الوقت</label><input type="text" id="time" placeholder="مثال: 08:00-10:00" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
 
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
@@ -254,98 +127,166 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // --- منطق التنقل بين الصفحات ---
+        // --- Global Logic ---
         window.showPage = (pageId) => {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(pageId).classList.add('active');
             document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
             document.querySelector(`.nav-link[href="#${pageId}"]`).classList.add('active');
-        }
-
-        // --- منطق النوافذ المنبثقة (Modal) ---
+        };
         window.openModal = (modalId) => {
-            document.getElementById('modal-title').textContent = 'إضافة مستخدم جديد';
-            document.getElementById('user-form').reset();
-            document.getElementById('userId').value = '';
             document.getElementById(modalId).style.display = 'block';
-        }
-        window.closeModal = (modalId) => {
-            document.getElementById(modalId).style.display = 'none';
-        }
+            document.querySelector(`#${modalId} form`).reset();
+            document.querySelector(`#${modalId} input[type=hidden]`).value = '';
+            document.querySelector(`#${modalId} h3`).textContent = 'إضافة جديد';
+        };
+        window.closeModal = (modalId) => { document.getElementById(modalId).style.display = 'none'; };
+        const confirmDelete = (item) => confirm(`هل أنت متأكد من حذف هذا ${item}؟`);
 
-        // --- إدارة المستخدمين ---
+        // --- Users Management ---
         const usersTableBody = document.querySelector('#users-table tbody');
         const userForm = document.getElementById('user-form');
-
         onSnapshot(collection(db, "Users"), (snapshot) => {
             usersTableBody.innerHTML = '';
             snapshot.forEach(doc => {
                 const user = doc.data();
-                const row = `
-                    <tr>
-                        <td>${user.displayName}</td>
-                        <td>${user.username}</td>
-                        <td>${user.role}</td>
-                        <td>${user.barcodeId}</td>
-                        <td>
-                            <button class="btn btn-warning" onclick="editUser('${doc.id}', '${user.displayName}', '${user.username}', '${user.role}', '${user.barcodeId}')">تعديل</button>
-                            <button class="btn btn-danger" onclick="deleteUser('${doc.id}')">حذف</button>
-                        </td>
-                    </tr>
-                `;
-                usersTableBody.innerHTML += row;
+                usersTableBody.innerHTML += `<tr><td>${user.displayName}</td><td>${user.username}</td><td>${user.role}</td><td>${user.barcodeId}</td><td><button class="btn btn-warning" onclick="editUser('${doc.id}')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users', '${doc.id}', 'المستخدم')">حذف</button></td></tr>`;
             });
         });
-
         userForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const userId = document.getElementById('userId').value;
             const password = document.getElementById('password').value;
-            
             const userData = {
                 displayName: document.getElementById('displayName').value,
                 username: document.getElementById('username').value,
                 role: document.getElementById('role').value,
                 barcodeId: document.getElementById('barcodeId').value,
             };
-
-            // إضافة أو تحديث كلمة المرور فقط إذا تم إدخالها
-            if (password) {
-                userData.password = password;
-            }
-
-            if (userId) {
-                await updateDoc(doc(db, "Users", userId), userData);
-            } else {
-                if (!password) {
-                    alert('يجب إدخال كلمة مرور للمستخدم الجديد.');
-                    return;
-                }
+            if (password) userData.password = password;
+            if (userId) { await updateDoc(doc(db, "Users", userId), userData); } 
+            else {
+                if (!password) { alert('يجب إدخال كلمة مرور للمستخدم الجديد.'); return; }
                 await addDoc(collection(db, "Users"), userData);
             }
             closeModal('user-modal');
         });
-
-        window.editUser = (id, displayName, username, role, barcodeId) => {
-            document.getElementById('userId').value = id;
-            document.getElementById('displayName').value = displayName;
-            document.getElementById('username').value = username;
-            document.getElementById('role').value = role;
-            document.getElementById('barcodeId').value = barcodeId;
-            document.getElementById('password').value = '';
-            document.getElementById('password').placeholder = 'اترك الحقل فارغًا لعدم التغيير';
-            document.getElementById('modal-title').textContent = 'تعديل مستخدم';
-            document.getElementById('user-modal').style.display = 'block';
+        window.editUser = (id) => {
+            const userDoc = doc(db, "Users", id);
+            getDocs(collection(db, "Users")).then(snapshot => {
+                const user = snapshot.docs.find(d => d.id === id).data();
+                document.getElementById('userId').value = id;
+                document.getElementById('displayName').value = user.displayName;
+                document.getElementById('username').value = user.username;
+                document.getElementById('role').value = user.role;
+                document.getElementById('barcodeId').value = user.barcodeId;
+                document.getElementById('user-modal-title').textContent = 'تعديل مستخدم';
+                openModal('user-modal');
+            });
         };
 
-        window.deleteUser = async (id) => {
-            if (confirm('هل أنت متأكد من حذف هذا المستخدم؟')) {
-                await deleteDoc(doc(db, "Users", id));
+        // --- Rooms Management ---
+        const roomsTableBody = document.querySelector('#rooms-table tbody');
+        const roomForm = document.getElementById('room-form');
+        onSnapshot(collection(db, "Rooms"), (snapshot) => {
+            roomsTableBody.innerHTML = '';
+            snapshot.forEach(doc => {
+                const room = doc.data();
+                roomsTableBody.innerHTML += `<tr><td>${room.name}</td><td>${room.capacity}</td><td><button class="btn btn-warning" onclick="editRoom('${doc.id}')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms', '${doc.id}', 'القاعة')">حذف</button></td></tr>`;
+            });
+        });
+        roomForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const roomId = document.getElementById('roomId').value;
+            const roomData = { name: document.getElementById('roomName').value, capacity: parseInt(document.getElementById('roomCapacity').value), status: 'closed' };
+            if (roomId) { await updateDoc(doc(db, "Rooms", roomId), roomData); } 
+            else { await addDoc(collection(db, "Rooms"), roomData); }
+            closeModal('room-modal');
+        });
+        window.editRoom = (id) => {
+            getDocs(collection(db, "Rooms")).then(snapshot => {
+                const room = snapshot.docs.find(d => d.id === id).data();
+                document.getElementById('roomId').value = id;
+                document.getElementById('roomName').value = room.name;
+                document.getElementById('roomCapacity').value = room.capacity;
+                document.getElementById('room-modal-title').textContent = 'تعديل قاعة';
+                openModal('room-modal');
+            });
+        };
+
+        // --- Schedules Management ---
+        const schedulesTableBody = document.querySelector('#schedules-table tbody');
+        const scheduleForm = document.getElementById('schedule-form');
+        onSnapshot(collection(db, "Schedules"), (snapshot) => {
+            schedulesTableBody.innerHTML = '';
+            snapshot.forEach(doc => {
+                const s = doc.data();
+                schedulesTableBody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.lecturer}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td><button class="btn btn-warning" onclick="editSchedule('${doc.id}')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules', '${doc.id}', 'الجدول')">حذف</button></td></tr>`;
+            });
+        });
+        scheduleForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const scheduleId = document.getElementById('scheduleId').value;
+            const scheduleData = {
+                courseCode: document.getElementById('courseCode').value, courseName: document.getElementById('courseName').value,
+                lecturer: document.getElementById('lecturer').value, room: document.getElementById('scheduleRoom').value,
+                day: document.getElementById('day').value, time: document.getElementById('time').value,
+            };
+            if (scheduleId) { await updateDoc(doc(db, "Schedules", scheduleId), scheduleData); } 
+            else { await addDoc(collection(db, "Schedules"), scheduleData); }
+            closeModal('schedule-modal');
+        });
+        window.editSchedule = (id) => {
+            getDocs(collection(db, "Schedules")).then(snapshot => {
+                const s = snapshot.docs.find(d => d.id === id).data();
+                document.getElementById('scheduleId').value = id;
+                document.getElementById('courseCode').value = s.courseCode;
+                document.getElementById('courseName').value = s.courseName;
+                document.getElementById('lecturer').value = s.lecturer;
+                document.getElementById('scheduleRoom').value = s.room;
+                document.getElementById('day').value = s.day;
+                document.getElementById('time').value = s.time;
+                document.getElementById('schedule-modal-title').textContent = 'تعديل جدول';
+                openModal('schedule-modal');
+            });
+        };
+        async function populateSelects() {
+            const usersSnapshot = await getDocs(query(collection(db, "Users"), where("role", "==", "عضو هيئة تدريس")));
+            const roomsSnapshot = await getDocs(collection(db, "Rooms"));
+            const lecturerSelect = document.getElementById('lecturer');
+            const roomSelect = document.getElementById('scheduleRoom');
+            lecturerSelect.innerHTML = '';
+            roomSelect.innerHTML = '';
+            usersSnapshot.forEach(doc => lecturerSelect.innerHTML += `<option value="${doc.data().displayName}">${doc.data().displayName}</option>`);
+            roomsSnapshot.forEach(doc => roomSelect.innerHTML += `<option value="${doc.data().name}">${doc.data().name}</option>`);
+        }
+        document.querySelector('.nav-link[href="#schedules"]').addEventListener('click', populateSelects);
+
+        // --- Dashboard Management ---
+        const roomStatusContainer = document.getElementById('room-status-container');
+        onSnapshot(collection(db, "Rooms"), (snapshot) => {
+            roomStatusContainer.innerHTML = '';
+            snapshot.forEach(doc => {
+                const room = doc.data();
+                const statusClass = room.status === 'open' ? 'open' : 'closed';
+                const statusText = room.status === 'open' ? 'مفتوحة' : 'مغلقة';
+                roomStatusContainer.innerHTML += `<div class="room-card ${statusClass}"><h4>${room.name}</h4><p>${statusText}</p><button class="btn btn-warning" onclick="toggleRoomStatus('${doc.id}', '${room.status}')">تغيير الحالة</button></div>`;
+            });
+        });
+        window.toggleRoomStatus = async (id, currentStatus) => {
+            const newStatus = currentStatus === 'open' ? 'closed' : 'open';
+            await updateDoc(doc(db, "Rooms", id), { status: newStatus });
+        };
+
+        // --- Generic Delete Function ---
+        window.deleteItem = async (collectionName, id, itemName) => {
+            if (confirmDelete(itemName)) {
+                await deleteDoc(doc(db, collectionName, id));
             }
         };
 
-        // تهيئة الصفحة الأولى عند التحميل
-        showPage('users');
+        // --- Initial Load ---
+        showPage('dashboard');
     </script>
 </body>
 </html>
