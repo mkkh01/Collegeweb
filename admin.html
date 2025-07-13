@@ -5,12 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>لوحة تحكم الأدمن</title>
     <style>
-        :root {
-            --primary-color: #007bff; --secondary-color: #6c757d; --success-color: #28a745;
-            --danger-color: #dc3545; --warning-color: #ffc107; --light-color: #f8f9fa; --dark-color: #343a40;
-        }
+        :root { --primary-color: #007bff; --secondary-color: #6c757d; --success-color: #28a745; --danger-color: #dc3545; --warning-color: #ffc107; --light-color: #f8f9fa; --dark-color: #343a40; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; }
-        .sidebar { width: 250px; background-color: var(--dark-color); color: white; position: fixed; height: 100%; padding-top: 20px; }
+        .sidebar { width: 250px; background-color: var(--dark-color); color: white; position: fixed; height: 100%; padding-top: 20px; z-index: 100; }
         .sidebar h2 { text-align: center; color: white; margin-bottom: 30px; }
         .sidebar a { display: block; color: white; padding: 15px 20px; text-decoration: none; transition: background-color 0.3s; }
         .sidebar a:hover, .sidebar a.active { background-color: #495057; }
@@ -18,15 +15,15 @@
         .page { display: none; }
         .page.active { display: block; }
         .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        h1, h3 { color: var(--dark-color); border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        h3 { color: var(--dark-color); border-bottom: 2px solid #eee; padding-bottom: 10px; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 12px; text-align: right; border-bottom: 1px solid #ddd; }
+        th, td { padding: 12px; text-align: right; border-bottom: 1px solid #ddd; word-break: break-all; }
         th { background-color: #f2f2f2; }
         .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; margin-left: 5px; }
         .btn-primary { background-color: var(--primary-color); } .btn-warning { background-color: var(--warning-color); }
         .btn-danger { background-color: var(--danger-color); } .btn-success { background-color: var(--success-color); }
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
-        .modal-content { background-color: #fefefe; margin: 10% auto; padding: 30px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px; }
+        .modal-content { background-color: #fefefe; margin: 5% auto; padding: 30px; border: 1px solid #888; width: 90%; max-width: 500px; border-radius: 8px; }
         .close-btn { color: #aaa; float: left; font-size: 28px; font-weight: bold; cursor: pointer; }
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; margin-bottom: 5px; }
@@ -43,7 +40,7 @@
     <script>
         const loggedInUser = JSON.parse(sessionStorage.getItem('user'));
         if (!loggedInUser || !loggedInUser.role || loggedInUser.role.trim().toLowerCase() !== 'admin') {
-            alert('ليس لديك صلاحية للوصول إلى هذه الصفحة. سيتم توجيهك لصفحة الدخول.');
+            alert('ليس لديك صلاحية للوصول إلى هذه الصفحة.');
             window.location.href = 'login.html';
         }
     </script>
@@ -58,76 +55,30 @@
     </div>
 
     <div class="main-content">
-        <!-- Dashboard Page -->
-        <div id="dashboard" class="page">
-            <div class="card">
-                <h3>حالة القاعات الحالية</h3>
-                <div id="room-status-container" class="room-status-container">
-                    <!-- Room statuses will be loaded here -->
-                </div>
-            </div>
-        </div>
-
-        <!-- Users Page -->
-        <div id="users" class="page">
-            <div class="card">
-                <h3>المستخدمون</h3>
-                <button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم جديد</button>
-                <table id="users-table">
-                    <thead><tr><th>الاسم الكامل</th><th>اسم المستخدم</th><th>الدور</th><th>باركود</th><th>إجراء</th></tr></thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Schedules Page -->
-        <div id="schedules" class="page">
-            <div class="card">
-                <h3>الجداول الدراسية</h3>
-                <button class="btn btn-primary" onclick="openModal('schedule-modal')">إضافة جدول جديد</button>
-                <table id="schedules-table">
-                    <thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>إجراء</th></tr></thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Rooms Page -->
-        <div id="rooms" class="page">
-            <div class="card">
-                <h3>القاعات الدراسية</h3>
-                <button class="btn btn-primary" onclick="openModal('room-modal')">إضافة قاعة جديدة</button>
-                <table id="rooms-table">
-                    <thead><tr><th>اسم القاعة</th><th>السعة</th><th>إجراء</th></tr></thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </div>
+        <div id="dashboard" class="page"><div class="card"><h3>حالة القاعات الحالية</h3><div id="room-status-container" class="room-status-container"></div></div></div>
+        <div id="users" class="page"><div class="card"><h3>المستخدمون</h3><button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم</button><table id="users-table"><thead><tr><th>الاسم الكامل</th><th>اسم المستخدم</th><th>الدور</th><th>باركود</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
+        <div id="schedules" class="page"><div class="card"><h3>الجداول الدراسية</h3><button class="btn btn-primary" onclick="openModal('schedule-modal')">إضافة جدول</button><table id="schedules-table"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
+        <div id="rooms" class="page"><div class="card"><h3>القاعات الدراسية</h3><button class="btn btn-primary" onclick="openModal('room-modal')">إضافة قاعة</button><table id="rooms-table"><thead><tr><th>اسم القاعة</th><th>السعة</th><th>رابط QR</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
     </div>
 
     <!-- Modals -->
-    <div id="user-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('user-modal')">&times;</span><h3 id="user-modal-title"></h3><form id="user-form"><input type="hidden" id="userId"><div class="form-group"><label>الاسم الكامل</label><input type="text" id="displayName" required></div><div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div><div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم تغيير كلمة المرور عند التعديل</small></div><div class="form-group"><label>الدور</label><select id="role" required><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option></select></div><div class="form-group"><label>رمز الباركود</label><input type="text" id="barcodeId" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
-    <div id="room-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('room-modal')">&times;</span><h3 id="room-modal-title"></h3><form id="room-form"><input type="hidden" id="roomId"><div class="form-group"><label>اسم القاعة</label><input type="text" id="roomName" required></div><div class="form-group"><label>السعة</label><input type="number" id="roomCapacity" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
+    <div id="user-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('user-modal')">&times;</span><h3 id="user-modal-title"></h3><form id="user-form"><input type="hidden" id="userId"><div class="form-group"><label>الاسم الكامل</label><input type="text" id="displayName" required></div><div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div><div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم التغيير</small></div><div class="form-group"><label>الدور</label><select id="role" required><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option></select></div><div class="form-group"><label>رمز الباركود</label><input type="text" id="barcodeId" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
+    <div id="room-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('room-modal')">&times;</span><h3 id="room-modal-title"></h3><form id="room-form"><input type="hidden" id="roomId"><div class="form-group"><label>اسم القاعة</label><input type="text" id="roomName" required></div><div class="form-group"><label>السعة</label><input type="number" id="roomCapacity" required></div><div class="form-group"><label>رابط QR</label><input type="text" id="roomQR" placeholder="https://yoursite.netlify.app/open.html?room=..." required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
     <div id="schedule-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('schedule-modal')">&times;</span><h3 id="schedule-modal-title"></h3><form id="schedule-form"><input type="hidden" id="scheduleId"><div class="form-group"><label>رمز المادة</label><input type="text" id="courseCode" required></div><div class="form-group"><label>اسم المادة</label><input type="text" id="courseName" required></div><div class="form-group"><label>المحاضر</label><select id="lecturer" required></select></div><div class="form-group"><label>القاعة</label><select id="scheduleRoom" required></select></div><div class="form-group"><label>اليوم</label><select id="day" required><option>الأحد</option><option>الاثنين</option><option>الثلاثاء</option><option>الأربعاء</option><option>الخميس</option></select></div><div class="form-group"><label>الوقت</label><input type="text" id="time" placeholder="مثال: 08:00-10:00" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
 
-    <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-        const firebaseConfig = {
+        const db = getFirestore(initializeApp({
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
             authDomain: "gggg-dc7d0.firebaseapp.com",
             projectId: "gggg-dc7d0",
             storageBucket: "gggg-dc7d0.appspot.com",
             messagingSenderId: "151376454562",
             appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
-        };
+        }));
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-
-        // --- Global Logic ---
         window.showPage = (pageId) => {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(pageId).classList.add('active');
@@ -135,157 +86,153 @@
             document.querySelector(`.nav-link[href="#${pageId}"]`).classList.add('active');
         };
         window.openModal = (modalId) => {
-            document.getElementById(modalId).style.display = 'block';
-            document.querySelector(`#${modalId} form`).reset();
-            document.querySelector(`#${modalId} input[type=hidden]`).value = '';
+            const form = document.querySelector(`#${modalId} form`);
+            if (form) form.reset();
+            const hiddenId = document.querySelector(`#${modalId} input[type=hidden]`);
+            if (hiddenId) hiddenId.value = '';
             document.querySelector(`#${modalId} h3`).textContent = 'إضافة جديد';
+            if (modalId === 'schedule-modal') populateSelects();
+            document.getElementById(modalId).style.display = 'block';
         };
         window.closeModal = (modalId) => { document.getElementById(modalId).style.display = 'none'; };
         const confirmDelete = (item) => confirm(`هل أنت متأكد من حذف هذا ${item}؟`);
 
-        // --- Users Management ---
-        const usersTableBody = document.querySelector('#users-table tbody');
-        const userForm = document.getElementById('user-form');
-        onSnapshot(collection(db, "Users"), (snapshot) => {
-            usersTableBody.innerHTML = '';
-            snapshot.forEach(doc => {
-                const user = doc.data();
-                usersTableBody.innerHTML += `<tr><td>${user.displayName}</td><td>${user.username}</td><td>${user.role}</td><td>${user.barcodeId}</td><td><button class="btn btn-warning" onclick="editUser('${doc.id}')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users', '${doc.id}', 'المستخدم')">حذف</button></td></tr>`;
+        // Users
+        onSnapshot(collection(db, "Users"), (snap) => {
+            const tbody = document.querySelector('#users-table tbody');
+            tbody.innerHTML = '';
+            snap.forEach(d => {
+                const u = d.data();
+                tbody.innerHTML += `<tr><td>${u.displayName}</td><td>${u.username}</td><td>${u.role}</td><td>${u.barcodeId}</td><td><button class="btn btn-warning" onclick="editItem('Users', '${d.id}', 'user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users', '${d.id}', 'المستخدم')">حذف</button></td></tr>`;
             });
         });
-        userForm.addEventListener('submit', async (e) => {
+        document.getElementById('user-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const userId = document.getElementById('userId').value;
-            const password = document.getElementById('password').value;
-            const userData = {
+            const id = document.getElementById('userId').value;
+            const data = {
                 displayName: document.getElementById('displayName').value,
                 username: document.getElementById('username').value,
                 role: document.getElementById('role').value,
                 barcodeId: document.getElementById('barcodeId').value,
             };
-            if (password) userData.password = password;
-            if (userId) { await updateDoc(doc(db, "Users", userId), userData); } 
+            const password = document.getElementById('password').value;
+            if (password) data.password = password;
+            if (id) await updateDoc(doc(db, "Users", id), data);
             else {
-                if (!password) { alert('يجب إدخال كلمة مرور للمستخدم الجديد.'); return; }
-                await addDoc(collection(db, "Users"), userData);
+                if (!password) { alert('كلمة المرور مطلوبة للمستخدم الجديد.'); return; }
+                await addDoc(collection(db, "Users"), data);
             }
             closeModal('user-modal');
         });
-        window.editUser = (id) => {
-            const userDoc = doc(db, "Users", id);
-            getDocs(collection(db, "Users")).then(snapshot => {
-                const user = snapshot.docs.find(d => d.id === id).data();
-                document.getElementById('userId').value = id;
-                document.getElementById('displayName').value = user.displayName;
-                document.getElementById('username').value = user.username;
-                document.getElementById('role').value = user.role;
-                document.getElementById('barcodeId').value = user.barcodeId;
-                document.getElementById('user-modal-title').textContent = 'تعديل مستخدم';
-                openModal('user-modal');
-            });
-        };
 
-        // --- Rooms Management ---
-        const roomsTableBody = document.querySelector('#rooms-table tbody');
-        const roomForm = document.getElementById('room-form');
-        onSnapshot(collection(db, "Rooms"), (snapshot) => {
-            roomsTableBody.innerHTML = '';
-            snapshot.forEach(doc => {
-                const room = doc.data();
-                roomsTableBody.innerHTML += `<tr><td>${room.name}</td><td>${room.capacity}</td><td><button class="btn btn-warning" onclick="editRoom('${doc.id}')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms', '${doc.id}', 'القاعة')">حذف</button></td></tr>`;
+        // Rooms
+        onSnapshot(collection(db, "Rooms"), (snap) => {
+            const tbody = document.querySelector('#rooms-table tbody');
+            tbody.innerHTML = '';
+            snap.forEach(d => {
+                const r = d.data();
+                tbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td>${r.qrUrl || ''}</td><td><button class="btn btn-warning" onclick="editItem('Rooms', '${d.id}', 'room')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms', '${d.id}', 'القاعة')">حذف</button></td></tr>`;
             });
         });
-        roomForm.addEventListener('submit', async (e) => {
+        document.getElementById('room-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const roomId = document.getElementById('roomId').value;
-            const roomData = { name: document.getElementById('roomName').value, capacity: parseInt(document.getElementById('roomCapacity').value), status: 'closed' };
-            if (roomId) { await updateDoc(doc(db, "Rooms", roomId), roomData); } 
-            else { await addDoc(collection(db, "Rooms"), roomData); }
+            const id = document.getElementById('roomId').value;
+            const data = {
+                name: document.getElementById('roomName').value,
+                capacity: parseInt(document.getElementById('roomCapacity').value),
+                qrUrl: document.getElementById('roomQR').value,
+            };
+            if (id) await updateDoc(doc(db, "Rooms", id), data);
+            else {
+                data.status = 'closed'; // Default status for new rooms
+                await addDoc(collection(db, "Rooms"), data);
+            }
             closeModal('room-modal');
         });
-        window.editRoom = (id) => {
-            getDocs(collection(db, "Rooms")).then(snapshot => {
-                const room = snapshot.docs.find(d => d.id === id).data();
-                document.getElementById('roomId').value = id;
-                document.getElementById('roomName').value = room.name;
-                document.getElementById('roomCapacity').value = room.capacity;
-                document.getElementById('room-modal-title').textContent = 'تعديل قاعة';
-                openModal('room-modal');
-            });
-        };
 
-        // --- Schedules Management ---
-        const schedulesTableBody = document.querySelector('#schedules-table tbody');
-        const scheduleForm = document.getElementById('schedule-form');
-        onSnapshot(collection(db, "Schedules"), (snapshot) => {
-            schedulesTableBody.innerHTML = '';
-            snapshot.forEach(doc => {
-                const s = doc.data();
-                schedulesTableBody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.lecturer}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td><button class="btn btn-warning" onclick="editSchedule('${doc.id}')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules', '${doc.id}', 'الجدول')">حذف</button></td></tr>`;
+        // Schedules
+        onSnapshot(collection(db, "Schedules"), (snap) => {
+            const tbody = document.querySelector('#schedules-table tbody');
+            tbody.innerHTML = '';
+            snap.forEach(d => {
+                const s = d.data();
+                tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.lecturer}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td><button class="btn btn-warning" onclick="editItem('Schedules', '${d.id}', 'schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules', '${d.id}', 'الجدول')">حذف</button></td></tr>`;
             });
         });
-        scheduleForm.addEventListener('submit', async (e) => {
+        document.getElementById('schedule-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const scheduleId = document.getElementById('scheduleId').value;
-            const scheduleData = {
+            const id = document.getElementById('scheduleId').value;
+            const data = {
                 courseCode: document.getElementById('courseCode').value, courseName: document.getElementById('courseName').value,
                 lecturer: document.getElementById('lecturer').value, room: document.getElementById('scheduleRoom').value,
                 day: document.getElementById('day').value, time: document.getElementById('time').value,
             };
-            if (scheduleId) { await updateDoc(doc(db, "Schedules", scheduleId), scheduleData); } 
-            else { await addDoc(collection(db, "Schedules"), scheduleData); }
+            if (id) await updateDoc(doc(db, "Schedules", id), data);
+            else await addDoc(collection(db, "Schedules"), data);
             closeModal('schedule-modal');
         });
-        window.editSchedule = (id) => {
-            getDocs(collection(db, "Schedules")).then(snapshot => {
-                const s = snapshot.docs.find(d => d.id === id).data();
-                document.getElementById('scheduleId').value = id;
-                document.getElementById('courseCode').value = s.courseCode;
-                document.getElementById('courseName').value = s.courseName;
-                document.getElementById('lecturer').value = s.lecturer;
-                document.getElementById('scheduleRoom').value = s.room;
-                document.getElementById('day').value = s.day;
-                document.getElementById('time').value = s.time;
-                document.getElementById('schedule-modal-title').textContent = 'تعديل جدول';
-                openModal('schedule-modal');
-            });
-        };
         async function populateSelects() {
-            const usersSnapshot = await getDocs(query(collection(db, "Users"), where("role", "==", "عضو هيئة تدريس")));
-            const roomsSnapshot = await getDocs(collection(db, "Rooms"));
+            const usersSnap = await getDocs(query(collection(db, "Users"), where("role", "==", "عضو هيئة تدريس")));
+            const roomsSnap = await getDocs(collection(db, "Rooms"));
             const lecturerSelect = document.getElementById('lecturer');
             const roomSelect = document.getElementById('scheduleRoom');
-            lecturerSelect.innerHTML = '';
-            roomSelect.innerHTML = '';
-            usersSnapshot.forEach(doc => lecturerSelect.innerHTML += `<option value="${doc.data().displayName}">${doc.data().displayName}</option>`);
-            roomsSnapshot.forEach(doc => roomSelect.innerHTML += `<option value="${doc.data().name}">${doc.data().name}</option>`);
+            lecturerSelect.innerHTML = '<option value="">اختر محاضر</option>';
+            roomSelect.innerHTML = '<option value="">اختر قاعة</option>';
+            usersSnap.forEach(d => lecturerSelect.innerHTML += `<option value="${d.data().displayName}">${d.data().displayName}</option>`);
+            roomsSnap.forEach(d => roomSelect.innerHTML += `<option value="${d.data().name}">${d.data().name}</option>`);
         }
-        document.querySelector('.nav-link[href="#schedules"]').addEventListener('click', populateSelects);
 
-        // --- Dashboard Management ---
-        const roomStatusContainer = document.getElementById('room-status-container');
-        onSnapshot(collection(db, "Rooms"), (snapshot) => {
-            roomStatusContainer.innerHTML = '';
-            snapshot.forEach(doc => {
-                const room = doc.data();
-                const statusClass = room.status === 'open' ? 'open' : 'closed';
-                const statusText = room.status === 'open' ? 'مفتوحة' : 'مغلقة';
-                roomStatusContainer.innerHTML += `<div class="room-card ${statusClass}"><h4>${room.name}</h4><p>${statusText}</p><button class="btn btn-warning" onclick="toggleRoomStatus('${doc.id}', '${room.status}')">تغيير الحالة</button></div>`;
+        // Dashboard
+        onSnapshot(collection(db, "Rooms"), (snap) => {
+            const container = document.getElementById('room-status-container');
+            container.innerHTML = '';
+            snap.forEach(d => {
+                const r = d.data();
+                const statusClass = r.status === 'open' ? 'open' : 'closed';
+                container.innerHTML += `<div class="room-card ${statusClass}"><h4>${r.name}</h4><p>${r.status === 'open' ? 'مفتوحة' : 'مغلقة'}</p><button class="btn btn-warning" onclick="toggleRoomStatus('${d.id}', '${r.status}')">تغيير</button></div>`;
             });
         });
         window.toggleRoomStatus = async (id, currentStatus) => {
-            const newStatus = currentStatus === 'open' ? 'closed' : 'open';
-            await updateDoc(doc(db, "Rooms", id), { status: newStatus });
+            await updateDoc(doc(db, "Rooms", id), { status: currentStatus === 'open' ? 'closed' : 'open' });
         };
 
-        // --- Generic Delete Function ---
-        window.deleteItem = async (collectionName, id, itemName) => {
-            if (confirmDelete(itemName)) {
-                await deleteDoc(doc(db, collectionName, id));
+        // Generic Edit/Delete
+        window.editItem = async (collectionName, id, type) => {
+            const itemDoc = await getDoc(doc(db, collectionName, id));
+            const data = itemDoc.data();
+            if (type === 'user') {
+                document.getElementById('userId').value = id;
+                document.getElementById('displayName').value = data.displayName;
+                document.getElementById('username').value = data.username;
+                document.getElementById('role').value = data.role;
+                document.getElementById('barcodeId').value = data.barcodeId;
+                document.getElementById('password').value = '';
+                document.getElementById('user-modal-title').textContent = 'تعديل مستخدم';
+                openModal('user-modal');
+            } else if (type === 'room') {
+                document.getElementById('roomId').value = id;
+                document.getElementById('roomName').value = data.name;
+                document.getElementById('roomCapacity').value = data.capacity;
+                document.getElementById('roomQR').value = data.qrUrl || '';
+                document.getElementById('room-modal-title').textContent = 'تعديل قاعة';
+                openModal('room-modal');
+            } else if (type === 'schedule') {
+                await populateSelects();
+                document.getElementById('scheduleId').value = id;
+                document.getElementById('courseCode').value = data.courseCode;
+                document.getElementById('courseName').value = data.courseName;
+                document.getElementById('lecturer').value = data.lecturer;
+                document.getElementById('scheduleRoom').value = data.room;
+                document.getElementById('day').value = data.day;
+                document.getElementById('time').value = data.time;
+                document.getElementById('schedule-modal-title').textContent = 'تعديل جدول';
+                openModal('schedule-modal');
             }
         };
+        window.deleteItem = async (collectionName, id, itemName) => {
+            if (confirmDelete(itemName)) await deleteDoc(doc(db, collectionName, id));
+        };
 
-        // --- Initial Load ---
         showPage('dashboard');
     </script>
 </body>
