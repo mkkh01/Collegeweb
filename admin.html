@@ -9,7 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
-        :root { --primary-color: #007bff; --secondary-color: #6c757d; --success-color: #28a745; --danger-color: #dc3545; --warning-color: #ffc107; --light-color: #f8f9fa; --dark-color: #343a40; }
+        :root { --primary-color: #007bff; --secondary-color: #6c757d; --success-color: #28a745; --danger-color: #dc3545; --warning-color: #ffc107; --light-color: #f8f9fa; --dark-color: #343a40; --info-color: #17a2b8; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; }
         .sidebar { width: 250px; background-color: var(--dark-color); color: white; position: fixed; height: 100%; padding-top: 20px; z-index: 100; }
         .sidebar h2 { text-align: center; color: white; margin-bottom: 30px; }
@@ -23,9 +23,9 @@
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { padding: 12px 15px; text-align: right; border-bottom: 1px solid #ddd; white-space: nowrap; vertical-align: middle; }
         th { background-color: #f2f2f2; }
-        .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; margin-left: 5px; }
+        .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; margin-left: 5px; margin-top: 5px; }
         .btn-primary { background-color: var(--primary-color); } .btn-warning { background-color: var(--warning-color); }
-        .btn-danger { background-color: var(--danger-color); } .btn-success { background-color: var(--success-color); }
+        .btn-danger { background-color: var(--danger-color); } .btn-success { background-color: var(--success-color); } .btn-info { background-color: var(--info-color); }
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
         .modal-content { background-color: #fefefe; margin: 5% auto; padding: 30px; border: 1px solid #888; width: 90%; max-width: 500px; border-radius: 8px; }
         .close-btn { color: #aaa; float: left; font-size: 28px; font-weight: bold; cursor: pointer; }
@@ -42,19 +42,8 @@
         .barcode-container svg { height: 50px; width: auto; }
         
         /* --- منطقة التجهيز للـ PDF (مخفية) --- */
-        .pdf-prepare-area {
-            position: absolute;
-            left: -9999px; /* إبعادها عن الشاشة */
-            opacity: 0;
-        }
-        .id-card {
-            border: 2px solid #343a40;
-            padding: 20px;
-            border-radius: 10px;
-            width: 320px;
-            background: white;
-            text-align: center;
-        }
+        .pdf-prepare-area { position: absolute; left: -9999px; opacity: 0; }
+        .id-card { border: 2px solid #343a40; padding: 20px; border-radius: 10px; width: 320px; background: white; text-align: center; }
         .id-card h4 { margin: 0 0 10px 0; font-size: 20px; }
         .id-card p { margin: 5px 0; font-size: 16px; }
         .id-card svg { height: 60px; width: 100%; }
@@ -193,7 +182,8 @@
                     <td>
                         <button class="btn btn-warning" onclick="editItem('Users', '${d.id}', 'user')">تعديل</button>
                         <button class="btn btn-danger" onclick="deleteItem('Users', '${d.id}', 'المستخدم')">حذف</button>
-                        <button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}', '${u.role}', '${u.barcodeId}')">تحميل بطاقة</button>
+                        <button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}', '${u.role}', '${u.barcodeId}')">تحميل بطاقة (PDF)</button>
+                        <button class="btn btn-info" onclick="downloadBarcodeAsPNG('${u.displayName}', '${u.barcodeId}')">تحميل صورة الرمز</button>
                     </td>
                 </tr>`;
                 if (u.barcodeId) {
@@ -224,7 +214,8 @@
                     <td>
                         <button class="btn btn-warning" onclick="editItem('Rooms', '${d.id}', 'room')">تعديل</button>
                         <button class="btn btn-danger" onclick="deleteItem('Rooms', '${d.id}', 'القاعة')">حذف</button>
-                        <button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}', '${r.qrUrl}')">تحميل بطاقة</button>
+                        <button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}', '${r.qrUrl}')">تحميل بطاقة (PDF)</button>
+                        <button class="btn btn-info" onclick="downloadQRCodeAsPNG('${r.name}', '${r.qrUrl}')">تحميل صورة الرمز</button>
                     </td>
                 </tr>`;
             });
@@ -316,57 +307,35 @@
             const prepareArea = document.getElementById('pdf-prepare-area');
             const cardElement = document.createElement('div');
             cardElement.className = 'id-card';
-            cardElement.innerHTML = `
-                <h4>${name}</h4>
-                <p>${role}</p>
-                <svg id="pdf-barcode"></svg>
-            `;
-            prepareArea.innerHTML = ''; // Clear previous
-            prepareArea.appendChild(cardElement);
-
-            if (barcodeValue) {
-                JsBarcode("#pdf-barcode", barcodeValue, {
-                    format: "CODE128",
-                    lineColor: "#000",
-                    width: 3,
-                    height: 80,
-                    displayValue: true
-                });
-            }
-            
-            const options = {
-                margin: 1,
-                filename: `${name}_ID_Card.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2 },
-                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-            };
-            
-            html2pdf().from(cardElement).set(options).save();
+            cardElement.innerHTML = `<h4>${name}</h4><p>${role}</p><svg id="pdf-barcode"></svg>`;
+            prepareArea.innerHTML = ''; prepareArea.appendChild(cardElement);
+            if (barcodeValue) JsBarcode("#pdf-barcode", barcodeValue, { format: "CODE128", width: 3, height: 80, displayValue: true });
+            html2pdf().from(cardElement).set({ filename: `${name}_ID_Card.pdf`, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).save();
         };
-
         window.downloadRoomCardAsPDF = (name, qrUrl) => {
             const prepareArea = document.getElementById('pdf-prepare-area');
             const cardElement = document.createElement('div');
             cardElement.className = 'id-card';
-            const qrCodeDataUrl = generateQRCode(qrUrl || '');
-            cardElement.innerHTML = `
-                <h4>بطاقة تعريف القاعة</h4>
-                <p>${name}</p>
-                <img src="${qrCodeDataUrl}" alt="QR Code">
-            `;
-            prepareArea.innerHTML = ''; // Clear previous
-            prepareArea.appendChild(cardElement);
+            cardElement.innerHTML = `<h4>بطاقة تعريف القاعة</h4><p>${name}</p><img src="${generateQRCode(qrUrl || '')}" alt="QR Code">`;
+            prepareArea.innerHTML = ''; prepareArea.appendChild(cardElement);
+            html2pdf().from(cardElement).set({ filename: `${name}_QR_Card.pdf`, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).save();
+        };
 
-            const options = {
-                margin: 1,
-                filename: `${name}_QR_Card.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2 },
-                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-            };
-
-            html2pdf().from(cardElement).set(options).save();
+        // --- PNG Download Functions ---
+        window.downloadQRCodeAsPNG = (name, qrUrl) => {
+            const dataUrl = generateQRCode(qrUrl || '');
+            const link = document.createElement('a');
+            link.download = `${name}_QR_Code.png`;
+            link.href = dataUrl;
+            link.click();
+        };
+        window.downloadBarcodeAsPNG = (name, barcodeValue) => {
+            const canvas = document.createElement('canvas');
+            JsBarcode(canvas, barcodeValue, { format: "CODE128" });
+            const link = document.createElement('a');
+            link.download = `${name}_Barcode.png`;
+            link.href = canvas.toDataURL("image/png");
+            link.click();
         };
 
         showPage('dashboard');
