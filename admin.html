@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة تحكم الأدمن</title>
+    <style>
+        :root {
+            --primary-color: #007bff;
+            --secondary-color: #6c757d;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --light-color: #f8f9fa;
+            --dark-color: #343a40;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+        }
+        .sidebar {
+            width: 250px;
+            background-color: var(--dark-color);
+            color: white;
+            position: fixed;
+            height: 100%;
+            padding-top: 20px;
+        }
+        .sidebar h2 {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        .sidebar a {
+            display: block;
+            color: white;
+            padding: 15px 20px;
+            text-decoration: none;
+            transition: background-color 0.3s;
+        }
+        .sidebar a:hover, .sidebar a.active {
+            background-color: #495057;
+        }
+        .main-content {
+            margin-right: 250px; /* نفس عرض الـ sidebar */
+            padding: 30px;
+        }
+        .page {
+            display: none;
+        }
+        .page.active {
+            display: block;
+        }
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1, h3 {
+            color: var(--dark-color);
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: right;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            color: white;
+            font-size: 14px;
+        }
+        .btn-primary { background-color: var(--primary-color); }
+        .btn-warning { background-color: var(--warning-color); }
+        .btn-danger { background-color: var(--danger-color); }
+        .btn-success { background-color: var(--success-color); }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto;
+            padding: 30px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
+        }
+        .close-btn {
+            color: #aaa;
+            float: left;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        /* Room Status Styles */
+        .room-status-card {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        .room-card {
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            color: white;
+            font-weight: bold;
+        }
+        .room-card.open { background-color: var(--success-color); }
+        .room-card.closed { background-color: var(--danger-color); }
+
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h2>لوحة التحكم</h2>
+        <a href="#users" class="nav-link active" onclick="showPage('users')">إدارة المستخدمين</a>
+        <a href="#schedules" class="nav-link" onclick="showPage('schedules')">إدارة الجداول</a>
+        <a href="#rooms" class="nav-link" onclick="showPage('rooms')">إدارة القاعات</a>
+        <a href="#dashboard" class="nav-link" onclick="showPage('dashboard')">لوحة المراقبة</a>
+        <a href="login.html" style="color: var(--warning-color); margin-top: 30px;">تسجيل الخروج</a>
+    </div>
+
+    <div class="main-content">
+        <!-- صفحة إدارة المستخدمين -->
+        <div id="users" class="page active">
+            <div class="card">
+                <h3>المستخدمون</h3>
+                <button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم جديد</button>
+                <table id="users-table">
+                    <thead>
+                        <tr>
+                            <th>اسم المستخدم</th>
+                            <th>الدور (الصفة)</th>
+                            <th>رمز الباركود</th>
+                            <th>إجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- البيانات ستضاف هنا -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- صفحة إدارة الجداول -->
+        <div id="schedules" class="page">
+            <div class="card">
+                <h3>الجداول الدراسية</h3>
+                <button class="btn btn-primary">إضافة محاضرة جديدة</button>
+                <table id="schedules-table">
+                    <thead>
+                        <tr>
+                            <th>رمز المادة</th>
+                            <th>اسم المادة</th>
+                            <th>المحاضر</th>
+                            <th>اليوم</th>
+                            <th>الوقت</th>
+                            <th>القاعة</th>
+                            <th>إجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- البيانات ستضاف هنا -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- صفحة إدارة القاعات -->
+        <div id="rooms" class="page">
+            <div class="card">
+                <h3>القاعات الدراسية</h3>
+                <button class="btn btn-primary">إضافة قاعة جديدة</button>
+                <table id="rooms-table">
+                    <thead>
+                        <tr>
+                            <th>اسم القاعة</th>
+                            <th>السعة</th>
+                            <th>إجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- البيانات ستضاف هنا -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- صفحة لوحة المراقبة -->
+        <div id="dashboard" class="page">
+            <div class="card">
+                <h3>حالة القاعات (لوحة الإعلانات)</h3>
+                <div id="room-status-container" class="room-status-card">
+                    <!-- حالة القاعات ستعرض هنا -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة منبثقة لإضافة/تعديل مستخدم -->
+    <div id="user-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal('user-modal')">&times;</span>
+            <h3 id="modal-title">إضافة مستخدم جديد</h3>
+            <form id="user-form">
+                <input type="hidden" id="userId">
+                <div class="form-group">
+                    <label for="username">اسم المستخدم</label>
+                    <input type="text" id="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">كلمة المرور</label>
+                    <input type="password" id="password" required>
+                </div>
+                <div class="form-group">
+                    <label for="displayName">الاسم الكامل</label>
+                    <input type="text" id="displayName" required>
+                </div>
+                <div class="form-group">
+                    <label for="role">الدور (الصفة)</label>
+                    <select id="role" required>
+                        <option value="عضو هيئة تدريس">عضو هيئة تدريس</option>
+                        <option value="مشرف">مشرف</option>
+                        <option value="عامل نظافة">عامل نظافة</option>
+                        <option value="أدمن">أدمن</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="barcodeId">رمز الباركود</label>
+                    <input type="text" id="barcodeId" required>
+                </div>
+                <button type="submit" class="btn btn-success">حفظ</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        // استيراد الدوال اللازمة
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getFirestore, collection, getDocs, addDoc, doc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        // معلومات إعداد Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
+            authDomain: "gggg-dc7d0.firebaseapp.com",
+            projectId: "gggg-dc7d0",
+            storageBucket: "gggg-dc7d0.appspot.com",
+            messagingSenderId: "151376454562",
+            appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
+        };
+
+        // تهيئة Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // --- منطق التنقل بين الصفحات ---
+        window.showPage = (pageId) => {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            document.querySelector(`.nav-link[href="#${pageId}"]`).classList.add('active');
+        }
+
+        // --- منطق النوافذ المنبثقة (Modal) ---
+        window.openModal = (modalId) => {
+            document.getElementById(modalId).style.display = 'block';
+        }
+        window.closeModal = (modalId) => {
+            document.getElementById(modalId).style.display = 'none';
+            document.getElementById('user-form').reset();
+            document.getElementById('userId').value = '';
+        }
+
+        // --- إدارة المستخدمين ---
+        const usersTableBody = document.querySelector('#users-table tbody');
+        const userForm = document.getElementById('user-form');
+
+        // دالة لعرض المستخدمين
+        const renderUsers = (snapshot) => {
+            usersTableBody.innerHTML = '';
+            snapshot.forEach(doc => {
+                const user = doc.data();
+                const row = `
+                    <tr>
+                        <td>${user.username}</td>
+                        <td>${user.role}</td>
+                        <td>${user.barcodeId}</td>
+                        <td>
+                            <button class="btn btn-warning" onclick="editUser('${doc.id}', '${user.username}', '${user.password}', '${user.displayName}', '${user.role}', '${user.barcodeId}')">تعديل</button>
+                            <button class="btn btn-danger" onclick="deleteUser('${doc.id}')">حذف</button>
+                        </td>
+                    </tr>
+                `;
+                usersTableBody.innerHTML += row;
+            });
+        };
+
+        // جلب وعرض المستخدمين بشكل حي
+        onSnapshot(collection(db, "Users"), renderUsers);
+
+        // إضافة أو تعديل مستخدم
+        userForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userId = document.getElementById('userId').value;
+            const userData = {
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value,
+                displayName: document.getElementById('displayName').value,
+                role: document.getElementById('role').value,
+                barcodeId: document.getElementById('barcodeId').value,
+            };
+
+            if (userId) { // تعديل
+                await updateDoc(doc(db, "Users", userId), userData);
+            } else { // إضافة
+                await addDoc(collection(db, "Users"), userData);
+            }
+            closeModal('user-modal');
+        });
+
+        // دالة لفتح نافذة التعديل
+        window.editUser = (id, username, password, displayName, role, barcodeId) => {
+            document.getElementById('userId').value = id;
+            document.getElementById('username').value = username;
+            // لا نعرض كلمة المرور القديمة للأمان، نطلب إدخالها من جديد إذا أراد التغيير
+            document.getElementById('password').value = ''; 
+            document.getElementById('password').placeholder = 'اترك الحقل فارغًا لعدم التغيير';
+            document.getElementById('displayName').value = displayName;
+            document.getElementById('role').value = role;
+            document.getElementById('barcodeId').value = barcodeId;
+            document.getElementById('modal-title').textContent = 'تعديل مستخدم';
+            openModal('user-modal');
+        };
+
+        // دالة لحذف مستخدم
+        window.deleteUser = async (id) => {
+            if (confirm('هل أنت متأكد من حذف هذا المستخدم؟')) {
+                await deleteDoc(doc(db, "Users", id));
+            }
+        };
+
+        // --- إدارة لوحة المراقبة (Dashboard) ---
+        const roomStatusContainer = document.getElementById('room-status-container');
+        
+        // دالة لعرض حالة القاعات
+        const renderDashboard = (snapshot) => {
+            roomStatusContainer.innerHTML = '';
+            snapshot.forEach(doc => {
+                const room = doc.data();
+                const lockStatus = room.lockStatus || 'closed'; // افتراضي مغلق
+                const cardClass = lockStatus === 'open' ? 'open' : 'closed';
+                const card = `
+                    <div class="room-card ${cardClass}">
+                        <h4>${room.name}</h4>
+                        <p>الحالة: ${lockStatus === 'open' ? 'مفتوح' : 'مغلق'}</p>
+                        <button class="btn btn-primary" onclick="toggleLock('${doc.id}', '${lockStatus}')">
+                            ${lockStatus === 'open' ? 'إغلاق القفل' : 'فتح القفل'}
+                        </button>
+                    </div>
+                `;
+                roomStatusContainer.innerHTML += card;
+            });
+        };
+        
+        // جلب وعرض حالة القاعات بشكل حي
+        onSnapshot(collection(db, "Rooms"), renderDashboard);
+
+        // دالة لفتح/إغلاق القفل
+        window.toggleLock = async (id, currentStatus) => {
+            const newStatus = currentStatus === 'open' ? 'closed' : 'open';
+            await updateDoc(doc(db, "Rooms", id), { lockStatus: newStatus });
+        };
+
+        // تهيئة الصفحة الأولى عند التحميل
+        showPage('users');
+
+    </script>
+</body>
+</html>
