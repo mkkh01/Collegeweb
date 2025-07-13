@@ -68,7 +68,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         const db = getFirestore(initializeApp({
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
@@ -103,7 +103,7 @@
             tbody.innerHTML = '';
             snap.forEach(d => {
                 const u = d.data();
-                tbody.innerHTML += `<tr><td>${u.displayName}</td><td>${u.username}</td><td>${u.role}</td><td>${u.barcodeId}</td><td><button class="btn btn-warning" onclick="editItem('Users', '${d.id}', 'user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users', '${d.id}', 'المستخدم')">حذف</button></td></tr>`;
+                tbody.innerHTML += `<tr><td>${u.displayName}</td><td>${u.username || u["User name"]}</td><td>${u.role}</td><td>${u.barcodeId}</td><td><button class="btn btn-warning" onclick="editItem('Users', '${d.id}', 'user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users', '${d.id}', 'المستخدم')">حذف</button></td></tr>`;
             });
         });
         document.getElementById('user-form').addEventListener('submit', async (e) => {
@@ -144,7 +144,7 @@
             };
             if (id) await updateDoc(doc(db, "Rooms", id), data);
             else {
-                data.status = 'closed'; // Default status for new rooms
+                data.status = 'closed';
                 await addDoc(collection(db, "Rooms"), data);
             }
             closeModal('room-modal');
@@ -171,6 +171,10 @@
             else await addDoc(collection(db, "Schedules"), data);
             closeModal('schedule-modal');
         });
+        
+        // ===============================================================
+        // ==== هذه هي الدالة التي تم تصحيحها لملء القوائم المنسدلة ====
+        // ===============================================================
         async function populateSelects() {
             const usersSnap = await getDocs(query(collection(db, "Users"), where("role", "==", "عضو هيئة تدريس")));
             const roomsSnap = await getDocs(collection(db, "Rooms"));
@@ -178,9 +182,16 @@
             const roomSelect = document.getElementById('scheduleRoom');
             lecturerSelect.innerHTML = '<option value="">اختر محاضر</option>';
             roomSelect.innerHTML = '<option value="">اختر قاعة</option>';
-            usersSnap.forEach(d => lecturerSelect.innerHTML += `<option value="${d.data().displayName}">${d.data().displayName}</option>`);
-            roomsSnap.forEach(d => roomSelect.innerHTML += `<option value="${d.data().name}">${d.data().name}</option>`);
+            usersSnap.forEach(d => {
+                // استخدام حقل displayName لعرض اسم المحاضر
+                lecturerSelect.innerHTML += `<option value="${d.data().displayName}">${d.data().displayName}</option>`;
+            });
+            roomsSnap.forEach(d => {
+                // استخدام حقل name لعرض اسم القاعة
+                roomSelect.innerHTML += `<option value="${d.data().name}">${d.data().name}</option>`;
+            });
         }
+        // ===============================================================
 
         // Dashboard
         onSnapshot(collection(db, "Rooms"), (snap) => {
@@ -203,7 +214,7 @@
             if (type === 'user') {
                 document.getElementById('userId').value = id;
                 document.getElementById('displayName').value = data.displayName;
-                document.getElementById('username').value = data.username;
+                document.getElementById('username').value = data.username || data["User name"]; // يعمل للحالتين
                 document.getElementById('role').value = data.role;
                 document.getElementById('barcodeId').value = data.barcodeId;
                 document.getElementById('password').value = '';
