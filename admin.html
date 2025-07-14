@@ -83,17 +83,24 @@
     <div id="schedule-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('schedule-modal')">&times;</span><h3 id="schedule-modal-title"></h3><form id="schedule-form"><input type="hidden" id="scheduleId"><div class="form-group"><label>رمز المادة</label><input type="text" id="courseCode" required></div><div class="form-group"><label>اسم المادة</label><input type="text" id="courseName" required></div><div class="form-group"><label>المحاضر</label><select id="lecturer" required></select></div><div class="form-group"><label>القاعة</label><select id="scheduleRoom" required></select></div><div class="form-group"><label>اليوم</label><select id="day" required><option>السبت</option><option>الأحد</option><option>الاثنين</option><option>الثلاثاء</option><option>الأربعاء</option><option>الخميس</option></select></div><div class="form-group"><label>الوقت</label><input type="text" id="time" placeholder="مثال: 08:00-10:00" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
 
     <script type="module">
+        // ===================================================================
+        // ==== هذا هو التصحيح الجذري والأساسي ====
+        // ===================================================================
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-        const db = getFirestore(initializeApp({
+        const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
             authDomain: "gggg-dc7d0.firebaseapp.com",
             projectId: "gggg-dc7d0",
             storageBucket: "gggg-dc7d0.appspot.com",
             messagingSenderId: "151376454562",
             appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
-        }));
+        };
+
+        // تهيئة التطبيق وقاعدة البيانات بشكل صحيح
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
 
         const SITE_URL = "https://cpld.netlify.app";
 
