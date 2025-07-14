@@ -13,7 +13,7 @@
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; }
         .sidebar { width: 250px; background-color: var(--dark-color); color: white; position: fixed; height: 100%; padding-top: 20px; z-index: 100; }
         .sidebar h2 { text-align: center; color: white; margin-bottom: 30px; }
-        .sidebar a { display: block; color: white; padding: 15px 20px; text-decoration: none; transition: background-color: 0.3s; }
+        .sidebar a { display: block; color: white; padding: 15px 20px; text-decoration: none; transition: background-color 0.3s; }
         .sidebar a:hover, .sidebar a.active { background-color: #495057; }
         .main-content { margin-right: 250px; padding: 30px; }
         .page { display: none; }
@@ -100,7 +100,8 @@
         // --- مخزن بيانات محلي لتجنب استدعاءات متكررة لقاعدة البيانات ---
         let localData = {
             rooms: [],
-            schedules: []
+            schedules: [],
+            users: []
         };
 
         // --- دوال مساعدة ---
@@ -196,50 +197,37 @@
         // ==== عرض البيانات وتحديث الواجهة (النهج المبسط والمباشر) ====
         // ===================================================================
 
-        // 1. تحديث جدول المستخدمين
         onSnapshot(collection(db, "Users"), (snap) => {
+            localData.users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             const tbody = document.querySelector('#users-table tbody');
             tbody.innerHTML = '';
-            snap.forEach(d => {
-                const u = d.data();
-                tbody.innerHTML += `<tr><td>${u.displayName||''}</td><td>${u.role||''}</td><td><div class="barcode-container">${u.barcodeId?`<svg id="barcode-${d.id}"></svg>`:'لا يوجد'}</div></td><td>${u.rfid||'لا يوجد'}</td><td><button class="btn btn-warning" onclick="editItem('Users','${d.id}','user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users','${d.id}','المستخدم')">حذف</button><button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}','${u.role}','${u.barcodeId}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadBarcodeAsPNG('${u.displayName}','${u.barcodeId}')">تحميل صورة الرمز</button></td></tr>`;
-                if (u.barcodeId) { JsBarcode(`#barcode-${d.id}`,u.barcodeId,{format:"CODE128",lineColor:"#000",width:2,height:40,displayValue:true}); }
+            localData.users.forEach(u => {
+                tbody.innerHTML += `<tr><td>${u.displayName||''}</td><td>${u.role||''}</td><td><div class="barcode-container">${u.barcodeId?`<svg id="barcode-${u.id}"></svg>`:'لا يوجد'}</div></td><td>${u.rfid||'لا يوجد'}</td><td><button class="btn btn-warning" onclick="editItem('Users','${u.id}','user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users','${u.id}','المستخدم')">حذف</button><button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}','${u.role}','${u.barcodeId}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadBarcodeAsPNG('${u.displayName}','${u.barcodeId}')">تحميل صورة الرمز</button></td></tr>`;
+                if (u.barcodeId) { JsBarcode(`#barcode-${u.id}`,u.barcodeId,{format:"CODE128",lineColor:"#000",width:2,height:40,displayValue:true}); }
             });
         });
         
-        // 2. تحديث جدول القاعات ولوحة المراقبة عند أي تغيير في القاعات
         onSnapshot(collection(db, "Rooms"), (snap) => {
             localData.rooms = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            
-            // تحديث جدول إدارة القاعات
             const roomsTbody = document.querySelector('#rooms-table tbody');
             roomsTbody.innerHTML = '';
             localData.rooms.forEach(r => {
                 const qrCodeDataUrl = generateQRCode(r.qrUrl || '');
                 roomsTbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td><div class="qr-code-container">${r.qrUrl?`<img src="${qrCodeDataUrl}" alt="QR Code">`:'لا يوجد'}</div></td><td><button class="btn btn-warning" onclick="editItem('Rooms','${r.id}','room')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms','${r.id}','القاعة')">حذف</button><button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}','${r.qrUrl}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadQRCodeAsPNG('${r.name}','${r.qrUrl}')">تحميل صورة الرمز</button></td></tr>`;
             });
-
-            // تحديث لوحة المراقبة
             updateDashboard();
         });
 
-        // 3. تحديث جدول الجداول ولوحة المراقبة عند أي تغيير في الجداول
         onSnapshot(collection(db, "Schedules"), (snap) => {
-            localData.schedules = snap.docs.map(d => d.data());
-
-            // تحديث جدول إدارة الجداول
+            localData.schedules = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             const schedulesTbody = document.querySelector('#schedules-table tbody');
             schedulesTbody.innerHTML = '';
-            localData.schedules.forEach((s, index) => { // استخدمت index كحل بديل لعدم وجود ID مباشر
-                const docId = snap.docs[index].id;
-                schedulesTbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.lecturer}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td><button class="btn btn-warning" onclick="editItem('Schedules','${docId}','schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules','${docId}','الجدول')">حذف</button></td></tr>`;
+            localData.schedules.forEach(s => {
+                schedulesTbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.lecturer}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td><button class="btn btn-warning" onclick="editItem('Schedules','${s.id}','schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules','${s.id}','الجدول')">حذف</button></td></tr>`;
             });
-
-            // تحديث لوحة المراقبة
             updateDashboard();
         });
 
-        // --- دالة تحديث لوحة المراقبة (تعتمد الآن على البيانات المحلية) ---
         function updateDashboard() {
             const container = document.getElementById('room-status-container');
             if (!container) return;
@@ -281,46 +269,63 @@
                     </div>`;
             });
         }
-        setInterval(updateDashboard, 60000); // تحديث دوري للوقت
+        setInterval(updateDashboard, 60000);
 
         // --- دوال مساعدة متقدمة ---
         async function populateSelects() {
-            const usersSnap = await getDocs(collection(db, "Users"));
-            const roomsSnap = await getDocs(collection(db, "Rooms"));
             const lecturerSelect = document.getElementById('lecturer');
             const roomSelect = document.getElementById('scheduleRoom');
             lecturerSelect.innerHTML = '<option value="">اختر محاضر</option>';
             roomSelect.innerHTML = '<option value="">اختر قاعة</option>';
+            
+            const usersCollection = collection(db, "Users");
+            const usersSnap = await getDocs(usersCollection);
             usersSnap.forEach(d => {
                 const user = d.data();
                 if (user.role && user.role.trim() === "عضو هيئة تدريس") {
                     lecturerSelect.innerHTML += `<option value="${user.displayName}">${user.displayName}</option>`;
                 }
             });
+
+            const roomsCollection = collection(db, "Rooms");
+            const roomsSnap = await getDocs(roomsCollection);
             roomsSnap.forEach(d => {
                 const room = d.data();
                 roomSelect.innerHTML += `<option value="${room.name}">${room.name}</option>`;
             });
         }
+
         window.editItem = async (collectionName, id, type) => {
-            openModal(`${type}-modal`); 
+            const modalId = `${type}-modal`;
+            openModal(modalId);
+            
             const itemDoc = await getDoc(doc(db, collectionName, id));
             const data = itemDoc.data();
+            
             document.getElementById(`${type}Id`).value = id;
-            document.querySelector(`#${type}-modal h3`).textContent = `تعديل`;
+            document.querySelector(`#${modalId} h3`).textContent = `تعديل`;
+
             if (type === 'user') {
-                document.getElementById('displayName').value = data.displayName; document.getElementById('username').value = data.username;
-                document.getElementById('role').value = data.role; document.getElementById('barcodeId').value = data.barcodeId || '';
-                document.getElementById('rfid').value = data.rfid || ''; document.getElementById('password').value = '';
+                document.getElementById('displayName').value = data.displayName;
+                document.getElementById('username').value = data.username;
+                document.getElementById('role').value = data.role;
+                document.getElementById('barcodeId').value = data.barcodeId || '';
+                document.getElementById('rfid').value = data.rfid || '';
+                document.getElementById('password').value = '';
             } else if (type === 'room') {
-                document.getElementById('roomName').value = data.name; document.getElementById('roomCapacity').value = data.capacity;
+                document.getElementById('roomName').value = data.name;
+                document.getElementById('roomCapacity').value = data.capacity;
             } else if (type === 'schedule') {
                 await populateSelects();
-                document.getElementById('courseCode').value = data.courseCode; document.getElementById('courseName').value = data.courseName;
-                document.getElementById('lecturer').value = data.lecturer; document.getElementById('scheduleRoom').value = data.room;
-                document.getElementById('day').value = data.day; document.getElementById('time').value = data.time;
+                document.getElementById('courseCode').value = data.courseCode;
+                document.getElementById('courseName').value = data.courseName;
+                document.getElementById('lecturer').value = data.lecturer;
+                document.getElementById('scheduleRoom').value = data.room;
+                document.getElementById('day').value = data.day;
+                document.getElementById('time').value = data.time;
             }
         };
+        
         window.deleteItem = async (collectionName, id, itemName) => {
             if (confirmDelete(itemName)) await deleteDoc(doc(db, collectionName, id));
         };
