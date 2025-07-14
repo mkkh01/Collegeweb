@@ -67,25 +67,19 @@
 
     <div class="sidebar">
         <h2>لوحة التحكم</h2>
-        <a href="#dashboard" class="nav-link" onclick="showPage('dashboard')">لوحة المراقبة</a>
+        <!-- التعديل الأول: تغيير النص هنا -->
+        <a href="#dashboard" class="nav-link" onclick="showPage('dashboard')">لوحة الإعلانات</a>
         <a href="#users" class="nav-link" onclick="showPage('users')">إدارة المستخدمين</a>
-        <!--  التعديل الأول: تغيير النص هنا -->
         <a href="#schedules" class="nav-link" onclick="showPage('schedules')">الجدول الدراسي</a>
         <a href="#rooms" class="nav-link" onclick="showPage('rooms')">إدارة القاعات</a>
         <a href="index.html" style="color: var(--warning-color); margin-top: 30px;" onclick="sessionStorage.clear()">تسجيل الخروج</a>
     </div>
 
     <div class="main-content">
-        <div id="dashboard" class="page"><div class="card"><h3>حالة القاعات الحالية</h3><div id="room-status-container" class="room-status-container"></div></div></div>
+        <!-- التعديل الثاني: تغيير النص هنا -->
+        <div id="dashboard" class="page"><div class="card"><h3>لوحة الإعلانات</h3><div id="room-status-container" class="room-status-container"></div></div></div>
         <div id="users" class="page"><div class="card"><h3>المستخدمون</h3><button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم</button><table id="users-table"><thead><tr><th>الاسم الكامل</th><th>الدور</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
-        <div id="schedules" class="page">
-            <div class="card">
-                <h3>الجداول الدراسية</h3>
-                <!-- التعديل الثاني: تغيير النص هنا -->
-                <button class="btn btn-primary" onclick="openModal('schedule-modal')">إضافة</button>
-                <table id="schedules-table"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>إجراء</th></tr></thead><tbody></tbody></table>
-            </div>
-        </div>
+        <div id="schedules" class="page"><div class="card"><h3>الجداول الدراسية</h3><button class="btn btn-primary" onclick="openModal('schedule-modal')">إضافة</button><table id="schedules-table"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
         <div id="rooms" class="page"><div class="card"><h3>القاعات الدراسية</h3><button class="btn btn-primary" onclick="openModal('room-modal')">إضافة قاعة</button><table id="rooms-table"><thead><tr><th>اسم القاعة</th><th>السعة</th><th>رمز QR</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
     </div>
 
@@ -290,13 +284,4 @@
         
         window.deleteItem = async (collectionName, id, itemName) => { if (confirmDelete(itemName)) await deleteDoc(doc(db, collectionName, id)); };
         window.downloadIdCardAsPDF = (name, role, barcodeValue) => { const prepareArea = document.getElementById('pdf-prepare-area'); const cardElement = document.createElement('div'); cardElement.className = 'id-card'; cardElement.innerHTML = `<h4>${name}</h4><p>${role}</p><svg id="pdf-barcode"></svg>`; prepareArea.innerHTML = ''; prepareArea.appendChild(cardElement); if (barcodeValue) JsBarcode("#pdf-barcode", barcodeValue, { format: "CODE128", width: 3, height: 80, displayValue: true }); else cardElement.querySelector('svg').remove(); html2pdf().from(cardElement).set({ filename: `${name}_ID_Card.pdf`, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).save(); };
-        window.downloadRoomCardAsPDF = (name, qrUrl) => { const prepareArea = document.getElementById('pdf-prepare-area'); const cardElement = document.createElement('div'); cardElement.className = 'id-card'; cardElement.innerHTML = `<h4>بطاقة تعريف القاعة</h4><p>${name}</p><img src="${generateQRCode(qrUrl || '')}" alt="QR Code">`; prepareArea.innerHTML = ''; prepareArea.appendChild(cardElement); html2pdf().from(cardElement).set({ filename: `${name}_QR_Card.pdf`, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).save(); };
-        window.downloadQRCodeAsPNG = (name, qrUrl) => { if (!qrUrl) { alert('لا يوجد رمز QR لهذه القاعة.'); return; } const dataUrl = generateQRCode(qrUrl); const link = document.createElement('a'); link.download = `${name}_QR_Code.png`; link.href = dataUrl; link.click(); };
-        window.downloadBarcodeAsPNG = (name, barcodeValue) => { if (!barcodeValue) { alert('لا يوجد رمز باركود لهذا المستخدم.'); return; } const canvas = document.createElement('canvas'); JsBarcode(canvas, barcodeValue, { format: "CODE128" }); const link = document.createElement('a'); link.download = `${name}_Barcode.png`; link.href = canvas.toDataURL("image/png"); link.click(); };
-
-        showPage('dashboard');
-
-        setInterval(renderDashboard, 60000); 
-    </script>
-</body>
-</html>
+        window.downloadRoomCardAsPDF = (name, qrUrl) => { const prepareArea = document.getElementById('pdf-prepare-area'); const cardElement = document.createElement('div'); cardElement.className = 'id-card'; cardElement.innerHTML = `<h4>بطاقة تعريف القاعة</h4><p>${name}</p><img src="${generateQRCode(qrUrl || '')}" alt="QR Code">`; prepareArea.innerHTML = ''; prepareArea.appendChild(cardElement); html2pdf().from(cardElement).set({ filename: `${name}_QR_Card.pdf`, jsPDF: { unit: '
