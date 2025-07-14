@@ -32,12 +32,13 @@
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; margin-bottom: 5px; }
         .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        .room-status-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
-        .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; }
+        .room-status-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; }
+        .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; display: flex; flex-direction: column; justify-content: space-between; min-height: 150px; }
         .room-card.open { background-color: var(--success-color); }
         .room-card.closed { background-color: var(--danger-color); }
         .room-card h4 { margin-top: 0; }
-        .room-card .lecture-info { font-size: 0.9em; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.5); }
+        .room-card .lecture-info { font-size: 0.9em; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.5); text-align: right; }
+        .room-card .lecture-info p { margin: 4px 0; color: white; }
         .qr-code-container, .barcode-container { display: flex; flex-direction: column; align-items: center; gap: 10px; }
         .qr-code-container img { max-width: 80px; height: auto; }
         .barcode-container svg { height: 50px; width: auto; }
@@ -96,6 +97,7 @@
 
         const SITE_URL = "https://cpld.netlify.app";
 
+        // --- دوال مساعدة ---
         window.showPage = (pageId) => {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(pageId).classList.add('active');
@@ -113,7 +115,15 @@
         };
         window.closeModal = (modalId) => { document.getElementById(modalId).style.display = 'none'; };
         const confirmDelete = (item) => confirm(`هل أنت متأكد من حذف هذا ${item}؟`);
+        function generateQRCode(text) {
+            if (!text) return '';
+            const typeNumber = 4; const errorCorrectionLevel = 'L';
+            const qr = qrcode(typeNumber, errorCorrectionLevel);
+            qr.addData(text); qr.make();
+            return qr.createDataURL(4);
+        }
 
+        // --- نماذج الحفظ ---
         document.getElementById('user-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('userId').value;
@@ -149,7 +159,6 @@
             }
             closeModal('room-modal');
         });
-        
         document.getElementById('schedule-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('scheduleId').value;
@@ -162,108 +171,50 @@
             const querySnapshot = await getDocs(q);
             
             let conflict = false;
-            querySnapshot.forEach((doc) => {
-                if (doc.id !== id) {
-                    conflict = true;
-                }
-            });
+            querySnapshot.forEach((doc) => { if (doc.id !== id) { conflict = true; } });
 
             if (conflict) {
-                alert('خطأ: هذه القاعة محجوزة بالفعل في نفس اليوم والوقت. يرجى اختيار وقت أو قاعة أخرى.');
+                alert('خطأ: هذه القاعة محجوزة بالفعل في نفس اليوم والوقت.');
                 return;
             }
-
             const data = {
                 courseCode: document.getElementById('courseCode').value, courseName: document.getElementById('courseName').value,
-                lecturer: document.getElementById('lecturer').value, room: room,
-                day: day, time: time,
+                lecturer: document.getElementById('lecturer').value, room: room, day: day, time: time,
             };
-
             if (id) await updateDoc(doc(db, "Schedules", id), data);
             else await addDoc(collection(db, "Schedules"), data);
-            
             closeModal('schedule-modal');
         });
 
+        // --- عرض البيانات في الجداول ---
         onSnapshot(collection(db, "Users"), (snap) => {
             const tbody = document.querySelector('#users-table tbody');
             tbody.innerHTML = '';
             snap.forEach(d => {
                 const u = d.data();
-                tbody.innerHTML += `<tr>
-                    <td>${u.displayName || ''}</td>
-                    <td>${u.role || ''}</td>
-                    <td>
-                        <div class="barcode-container">
-                            ${u.barcodeId ? `<svg id="barcode-${d.id}"></svg>` : 'لا يوجد'}
-                        </div>
-                    </td>
-                    <td>${u.rfid || 'لا يوجد'}</td>
-                    <td>
-                        <button class="btn btn-warning" onclick="editItem('Users', '${d.id}', 'user')">تعديل</button>
-                        <button class="btn btn-danger" onclick="deleteItem('Users', '${d.id}', 'المستخدم')">حذف</button>
-                        <button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}', '${u.role}', '${u.barcodeId}')">تحميل بطاقة (PDF)</button>
-                        <button class="btn btn-info" onclick="downloadBarcodeAsPNG('${u.displayName}', '${u.barcodeId}')">تحميل صورة الرمز</button>
-                    </td>
-                </tr>`;
-                if (u.barcodeId) {
-                    JsBarcode(`#barcode-${d.id}`, u.barcodeId, {
-                        format: "CODE128",
-                        lineColor: "#000",
-                        width: 2,
-                        height: 40,
-                        displayValue: true
-                    });
-                }
+                tbody.innerHTML += `<tr><td>${u.displayName||''}</td><td>${u.role||''}</td><td><div class="barcode-container">${u.barcodeId?`<svg id="barcode-${d.id}"></svg>`:'لا يوجد'}</div></td><td>${u.rfid||'لا يوجد'}</td><td><button class="btn btn-warning" onclick="editItem('Users','${d.id}','user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users','${d.id}','المستخدم')">حذف</button><button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}','${u.role}','${u.barcodeId}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadBarcodeAsPNG('${u.displayName}','${u.barcodeId}')">تحميل صورة الرمز</button></td></tr>`;
+                if (u.barcodeId) { JsBarcode(`#barcode-${d.id}`,u.barcodeId,{format:"CODE128",lineColor:"#000",width:2,height:40,displayValue:true}); }
             });
         });
-
-        // ===================================================================
-        // ==== الكود المصحح: هذا الجزء خاص بجدول إدارة القاعات فقط ====
-        // ===================================================================
         onSnapshot(collection(db, "Rooms"), (snap) => {
             const tbody = document.querySelector('#rooms-table tbody');
             tbody.innerHTML = '';
             snap.forEach(d => {
                 const r = d.data();
                 const qrCodeDataUrl = generateQRCode(r.qrUrl || '');
-                tbody.innerHTML += `<tr>
-                    <td>${r.name}</td>
-                    <td>${r.capacity}</td>
-                    <td>
-                        <div class="qr-code-container">
-                            ${r.qrUrl ? `<img src="${qrCodeDataUrl}" alt="QR Code">` : 'لا يوجد'}
-                        </div>
-                    </td>
-                    <td>
-                        <button class="btn btn-warning" onclick="editItem('Rooms', '${d.id}', 'room')">تعديل</button>
-                        <button class="btn btn-danger" onclick="deleteItem('Rooms', '${d.id}', 'القاعة')">حذف</button>
-                        <button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}', '${r.qrUrl}')">تحميل بطاقة (PDF)</button>
-                        <button class="btn btn-info" onclick="downloadQRCodeAsPNG('${r.name}', '${r.qrUrl}')">تحميل صورة الرمز</button>
-                    </td>
-                </tr>`;
+                tbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td><div class="qr-code-container">${r.qrUrl?`<img src="${qrCodeDataUrl}" alt="QR Code">`:'لا يوجد'}</div></td><td><button class="btn btn-warning" onclick="editItem('Rooms','${d.id}','room')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms','${d.id}','القاعة')">حذف</button><button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}','${r.qrUrl}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadQRCodeAsPNG('${r.name}','${r.qrUrl}')">تحميل صورة الرمز</button></td></tr>`;
             });
         });
-        
         onSnapshot(collection(db, "Schedules"), (snap) => {
             const tbody = document.querySelector('#schedules-table tbody');
             tbody.innerHTML = '';
             snap.forEach(d => {
                 const s = d.data();
-                tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.lecturer}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td><button class="btn btn-warning" onclick="editItem('Schedules', '${d.id}', 'schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules', '${d.id}', 'الجدول')">حذف</button></td></tr>`;
+                tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.lecturer}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td><button class="btn btn-warning" onclick="editItem('Schedules','${d.id}','schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules','${d.id}','الجدول')">حذف</button></td></tr>`;
             });
         });
 
-        function generateQRCode(text) {
-            if (!text) return '';
-            const typeNumber = 4;
-            const errorCorrectionLevel = 'L';
-            const qr = qrcode(typeNumber, errorCorrectionLevel);
-            qr.addData(text);
-            qr.make();
-            return qr.createDataURL(4);
-        }
-
+        // --- دوال مساعدة متقدمة ---
         async function populateSelects() {
             const usersSnap = await getDocs(collection(db, "Users"));
             const roomsSnap = await getDocs(collection(db, "Rooms"));
@@ -282,87 +233,92 @@
                 roomSelect.innerHTML += `<option value="${room.name}">${room.name}</option>`;
             });
         }
-
-        // ===================================================================
-        // ==== الكود المصحح: هذا الجزء خاص بلوحة المراقبة فقط ====
-        // ===================================================================
-        onSnapshot(collection(db, "Rooms"), async (roomsSnap) => {
-            const container = document.getElementById('room-status-container');
-            container.innerHTML = '';
-
-            const schedulesSnap = await getDocs(collection(db, "Schedules"));
-            const allSchedules = schedulesSnap.docs.map(doc => doc.data());
-
-            roomsSnap.forEach(d => {
-                const r = d.data();
-                const statusClass = r.status === 'open' ? 'open' : 'closed';
-                let lectureInfoHTML = '';
-
-                if (r.status === 'open') {
-                    const now = new Date();
-                    const currentDay = now.toLocaleDateString('ar-EG', { weekday: 'long' });
-                    const currentTime = now.toTimeString().slice(0, 5);
-
-                    const currentLecture = allSchedules.find(s => {
-                        if (s.room === r.name && s.day === currentDay) {
-                            const [startTime, endTime] = s.time.split('-');
-                            return startTime && endTime && currentTime >= startTime && currentTime <= endTime;
-                        }
-                        return false;
-                    });
-
-                    if (currentLecture) {
-                        lectureInfoHTML = `<div class="lecture-info">
-                            <p>المادة: ${currentLecture.courseName}</p>
-                            <p>المحاضر: ${currentLecture.lecturer}</p>
-                        </div>`;
-                    }
-                }
-
-                container.innerHTML += `
-                    <div class="room-card ${statusClass}">
-                        <h4>${r.name}</h4>
-                        <p>${r.status === 'open' ? 'مفتوحة' : 'مغلقة'}</p>
-                        ${lectureInfoHTML}
-                        <button class="btn btn-warning" onclick="toggleRoomStatus('${d.id}', '${r.status}')">تغيير</button>
-                    </div>`;
-            });
-        });
-
-        window.toggleRoomStatus = async (id, currentStatus) => {
-            await updateDoc(doc(db, "Rooms", id), { status: currentStatus === 'open' ? 'closed' : 'open' });
-        };
-
         window.editItem = async (collectionName, id, type) => {
             openModal(`${type}-modal`); 
             const itemDoc = await getDoc(doc(db, collectionName, id));
             const data = itemDoc.data();
             document.getElementById(`${type}Id`).value = id;
-            document.querySelector(`#${type}-modal h3`).textContent = `تعديل ${type === 'user' ? 'مستخدم' : (type === 'room' ? 'قاعة' : 'جدول')}`;
+            document.querySelector(`#${type}-modal h3`).textContent = `تعديل`;
             if (type === 'user') {
-                document.getElementById('displayName').value = data.displayName;
-                document.getElementById('username').value = data.username;
-                document.getElementById('role').value = data.role;
-                document.getElementById('barcodeId').value = data.barcodeId || '';
-                document.getElementById('rfid').value = data.rfid || '';
-                document.getElementById('password').value = '';
+                document.getElementById('displayName').value = data.displayName; document.getElementById('username').value = data.username;
+                document.getElementById('role').value = data.role; document.getElementById('barcodeId').value = data.barcodeId || '';
+                document.getElementById('rfid').value = data.rfid || ''; document.getElementById('password').value = '';
             } else if (type === 'room') {
-                document.getElementById('roomName').value = data.name;
-                document.getElementById('roomCapacity').value = data.capacity;
+                document.getElementById('roomName').value = data.name; document.getElementById('roomCapacity').value = data.capacity;
             } else if (type === 'schedule') {
                 await populateSelects();
-                document.getElementById('courseCode').value = data.courseCode;
-                document.getElementById('courseName').value = data.courseName;
-                document.getElementById('lecturer').value = data.lecturer;
-                document.getElementById('scheduleRoom').value = data.room;
-                document.getElementById('day').value = data.day;
-                document.getElementById('time').value = data.time;
+                document.getElementById('courseCode').value = data.courseCode; document.getElementById('courseName').value = data.courseName;
+                document.getElementById('lecturer').value = data.lecturer; document.getElementById('scheduleRoom').value = data.room;
+                document.getElementById('day').value = data.day; document.getElementById('time').value = data.time;
             }
         };
         window.deleteItem = async (collectionName, id, itemName) => {
             if (confirmDelete(itemName)) await deleteDoc(doc(db, collectionName, id));
         };
+        window.toggleRoomStatus = async (id, currentStatus) => {
+            await updateDoc(doc(db, "Rooms", id), { status: currentStatus === 'open' ? 'closed' : 'open' });
+        };
 
+        // ===================================================================
+        // ==== لوحة المراقبة الذكية والديناميكية ====
+        // ===================================================================
+        let allRooms = [];
+        let allSchedules = [];
+
+        onSnapshot(collection(db, "Rooms"), (snap) => {
+            allRooms = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            updateDashboard();
+        });
+        onSnapshot(collection(db, "Schedules"), (snap) => {
+            allSchedules = snap.docs.map(doc => doc.data());
+            updateDashboard();
+        });
+
+        function updateDashboard() {
+            const container = document.getElementById('room-status-container');
+            if (!container) return;
+            container.innerHTML = '';
+
+            const now = new Date();
+            const currentDay = now.toLocaleDateString('ar-EG', { weekday: 'long' });
+            const currentTime = now.toTimeString().slice(0, 5);
+
+            allRooms.forEach(r => {
+                const statusClass = r.status === 'open' ? 'open' : 'closed';
+                let lectureInfoHTML = '';
+
+                const currentLecture = allSchedules.find(s => {
+                    if (s.room === r.name && s.day === currentDay) {
+                        const [startTime, endTime] = s.time.split('-');
+                        return startTime && endTime && currentTime >= startTime && currentTime < endTime;
+                    }
+                    return false;
+                });
+
+                if (currentLecture) {
+                    lectureInfoHTML = `<div class="lecture-info">
+                        <p><strong>المادة:</strong> ${currentLecture.courseName}</p>
+                        <p><strong>المحاضر:</strong> ${currentLecture.lecturer}</p>
+                    </div>`;
+                } else {
+                     lectureInfoHTML = `<div class="lecture-info"><p>لا توجد محاضرة الآن</p></div>`;
+                }
+
+                container.innerHTML += `
+                    <div class="room-card ${statusClass}">
+                        <div>
+                            <h4>${r.name}</h4>
+                            <p>${r.status === 'open' ? 'مفتوحة' : 'مغلقة'}</p>
+                        </div>
+                        ${lectureInfoHTML}
+                        <button class="btn btn-warning" onclick="toggleRoomStatus('${r.id}', '${r.status}')">تغيير الحالة</button>
+                    </div>`;
+            });
+        }
+
+        setInterval(updateDashboard, 60000);
+        
+        // --- دوال التصدير ---
         window.downloadIdCardAsPDF = (name, role, barcodeValue) => {
             const prepareArea = document.getElementById('pdf-prepare-area');
             const cardElement = document.createElement('div');
@@ -381,7 +337,6 @@
             prepareArea.innerHTML = ''; prepareArea.appendChild(cardElement);
             html2pdf().from(cardElement).set({ filename: `${name}_QR_Card.pdf`, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).save();
         };
-
         window.downloadQRCodeAsPNG = (name, qrUrl) => {
             if (!qrUrl) { alert('لا يوجد رمز QR لهذه القاعة.'); return; }
             const dataUrl = generateQRCode(qrUrl);
