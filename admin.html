@@ -113,7 +113,6 @@
         window.closeModal = (modalId) => { document.getElementById(modalId).style.display = 'none'; };
         const confirmDelete = (item) => confirm(`هل أنت متأكد من حذف هذا ${item}؟`);
 
-        // *** الكود المصحح لدالة حفظ المستخدم ***
         document.getElementById('user-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('userId').value;
@@ -127,12 +126,12 @@
                 rfid: document.getElementById('rfid').value,
             };
 
-            if (id) { // حالة التعديل
+            if (id) {
                 if (password) {
                     data.password = password;
                 }
                 await updateDoc(doc(db, "Users", id), data);
-            } else { // حالة الإنشاء
+            } else {
                 if (!password) {
                     alert('كلمة المرور مطلوبة للمستخدم الجديد.');
                     return;
@@ -205,6 +204,9 @@
             });
         });
 
+        // =====================================================================
+        // ==== الكود الكامل والمصحح لعرض القاعات مع معالجة الأخطاء ====
+        // =====================================================================
         onSnapshot(collection(db, "Rooms"), (snap) => {
             const roomsTableTbody = document.querySelector('#rooms-table tbody');
             const statusContainer = document.getElementById('room-status-container');
@@ -214,6 +216,7 @@
             snap.forEach(d => {
                 const r = d.data();
                 const qrCodeDataUrl = generateQRCode(r.qrUrl || '');
+                
                 roomsTableTbody.innerHTML += `<tr>
                     <td>${r.name}</td>
                     <td>${r.capacity}</td>
@@ -225,10 +228,17 @@
                         <button class="btn btn-info" onclick="downloadQRCodeAsPNG('${r.name}', '${r.qrUrl}')">تحميل صورة الرمز</button>
                     </td>
                 </tr>`;
-                const statusClass = r.status === 'open' ? 'open' : 'closed';
-                statusContainer.innerHTML += `<div class="room-card ${statusClass}"><h4>${r.name}</h4><p>${r.status === 'open' ? 'مفتوحة' : 'مغلقة'}</p><button class="btn btn-warning" onclick="toggleRoomStatus('${d.id}', '${r.status}')">تغيير</button></div>`;
+                
+                // **هذا هو التصحيح الرئيسي**
+                // يوفر قيمة افتراضية ('closed') في حالة عدم وجود حقل الحالة مؤقتًا
+                const currentStatus = r.status || 'closed';
+                const statusClass = currentStatus === 'open' ? 'open' : 'closed';
+                const statusText = currentStatus === 'open' ? 'مفتوحة' : 'مغلقة';
+
+                statusContainer.innerHTML += `<div class="room-card ${statusClass}"><h4>${r.name}</h4><p>${statusText}</p><button class="btn btn-warning" onclick="toggleRoomStatus('${d.id}', '${currentStatus}')">تغيير</button></div>`;
             });
         });
+        // =====================================================================
 
         onSnapshot(collection(db, "Schedules"), (snap) => {
             const tbody = document.querySelector('#schedules-table tbody');
