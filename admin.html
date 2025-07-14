@@ -217,7 +217,7 @@
                     const timeParts = schedule.time.split('-');
                     const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
                     const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]);
-                    return currentTime >= startTime && currentTime <= endTime;
+                    return currentTime >= startTime && currentTime < endTime; // Use < endTime for exact minute change
                 });
 
                 const status = room.status || 'closed';
@@ -287,6 +287,9 @@
         window.downloadBarcodeAsPNG = (name, barcodeValue) => { if (!barcodeValue) { alert('لا يوجد رمز باركود لهذا المستخدم.'); return; } const canvas = document.createElement('canvas'); JsBarcode(canvas, barcodeValue, { format: "CODE128" }); const link = document.createElement('a'); link.download = `${name}_Barcode.png`; link.href = canvas.toDataURL("image/png"); link.click(); };
 
         showPage('dashboard');
+
+        // تحديث لوحة المراقبة كل دقيقة لتعكس تغير الوقت
+        setInterval(renderDashboard, 60000); 
     </script>
 </body>
 </html>
