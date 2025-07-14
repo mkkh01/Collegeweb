@@ -4,107 +4,74 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>لوحة تحكم الأدمن</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- مكتبات إنشاء الرموز وتحويلها لـ PDF -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator/qrcode.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
-        :root {
-            --primary-color: #007bff; --secondary-color: #6c757d; --success-color: #28a745;
-            --danger-color: #dc3545; --warning-color: #ffc107; --info-color: #17a2b8;
-            --light-color: #f8f9fa; --dark-color: #343a40; --white-color: #fff;
-            --font-family-sans-serif: 'Tajawal', sans-serif;
-        }
-        body {
-            font-family: var(--font-family-sans-serif); background-color: #f0f2f5; margin: 0;
-            display: flex; height: 100vh; overflow: hidden;
-        }
-        .sidebar {
-            width: 250px; background-color: var(--dark-color); color: var(--white-color);
-            padding: 20px; box-shadow: 2px 0 5px rgba(0,0,0,0.1); display: flex; flex-direction: column;
-        }
-        .sidebar h2 { margin-top: 0; text-align: center; border-bottom: 1px solid #4a4a4a; padding-bottom: 15px; }
-        .sidebar .nav { list-style: none; padding: 0; margin-top: 20px; flex-grow: 1; }
-        .sidebar .nav-link {
-            display: block; color: var(--white-color); text-decoration: none; padding: 12px 15px;
-            margin-bottom: 8px; border-radius: 5px; transition: background-color 0.3s, padding-right 0.3s;
-        }
-        .sidebar .nav-link:hover, .sidebar .nav-link.active { background-color: #495057; padding-right: 25px; }
-        .logout-btn {
-            background-color: var(--danger-color); color: var(--white-color); border: none;
-            width: 100%; padding: 12px; border-radius: 5px; cursor: pointer; margin-top: auto;
-        }
-        .main-content { flex-grow: 1; padding: 20px; overflow-y: auto; }
+        :root { --primary-color: #007bff; --secondary-color: #6c757d; --success-color: #28a745; --danger-color: #dc3545; --warning-color: #ffc107; --light-color: #f8f9fa; --dark-color: #343a40; --info-color: #17a2b8; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; }
+        .sidebar { width: 250px; background-color: var(--dark-color); color: white; position: fixed; height: 100%; padding-top: 20px; z-index: 100; }
+        .sidebar h2 { text-align: center; color: white; margin-bottom: 30px; }
+        .sidebar a { display: block; color: white; padding: 15px 20px; text-decoration: none; transition: background-color 0.3s; }
+        .sidebar a:hover, .sidebar a.active { background-color: #495057; }
+        .main-content { margin-right: 250px; padding: 30px; }
         .page { display: none; }
-        .page.active { display: block; animation: fadeIn 0.5s; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .card { background-color: var(--white-color); border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .card h3 { margin-top: 0; color: var(--primary-color); }
-        .btn {
-            padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer;
-            font-size: 14px; font-weight: bold; text-transform: uppercase;
-        }
-        .btn-primary { background-color: var(--primary-color); color: var(--white-color); }
-        .btn-success { background-color: var(--success-color); color: var(--white-color); }
-        .btn-warning { background-color: var(--warning-color); color: var(--white-color); }
-        .btn-danger { background-color: var(--danger-color); color: var(--white-color); }
-        .btn-info { background-color: var(--info-color); color: var(--white-color); }
+        .page.active { display: block; }
+        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; overflow-x: auto; }
+        h3 { color: var(--dark-color); border-bottom: 2px solid #eee; padding-bottom: 10px; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 12px; border: 1px solid #dee2e6; text-align: right; }
-        th { background-color: #e9ecef; }
-        .modal {
-            display: none; position: fixed; z-index: 1000; left: 0; top: 0;
-            width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5);
-        }
-        .modal-content {
-            background-color: #fefefe; margin: 10% auto; padding: 20px;
-            border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px;
-        }
+        th, td { padding: 12px 15px; text-align: right; border-bottom: 1px solid #ddd; white-space: nowrap; vertical-align: middle; }
+        th { background-color: #f2f2f2; }
+        .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; margin-left: 5px; margin-top: 5px; }
+        .btn-primary { background-color: var(--primary-color); } .btn-warning { background-color: var(--warning-color); }
+        .btn-danger { background-color: var(--danger-color); } .btn-success { background-color: var(--success-color); } .btn-info { background-color: var(--info-color); }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: #fefefe; margin: 5% auto; padding: 30px; border: 1px solid #888; width: 90%; max-width: 500px; border-radius: 8px; }
         .close-btn { color: #aaa; float: left; font-size: 28px; font-weight: bold; cursor: pointer; }
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; margin-bottom: 5px; }
-        .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
-        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
-        .room-status-card {
-            border: 1px solid #ddd; border-radius: 8px; padding: 15px; text-align: center;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .room-status-card:hover { transform: translateY(-5px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        .room-status-card h4 { margin: 0 0 10px 0; color: var(--dark-color); }
-        .status-indicator {
-            padding: 10px; border-radius: 5px; color: var(--white-color); font-weight: bold;
-        }
-        .status-open { background-color: var(--success-color); }
-        .status-closed { background-color: var(--danger-color); }
-        .lecture-info { font-size: 0.9em; color: #555; margin-top: 10px; }
-        .barcode-container, .qr-code-container { min-height: 50px; display: flex; justify-content: center; align-items: center; }
-        .qr-code-container img { max-width: 100px; }
-        .pdf-prepare-area { display: none; }
+        .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .room-status-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+        .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; }
+        .room-card.open { background-color: var(--success-color); }
+        .room-card.closed { background-color: var(--danger-color); }
+        .room-card h4 { margin-top: 0; }
+        .qr-code-container, .barcode-container { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        .qr-code-container img { max-width: 80px; height: auto; }
+        .barcode-container svg { height: 50px; width: auto; }
+        .pdf-prepare-area { position: absolute; left: -9999px; opacity: 0; }
+        .id-card { border: 2px solid #343a40; padding: 20px; border-radius: 10px; width: 320px; background: white; text-align: center; }
+        .id-card h4 { margin: 0 0 10px 0; font-size: 20px; }
+        .id-card p { margin: 5px 0; font-size: 16px; }
+        .id-card svg { height: 60px; width: 100%; }
+        .id-card img { max-width: 200px; height: auto; margin-top: 10px; }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
+
+    <script>
+        const loggedInUser = JSON.parse(sessionStorage.getItem('user'));
+        if (!loggedInUser || !loggedInUser.role || loggedInUser.role.trim().toLowerCase() !== 'admin') {
+            alert('ليس لديك صلاحية للوصول إلى هذه الصفحة.');
+            window.location.href = 'index.html';
+        }
+    </script>
+
     <div class="sidebar">
         <h2>لوحة التحكم</h2>
-        <ul class="nav">
-            <li><a href="#dashboard" class="nav-link active" onclick="showPage('dashboard')">الرئيسية</a></li>
-            <li><a href="#users" class="nav-link" onclick="showPage('users')">إدارة المستخدمين</a></li>
-            <li><a href="#schedules" class="nav-link" onclick="showPage('schedules')">إدارة الجدول الدراسي</a></li>
-            <li><a href="#rooms" class="nav-link" onclick="showPage('rooms')">إدارة القاعات</a></li>
-        </ul>
-        <button class="logout-btn" onclick="logout()">تسجيل الخروج</button>
+        <a href="#dashboard" class="nav-link" onclick="showPage('dashboard')">لوحة المراقبة</a>
+        <a href="#users" class="nav-link" onclick="showPage('users')">إدارة المستخدمين</a>
+        <a href="#schedules" class="nav-link" onclick="showPage('schedules')">إدارة الجداول</a>
+        <a href="#rooms" class="nav-link" onclick="showPage('rooms')">إدارة القاعات</a>
+        <a href="index.html" style="color: var(--warning-color); margin-top: 30px;" onclick="sessionStorage.clear()">تسجيل الخروج</a>
     </div>
 
     <div class="main-content">
-        <div id="dashboard" class="page active">
-            <div class="card">
-                <h3>مراقبة حالة القاعات</h3>
-                <div id="dashboard-grid" class="dashboard-grid"></div>
-            </div>
-        </div>
-        <div id="users" class="page"><div class="card"><h3>إدارة المستخدمين</h3><button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم</button><table id="users-table"><thead><tr><th>الاسم الكامل</th><th>الدور</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
-        <div id="schedules" class="page"><div class="card"><h3>إدارة الجدول الدراسي</h3><button class="btn btn-primary" onclick="openModal('schedule-modal')">إضافة</button><table id="schedules-table"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
-        <div id="rooms" class="page"><div class="card"><h3>إدارة القاعات</h3><button class="btn btn-primary" onclick="openModal('room-modal')">إضافة قاعة</button><table id="rooms-table"><thead><tr><th>اسم القاعة</th><th>السعة</th><th>رمز QR</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
+        <div id="dashboard" class="page"><div class="card"><h3>حالة القاعات الحالية</h3><div id="room-status-container" class="room-status-container"></div></div></div>
+        <div id="users" class="page"><div class="card"><h3>المستخدمون</h3><button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم</button><table id="users-table"><thead><tr><th>الاسم الكامل</th><th>الدور</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
+        <div id="schedules" class="page"><div class="card"><h3>الجداول الدراسية</h3><button class="btn btn-primary" onclick="openModal('schedule-modal')">إضافة جدول</button><table id="schedules-table"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
+        <div id="rooms" class="page"><div class="card"><h3>القاعات الدراسية</h3><button class="btn btn-primary" onclick="openModal('room-modal')">إضافة قاعة</button><table id="rooms-table"><thead><tr><th>اسم القاعة</th><th>السعة</th><th>رمز QR</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
     </div>
 
     <div id="pdf-prepare-area" class="pdf-prepare-area"></div>
@@ -115,7 +82,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         const db = getFirestore(initializeApp({
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
@@ -128,23 +95,6 @@
 
         const SITE_URL = "https://cpld.netlify.app";
 
-        // --- Global State ---
-        let allSchedules = [];
-
-        // --- Auth & Navigation ---
-        // ======================= الكود المعدل هنا =======================
-        const userString = sessionStorage.getItem('user');
-        const user = userString ? JSON.parse(userString) : null;
-
-        // التحقق من وجود المستخدم وأن دوره هو 'admin'
-        if (!user || user.role !== 'admin') {
-            // إذا لم يكن المستخدم مسجلاً أو ليس لديه الصلاحية، يتم مسح الجلسة وإعادته لصفحة الدخول
-            sessionStorage.clear();
-            window.location.href = 'index.html';
-        }
-        // ======================= نهاية الكود المعدل =======================
-
-        window.logout = () => { sessionStorage.clear(); window.location.href = 'index.html'; };
         window.showPage = (pageId) => {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(pageId).classList.add('active');
@@ -163,7 +113,6 @@
         window.closeModal = (modalId) => { document.getElementById(modalId).style.display = 'none'; };
         const confirmDelete = (item) => confirm(`هل أنت متأكد من حذف هذا ${item}؟`);
 
-        // --- Form Submissions ---
         document.getElementById('user-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('userId').value;
@@ -202,113 +151,14 @@
         document.getElementById('schedule-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('scheduleId').value;
-            const room = document.getElementById('scheduleRoom').value;
-            const day = document.getElementById('day').value;
-            const time = document.getElementById('time').value;
-
-            // **التحقق من التضارب**
-            const conflictQuery = query(collection(db, "Schedules"),
-                where("room", "==", room),
-                where("day", "==", day),
-                where("time", "==", time)
-            );
-            const conflictSnapshot = await getDocs(conflictQuery);
-            
-            let isConflict = false;
-            conflictSnapshot.forEach(doc => {
-                if (doc.id !== id) { // تأكد من أنه ليس نفس المستند الذي نقوم بتعديله
-                    isConflict = true;
-                }
-            });
-
-            if (isConflict) {
-                alert('خطأ: يوجد تضارب. هذه القاعة محجوزة بالفعل في نفس اليوم والوقت.');
-                return; // إيقاف عملية الحفظ
-            }
-
             const data = {
                 courseCode: document.getElementById('courseCode').value, courseName: document.getElementById('courseName').value,
-                lecturer: document.getElementById('lecturer').value, room: room,
-                day: day, time: time,
+                lecturer: document.getElementById('lecturer').value, room: document.getElementById('scheduleRoom').value,
+                day: document.getElementById('day').value, time: document.getElementById('time').value,
             };
             if (id) await updateDoc(doc(db, "Schedules", id), data);
             else await addDoc(collection(db, "Schedules"), data);
             closeModal('schedule-modal');
-        });
-
-        // --- Realtime Data Listeners ---
-        onSnapshot(collection(db, "Schedules"), (snap) => {
-            const tbody = document.querySelector('#schedules-table tbody');
-            tbody.innerHTML = '';
-            allSchedules = []; // تحديث قائمة الجداول الكاملة
-            snap.forEach(d => {
-                const s = d.data();
-                allSchedules.push(s); // إضافة الجدول للبيانات العامة
-                tbody.innerHTML += `<tr>
-                    <td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.lecturer}</td>
-                    <td>${s.room}</td><td>${s.day}</td><td>${s.time}</td>
-                    <td>
-                        <button class="btn btn-warning" onclick="editItem('Schedules', '${d.id}', 'schedule')">تعديل</button>
-                        <button class="btn btn-danger" onclick="deleteItem('Schedules', '${d.id}', 'الجدول')">حذف</button>
-                    </td>
-                </tr>`;
-            });
-        });
-
-        onSnapshot(collection(db, "Rooms"), (snap) => {
-            const grid = document.getElementById('dashboard-grid');
-            const tbody = document.querySelector('#rooms-table tbody');
-            grid.innerHTML = '';
-            tbody.innerHTML = '';
-            snap.forEach(d => {
-                const r = d.data();
-                const qrCodeDataUrl = r.qrUrl ? new QRious({ value: r.qrUrl, size: 100 }).toDataURL() : '';
-                
-                // عرض في جدول الإدارة
-                tbody.innerHTML += `<tr>
-                    <td>${r.name}</td><td>${r.capacity}</td>
-                    <td><div class="qr-code-container">${qrCodeDataUrl ? `<img src="${qrCodeDataUrl}" alt="QR Code">` : 'لا يوجد'}</div></td>
-                    <td>
-                        <button class="btn btn-warning" onclick="editItem('Rooms', '${d.id}', 'room')">تعديل</button>
-                        <button class="btn btn-danger" onclick="deleteItem('Rooms', '${d.id}', 'القاعة')">حذف</button>
-                        <button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}', '${r.qrUrl}')">تحميل بطاقة (PDF)</button>
-                    </td>
-                </tr>`;
-
-                // عرض في لوحة المراقبة
-                let statusClass = r.status === 'open' ? 'status-open' : 'status-closed';
-                let statusText = r.status === 'open' ? 'مفتوحة' : 'مغلقة';
-                let lectureInfoHTML = '';
-
-                // **المنطق الجديد: البحث عن المحاضرة الحالية**
-                if (r.status === 'open') {
-                    const now = new Date();
-                    const currentDay = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"][now.getDay()];
-                    const currentTime = now.toTimeString().slice(0, 5);
-
-                    const currentSchedule = allSchedules.find(s => 
-                        s.room === r.name &&
-                        s.day === currentDay &&
-                        currentTime >= s.time.split('-')[0] &&
-                        currentTime <= s.time.split('-')[1]
-                    );
-
-                    if (currentSchedule) {
-                        lectureInfoHTML = `<div class="lecture-info">
-                            <strong>المحاضر:</strong> ${currentSchedule.lecturer}<br>
-                            <strong>المادة:</strong> ${currentSchedule.courseName}
-                        </div>`;
-                    } else {
-                         lectureInfoHTML = `<div class="lecture-info">لا توجد محاضرة مجدولة الآن.</div>`;
-                    }
-                }
-
-                grid.innerHTML += `<div class="room-status-card">
-                    <h4>${r.name}</h4>
-                    <div class="status-indicator ${statusClass}">${statusText}</div>
-                    ${lectureInfoHTML}
-                </div>`;
-            });
         });
 
         onSnapshot(collection(db, "Users"), (snap) => {
@@ -317,8 +167,13 @@
             snap.forEach(d => {
                 const u = d.data();
                 tbody.innerHTML += `<tr>
-                    <td>${u.displayName || ''}</td><td>${u.role || ''}</td>
-                    <td><div class="barcode-container">${u.barcodeId ? `<svg id="barcode-${d.id}"></svg>` : 'لا يوجد'}</div></td>
+                    <td>${u.displayName || ''}</td>
+                    <td>${u.role || ''}</td>
+                    <td>
+                        <div class="barcode-container">
+                            ${u.barcodeId ? `<svg id="barcode-${d.id}"></svg>` : 'لا يوجد'}
+                        </div>
+                    </td>
                     <td>${u.rfid || 'لا يوجد'}</td>
                     <td>
                         <button class="btn btn-warning" onclick="editItem('Users', '${d.id}', 'user')">تعديل</button>
@@ -328,126 +183,157 @@
                     </td>
                 </tr>`;
                 if (u.barcodeId) {
-                    try { JsBarcode(`#barcode-${d.id}`, u.barcodeId, { format: "CODE128", width: 2, height: 40, displayValue: true }); }
-                    catch (e) { console.error("خطأ في توليد الباركود:", e); }
+                    JsBarcode(`#barcode-${d.id}`, u.barcodeId, {
+                        format: "CODE128",
+                        lineColor: "#000",
+                        width: 2,
+                        height: 40,
+                        displayValue: true
+                    });
                 }
             });
         });
+        onSnapshot(collection(db, "Rooms"), (snap) => {
+            const tbody = document.querySelector('#rooms-table tbody');
+            tbody.innerHTML = '';
+            snap.forEach(d => {
+                const r = d.data();
+                const qrCodeDataUrl = generateQRCode(r.qrUrl || '');
+                tbody.innerHTML += `<tr>
+                    <td>${r.name}</td>
+                    <td>${r.capacity}</td>
+                    <td>
+                        <div class="qr-code-container">
+                            ${r.qrUrl ? `<img src="${qrCodeDataUrl}" alt="QR Code">` : 'لا يوجد'}
+                        </div>
+                    </td>
+                    <td>
+                        <button class="btn btn-warning" onclick="editItem('Rooms', '${d.id}', 'room')">تعديل</button>
+                        <button class="btn btn-danger" onclick="deleteItem('Rooms', '${d.id}', 'القاعة')">حذف</button>
+                        <button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}', '${r.qrUrl}')">تحميل بطاقة (PDF)</button>
+                        <button class="btn btn-info" onclick="downloadQRCodeAsPNG('${r.name}', '${r.qrUrl}')">تحميل صورة الرمز</button>
+                    </td>
+                </tr>`;
+            });
+        });
+        onSnapshot(collection(db, "Schedules"), (snap) => {
+            const tbody = document.querySelector('#schedules-table tbody');
+            tbody.innerHTML = '';
+            snap.forEach(d => {
+                const s = d.data();
+                tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.lecturer}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td><button class="btn btn-warning" onclick="editItem('Schedules', '${d.id}', 'schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules', '${d.id}', 'الجدول')">حذف</button></td></tr>`;
+            });
+        });
 
-        // --- Helper Functions ---
+        function generateQRCode(text) {
+            if (!text) return '';
+            const typeNumber = 4;
+            const errorCorrectionLevel = 'L';
+            const qr = qrcode(typeNumber, errorCorrectionLevel);
+            qr.addData(text);
+            qr.make();
+            return qr.createDataURL(4);
+        }
+
+        async function populateSelects() {
+            const usersSnap = await getDocs(collection(db, "Users"));
+            const roomsSnap = await getDocs(collection(db, "Rooms"));
+            const lecturerSelect = document.getElementById('lecturer');
+            const roomSelect = document.getElementById('scheduleRoom');
+            lecturerSelect.innerHTML = '<option value="">اختر محاضر</option>';
+            roomSelect.innerHTML = '<option value="">اختر قاعة</option>';
+            usersSnap.forEach(d => {
+                const user = d.data();
+                if (user.role && user.role.trim() === "عضو هيئة تدريس") {
+                    lecturerSelect.innerHTML += `<option value="${user.displayName}">${user.displayName}</option>`;
+                }
+            });
+            roomsSnap.forEach(d => {
+                const room = d.data();
+                roomSelect.innerHTML += `<option value="${room.name}">${room.name}</option>`;
+            });
+        }
+
+        onSnapshot(collection(db, "Rooms"), (snap) => {
+            const container = document.getElementById('room-status-container');
+            container.innerHTML = '';
+            snap.forEach(d => {
+                const r = d.data();
+                const statusClass = r.status === 'open' ? 'open' : 'closed';
+                container.innerHTML += `<div class="room-card ${statusClass}"><h4>${r.name}</h4><p>${r.status === 'open' ? 'مفتوحة' : 'مغلقة'}</p><button class="btn btn-warning" onclick="toggleRoomStatus('${d.id}', '${r.status}')">تغيير</button></div>`;
+            });
+        });
+        window.toggleRoomStatus = async (id, currentStatus) => {
+            await updateDoc(doc(db, "Rooms", id), { status: currentStatus === 'open' ? 'closed' : 'open' });
+        };
+
         window.editItem = async (collectionName, id, type) => {
-            const docSnap = await getDoc(doc(db, collectionName, id));
-            if (!docSnap.exists()) { console.error("المستند غير موجود!"); return; }
-            const data = docSnap.data();
-            const modalId = `${type}-modal`;
-            document.querySelector(`#${modalId} h3`).textContent = 'تعديل العنصر';
+            openModal(`${type}-modal`); 
+            const itemDoc = await getDoc(doc(db, collectionName, id));
+            const data = itemDoc.data();
             document.getElementById(`${type}Id`).value = id;
-
+            document.querySelector(`#${type}-modal h3`).textContent = `تعديل ${type === 'user' ? 'مستخدم' : (type === 'room' ? 'قاعة' : 'جدول')}`;
             if (type === 'user') {
-                document.getElementById('displayName').value = data.displayName || '';
-                document.getElementById('username').value = data.username || '';
-                document.getElementById('role').value = data.role || '';
+                document.getElementById('displayName').value = data.displayName;
+                document.getElementById('username').value = data.username;
+                document.getElementById('role').value = data.role;
                 document.getElementById('barcodeId').value = data.barcodeId || '';
                 document.getElementById('rfid').value = data.rfid || '';
                 document.getElementById('password').value = '';
             } else if (type === 'room') {
-                document.getElementById('roomName').value = data.name || '';
-                document.getElementById('roomCapacity').value = data.capacity || '';
+                document.getElementById('roomName').value = data.name;
+                document.getElementById('roomCapacity').value = data.capacity;
             } else if (type === 'schedule') {
-                await populateSelects(); // تأكد من ملء القوائم أولاً
-                document.getElementById('courseCode').value = data.courseCode || '';
-                document.getElementById('courseName').value = data.courseName || '';
-                document.getElementById('lecturer').value = data.lecturer || '';
-                document.getElementById('scheduleRoom').value = data.room || '';
-                document.getElementById('day').value = data.day || '';
-                document.getElementById('time').value = data.time || '';
+                await populateSelects();
+                document.getElementById('courseCode').value = data.courseCode;
+                document.getElementById('courseName').value = data.courseName;
+                document.getElementById('lecturer').value = data.lecturer;
+                document.getElementById('scheduleRoom').value = data.room;
+                document.getElementById('day').value = data.day;
+                document.getElementById('time').value = data.time;
             }
-            document.getElementById(modalId).style.display = 'block';
         };
         window.deleteItem = async (collectionName, id, itemName) => {
-            if (confirmDelete(itemName)) {
-                await deleteDoc(doc(db, collectionName, id));
-            }
-        };
-        async function populateSelects() {
-            const lecturerSelect = document.getElementById('lecturer');
-            const roomSelect = document.getElementById('scheduleRoom');
-            lecturerSelect.innerHTML = '<option value="">اختر محاضرًا</option>';
-            roomSelect.innerHTML = '<option value="">اختر قاعة</option>';
-            
-            const usersQuery = query(collection(db, "Users"), where("role", "==", "عضو هيئة تدريس"));
-            const [teachersSnap, roomsSnap] = await Promise.all([getDocs(usersQuery), getDocs(collection(db, "Rooms"))]);
-            
-            teachersSnap.forEach(doc => {
-                lecturerSelect.innerHTML += `<option value="${doc.data().displayName}">${doc.data().displayName}</option>`;
-            });
-            roomsSnap.forEach(doc => {
-                roomSelect.innerHTML += `<option value="${doc.data().name}">${doc.data().name}</option>`;
-            });
-        }
-
-        // --- PDF & Image Generation ---
-        window.downloadIdCardAsPDF = async (name, role, barcode) => {
-            const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF();
-            const cardHtml = `<div style="font-family: Tajawal, sans-serif; border: 1px solid black; padding: 10px; width: 200px; text-align: center;">
-                <h3>بطاقة تعريف</h3>
-                <p><strong>الاسم:</strong> ${name}</p>
-                <p><strong>الدور:</strong> ${role}</p>
-                <svg id="pdf-barcode"></svg>
-            </div>`;
-            document.getElementById('pdf-prepare-area').innerHTML = cardHtml;
-            if (barcode) JsBarcode("#pdf-barcode", barcode);
-            
-            const canvas = await html2canvas(document.querySelector("#pdf-prepare-area > div"));
-            const imgData = canvas.toDataURL('image/png');
-            pdf.addImage(imgData, 'PNG', 10, 10, 80, 0);
-            pdf.save(`${name}-card.pdf`);
-            document.getElementById('pdf-prepare-area').innerHTML = '';
-        };
-        window.downloadBarcodeAsPNG = async (name, barcode) => {
-            if (!barcode) { alert("لا يوجد باركود لهذا المستخدم."); return; }
-            document.getElementById('pdf-prepare-area').innerHTML = `<svg id="png-barcode"></svg>`;
-            JsBarcode("#png-barcode", barcode);
-            const svgElement = document.getElementById('png-barcode');
-            const xmlSerializer = new XMLSerializer();
-            const svgString = xmlSerializer.serializeToString(svgElement);
-            const canvas = document.createElement("canvas");
-            const ctx = canvas.getContext("2d");
-            const img = new Image();
-            img.onload = () => {
-                canvas.width = img.width;
-                canvas.height = img.height;
-                ctx.fillStyle = "white";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0);
-                const link = document.createElement('a');
-                link.download = `${name}-barcode.png`;
-                link.href = canvas.toDataURL('image/png');
-                link.click();
-                document.getElementById('pdf-prepare-area').innerHTML = '';
-            };
-            img.src = 'data:image/svg+xml;base64,' + btoa(svgString);
-        };
-        window.downloadRoomCardAsPDF = async (name, qrUrl) => {
-            if (!qrUrl) { alert("لا يوجد رمز QR لهذه القاعة."); return; }
-            const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF();
-            const qrCodeDataUrl = new QRious({ value: qrUrl, size: 200 }).toDataURL();
-            const cardHtml = `<div style="font-family: Tajawal, sans-serif; border: 1px solid black; padding: 20px; width: 250px; text-align: center;">
-                <h2>قاعة: ${name}</h2>
-                <p>امسح الرمز لفتح الباب</p>
-                <img src="${qrCodeDataUrl}" style="width: 200px; height: 200px;">
-            </div>`;
-            document.getElementById('pdf-prepare-area').innerHTML = cardHtml;
-            const canvas = await html2canvas(document.querySelector("#pdf-prepare-area > div"));
-            const imgData = canvas.toDataURL('image/png');
-            pdf.addImage(imgData, 'PNG', 10, 10, 100, 0);
-            pdf.save(`room-${name}-card.pdf`);
-            document.getElementById('pdf-prepare-area').innerHTML = '';
+            if (confirmDelete(itemName)) await deleteDoc(doc(db, collectionName, id));
         };
 
-        // Initial load
+        window.downloadIdCardAsPDF = (name, role, barcodeValue) => {
+            const prepareArea = document.getElementById('pdf-prepare-area');
+            const cardElement = document.createElement('div');
+            cardElement.className = 'id-card';
+            cardElement.innerHTML = `<h4>${name}</h4><p>${role}</p><svg id="pdf-barcode"></svg>`;
+            prepareArea.innerHTML = ''; prepareArea.appendChild(cardElement);
+            if (barcodeValue) JsBarcode("#pdf-barcode", barcodeValue, { format: "CODE128", width: 3, height: 80, displayValue: true });
+            else cardElement.querySelector('svg').remove();
+            html2pdf().from(cardElement).set({ filename: `${name}_ID_Card.pdf`, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).save();
+        };
+        window.downloadRoomCardAsPDF = (name, qrUrl) => {
+            const prepareArea = document.getElementById('pdf-prepare-area');
+            const cardElement = document.createElement('div');
+            cardElement.className = 'id-card';
+            cardElement.innerHTML = `<h4>بطاقة تعريف القاعة</h4><p>${name}</p><img src="${generateQRCode(qrUrl || '')}" alt="QR Code">`;
+            prepareArea.innerHTML = ''; prepareArea.appendChild(cardElement);
+            html2pdf().from(cardElement).set({ filename: `${name}_QR_Card.pdf`, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).save();
+        };
+
+        window.downloadQRCodeAsPNG = (name, qrUrl) => {
+            if (!qrUrl) { alert('لا يوجد رمز QR لهذه القاعة.'); return; }
+            const dataUrl = generateQRCode(qrUrl);
+            const link = document.createElement('a');
+            link.download = `${name}_QR_Code.png`;
+            link.href = dataUrl;
+            link.click();
+        };
+        window.downloadBarcodeAsPNG = (name, barcodeValue) => {
+            if (!barcodeValue) { alert('لا يوجد رمز باركود لهذا المستخدم.'); return; }
+            const canvas = document.createElement('canvas');
+            JsBarcode(canvas, barcodeValue, { format: "CODE128" });
+            const link = document.createElement('a');
+            link.download = `${name}_Barcode.png`;
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+        };
+
         showPage('dashboard');
     </script>
 </body>
