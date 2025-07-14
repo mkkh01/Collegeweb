@@ -78,14 +78,14 @@
 
     <div id="pdf-prepare-area" class="pdf-prepare-area"></div>
 
+    <!-- =================================================================== -->
+    <!-- ==== تصحيح النوافذ المنبثقة: زر الحفظ أصبح داخل النموذج ==== -->
+    <!-- =================================================================== -->
     <div id="user-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('user-modal')">&times;</span><h3 id="user-modal-title"></h3><form id="user-form"><input type="hidden" id="userId"><div class="form-group"><label>الاسم الكامل</label><input type="text" id="displayName" required></div><div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div><div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم التغيير</small></div><div class="form-group"><label>الدور</label><select id="role" required><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option></select></div><div class="form-group"><label>رمز الباركود (رقم)</label><input type="text" id="barcodeId"></div><div class="form-group"><label>رمز RFID (اختياري)</label><input type="text" id="rfid"></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
     <div id="room-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('room-modal')">&times;</span><h3 id="room-modal-title"></h3><form id="room-form"><input type="hidden" id="roomId"><div class="form-group"><label>اسم القاعة</label><input type="text" id="roomName" required></div><div class="form-group"><label>السعة</label><input type="number" id="roomCapacity" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
     <div id="schedule-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('schedule-modal')">&times;</span><h3 id="schedule-modal-title"></h3><form id="schedule-form"><input type="hidden" id="scheduleId"><div class="form-group"><label>رمز المادة</label><input type="text" id="courseCode" required></div><div class="form-group"><label>اسم المادة</label><input type="text" id="courseName" required></div><div class="form-group"><label>المحاضر</label><select id="lecturer" required></select></div><div class="form-group"><label>القاعة</label><select id="scheduleRoom" required></select></div><div class="form-group"><label>اليوم</label><select id="day" required><option>السبت</option><option>الأحد</option><option>الاثنين</option><option>الثلاثاء</option><option>الأربعاء</option><option>الخميس</option></select></div><div class="form-group"><label>الوقت</label><input type="text" id="time" placeholder="مثال: 08:00-10:00" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
 
     <script type="module">
-        // ===================================================================
-        // ==== هذا هو التصحيح الجذري والأساسي ====
-        // ===================================================================
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -98,17 +98,14 @@
             appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
         };
 
-        // تهيئة التطبيق وقاعدة البيانات بشكل صحيح
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
         const SITE_URL = "https://cpld.netlify.app";
 
-        // --- مخزن بيانات محلي لتجنب استدعاءات متكررة لقاعدة البيانات ---
         let localSchedules = [];
         let localRooms = [];
 
-        // --- دوال مساعدة ---
         window.showPage = (pageId) => {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(pageId).classList.add('active');
@@ -134,7 +131,6 @@
             return qr.createDataURL(4);
         }
 
-        // --- نماذج الحفظ ---
         document.getElementById('user-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('userId').value;
@@ -147,12 +143,17 @@
             };
             const password = document.getElementById('password').value;
             if (password) data.password = password;
-            if (id) await updateDoc(doc(db, "Users", id), data);
-            else {
-                if (!password) { alert('كلمة المرور مطلوبة للمستخدم الجديد.'); return; }
-                await addDoc(collection(db, "Users"), data);
+            try {
+                if (id) await updateDoc(doc(db, "Users", id), data);
+                else {
+                    if (!password) { alert('كلمة المرور مطلوبة للمستخدم الجديد.'); return; }
+                    await addDoc(collection(db, "Users"), data);
+                }
+                closeModal('user-modal');
+            } catch (error) {
+                console.error("Error saving user: ", error);
+                alert("حدث خطأ أثناء حفظ المستخدم. يرجى مراجعة Console.");
             }
-            closeModal('user-modal');
         });
         document.getElementById('room-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -163,12 +164,17 @@
                 capacity: parseInt(document.getElementById('roomCapacity').value),
                 qrUrl: `${SITE_URL}/open.html?room=${encodeURIComponent(roomName)}`
             };
-            if (id) await updateDoc(doc(db, "Rooms", id), data);
-            else {
-                data.status = 'closed';
-                await addDoc(collection(db, "Rooms"), data);
+            try {
+                if (id) await updateDoc(doc(db, "Rooms", id), data);
+                else {
+                    data.status = 'closed';
+                    await addDoc(collection(db, "Rooms"), data);
+                }
+                closeModal('room-modal');
+            } catch (error) {
+                console.error("Error saving room: ", error);
+                alert("حدث خطأ أثناء حفظ القاعة. يرجى مراجعة Console.");
             }
-            closeModal('room-modal');
         });
         document.getElementById('schedule-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -192,16 +198,16 @@
                 courseCode: document.getElementById('courseCode').value, courseName: document.getElementById('courseName').value,
                 lecturer: document.getElementById('lecturer').value, room: room, day: day, time: time,
             };
-            if (id) await updateDoc(doc(db, "Schedules", id), data);
-            else await addDoc(collection(db, "Schedules"), data);
-            closeModal('schedule-modal');
+            try {
+                if (id) await updateDoc(doc(db, "Schedules", id), data);
+                else await addDoc(collection(db, "Schedules"), data);
+                closeModal('schedule-modal');
+            } catch (error) {
+                console.error("Error saving schedule: ", error);
+                alert("حدث خطأ أثناء حفظ الجدول. يرجى مراجعة Console.");
+            }
         });
 
-        // ===================================================================
-        // ==== عرض البيانات وتحديث الواجهة (النهج المبسط والمباشر) ====
-        // ===================================================================
-
-        // 1. تحديث جدول المستخدمين
         onSnapshot(collection(db, "Users"), (snap) => {
             const tbody = document.querySelector('#users-table tbody');
             tbody.innerHTML = '';
@@ -210,9 +216,8 @@
                 tbody.innerHTML += `<tr><td>${u.displayName||''}</td><td>${u.role||''}</td><td><div class="barcode-container">${u.barcodeId?`<svg id="barcode-${d.id}"></svg>`:'لا يوجد'}</div></td><td>${u.rfid||'لا يوجد'}</td><td><button class="btn btn-warning" onclick="editItem('Users','${d.id}','user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users','${d.id}','المستخدم')">حذف</button><button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}','${u.role}','${u.barcodeId}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadBarcodeAsPNG('${u.displayName}','${u.barcodeId}')">تحميل صورة الرمز</button></td></tr>`;
                 if (u.barcodeId) { JsBarcode(`#barcode-${d.id}`,u.barcodeId,{format:"CODE128",lineColor:"#000",width:2,height:40,displayValue:true}); }
             });
-        });
+        }, (error) => console.error("Error listening to Users: ", error));
         
-        // 2. تحديث جدول القاعات ولوحة المراقبة
         onSnapshot(collection(db, "Rooms"), (snap) => {
             localRooms = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             const roomsTbody = document.querySelector('#rooms-table tbody');
@@ -222,9 +227,8 @@
                 roomsTbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td><div class="qr-code-container">${r.qrUrl?`<img src="${qrCodeDataUrl}" alt="QR Code">`:'لا يوجد'}</div></td><td><button class="btn btn-warning" onclick="editItem('Rooms','${r.id}','room')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms','${r.id}','القاعة')">حذف</button><button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}','${r.qrUrl}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadQRCodeAsPNG('${r.name}','${r.qrUrl}')">تحميل صورة الرمز</button></td></tr>`;
             });
             updateDashboard();
-        });
+        }, (error) => console.error("Error listening to Rooms: ", error));
 
-        // 3. تحديث جدول الجداول ولوحة المراقبة
         onSnapshot(collection(db, "Schedules"), (snap) => {
             localSchedules = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             const schedulesTbody = document.querySelector('#schedules-table tbody');
@@ -233,9 +237,8 @@
                 schedulesTbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.lecturer}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td><button class="btn btn-warning" onclick="editItem('Schedules','${s.id}','schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules','${s.id}','الجدول')">حذف</button></td></tr>`;
             });
             updateDashboard();
-        });
+        }, (error) => console.error("Error listening to Schedules: ", error));
 
-        // --- دالة تحديث لوحة المراقبة (تعتمد الآن على البيانات المحلية) ---
         function updateDashboard() {
             const container = document.getElementById('room-status-container');
             if (!container) return;
@@ -277,9 +280,8 @@
                     </div>`;
             });
         }
-        setInterval(updateDashboard, 60000); // تحديث دوري للوقت
+        setInterval(updateDashboard, 60000);
 
-        // --- دوال مساعدة متقدمة ---
         async function populateSelects() {
             const lecturerSelect = document.getElementById('lecturer');
             const roomSelect = document.getElementById('scheduleRoom');
@@ -341,7 +343,6 @@
             await updateDoc(doc(db, "Rooms", id), { status: currentStatus === 'open' ? 'closed' : 'open' });
         };
         
-        // --- دوال التصدير ---
         window.downloadIdCardAsPDF = (name, role, barcodeValue) => {
             const prepareArea = document.getElementById('pdf-prepare-area');
             const cardElement = document.createElement('div');
