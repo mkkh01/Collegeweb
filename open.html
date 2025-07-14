@@ -22,7 +22,7 @@
 <body>
     <div class="container">
         <h1 id="room-title"></h1>
-        <p>أدخل بياناتك للمصادقة وفتح الباب</p>
+        <p>أدخل بياناتك للمصادقة وفتح القاعة.</p>
         <form id="auth-form">
             <div class="form-group">
                 <label for="username">اسم المستخدم</label>
@@ -34,12 +34,12 @@
             </div>
             <button type="submit" class="btn">مصادقة وفتح</button>
         </form>
-        <p id="message"></p>
+        <div id="message"></div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, query, where, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, query, where, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         const db = getFirestore(initializeApp({
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
@@ -52,49 +52,81 @@
 
         const urlParams = new URLSearchParams(window.location.search);
         const roomName = urlParams.get('room');
-        document.getElementById('room-title').textContent = `قاعة: ${roomName || 'غير محددة'}`;
-
-        const authForm = document.getElementById('auth-form');
+        const roomTitleElement = document.getElementById('room-title');
         const messageElement = document.getElementById('message');
 
-        authForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (!roomName) {
-                messageElement.textContent = 'خطأ: اسم القاعة غير محدد في الرابط.';
-                messageElement.className = 'error';
-                return;
-            }
+        if (roomName) {
+            roomTitleElement.textContent = `فتح القاعة: ${roomName}`;
+        } else {
+            roomTitleElement.textContent = 'خطأ: لم يتم تحديد القاعة';
+            document.getElementById('auth-form').style.display = 'none';
+        }
 
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value;
-            messageElement.textContent = 'جارٍ التحقق...';
-            messageElement.className = '';
+        document.getElementById('auth-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!roomName) return;
+
+            const usernameInput = document.getElementById('username').value;
+            const passwordInput = document.getElementById('password').value;
+            messageElement.textContent = '';
 
             try {
-                const userQuery = query(collection(db, "Users"), where("username", "==", username), where("password", "==", password));
-                const userSnapshot = await getDocs(userQuery);
+                const q = query(collection(db, "Users"), where("username", "==", usernameInput));
+                const userSnapshot = await getDocs(q);
 
                 if (userSnapshot.empty) {
-                    messageElement.textContent = 'فشل المصادقة. تحقق من بياناتك.';
+                    messageElement.textContent = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
                     messageElement.className = 'error';
                     return;
                 }
 
-                const user = userSnapshot.docs[0].data();
-                
-                let hasAccess = false;
-                const userRole = user.role.trim();
+                const userDoc = userSnapshot.docs[0];
+                const userData = userDoc.data();
 
-                if (userRole === 'مشرف' || userRole === 'عامل نظافة' || userRole === 'admin') {
+                if (userData.password !== passwordInput) {
+                    messageElement.textContent = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
+                    messageElement.className = 'error';
+                    return;
+                }
+
+                const userRole = userData.role;
+                let hasAccess = false;
+
+                if (userRole === 'admin' || userRole === 'مشرف' || userRole === 'عامل نظافة') {
                     hasAccess = true;
                 } else if (userRole === 'عضو هيئة تدريس') {
-                    hasAccess = true; // يمكنك لاحقًا إضافة منطق التحقق من الوقت هنا
+                    const now = new Date();
+                    const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+                    const currentDay = days[now.getDay()];
+                    const currentTime = now.getHours() * 60 + now.getMinutes();
+
+                    const scheduleQuery = query(collection(db, "Schedules"), 
+                        where("lecturer", "==", userData.displayName),
+                        where("room", "==", roomName),
+                        where("day", "==", currentDay)
+                    );
+                    const scheduleSnapshot = await getDocs(scheduleQuery);
+
+                    scheduleSnapshot.forEach(doc => {
+                        const schedule = doc.data();
+                        if (schedule.time && schedule.time.includes('-')) {
+                            const [startTimeStr, endTimeStr] = schedule.time.split('-');
+                            const startTime = parseInt(startTimeStr.split(':')[0]) * 60 + parseInt(startTimeStr.split(':')[1]);
+                            const endTime = parseInt(endTimeStr.split(':')[0]) * 60 + parseInt(endTimeStr.split(':')[1]);
+                            if (currentTime >= startTime && currentTime < endTime) {
+                                hasAccess = true;
+                            }
+                        }
+                    });
                 }
 
                 if (hasAccess) {
                     messageElement.textContent = 'تمت المصادقة بنجاح! سيتم فتح الباب.';
                     messageElement.className = 'success';
                     
+                    // ===============================================================
+                    // ==== هذا هو الكود الذي تم إضافته لإصلاح المشكلة ====
+                    // ===============================================================
                     const roomQuery = query(collection(db, "Rooms"), where("name", "==", roomName));
                     const roomSnapshot = await getDocs(roomQuery);
                     
@@ -103,6 +135,7 @@
                         await updateDoc(doc(db, "Rooms", roomDocId), { status: 'open' });
                         console.log(`تم تحديث حالة القاعة ${roomName} إلى "مفتوحة"`);
                     }
+                    // ===============================================================
 
                 } else {
                     messageElement.textContent = 'ليس لديك صلاحية لفتح هذه القاعة في هذا الوقت.';
