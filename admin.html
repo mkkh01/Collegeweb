@@ -13,7 +13,7 @@
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; }
         .sidebar { width: 250px; background-color: var(--dark-color); color: white; position: fixed; height: 100%; padding-top: 20px; z-index: 100; }
         .sidebar h2 { text-align: center; color: white; margin-bottom: 30px; }
-        .sidebar a { display: block; color: white; padding: 15px 20px; text-decoration: none; transition: background-color 0.3s; }
+        .sidebar a { display: block; color: white; padding: 15px 20px; text-decoration: none; transition: background-color: 0.3s; }
         .sidebar a:hover, .sidebar a.active { background-color: #495057; }
         .main-content { margin-right: 250px; padding: 30px; }
         .page { display: none; }
@@ -113,9 +113,12 @@
         window.closeModal = (modalId) => { document.getElementById(modalId).style.display = 'none'; };
         const confirmDelete = (item) => confirm(`هل أنت متأكد من حذف هذا ${item}؟`);
 
+        // *** الكود المصحح لدالة حفظ المستخدم ***
         document.getElementById('user-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('userId').value;
+            const password = document.getElementById('password').value;
+            
             const data = {
                 displayName: document.getElementById('displayName').value,
                 username: document.getElementById('username').value,
@@ -123,15 +126,23 @@
                 barcodeId: document.getElementById('barcodeId').value,
                 rfid: document.getElementById('rfid').value,
             };
-            const password = document.getElementById('password').value;
-            if (password) data.password = password;
-            if (id) await updateDoc(doc(db, "Users", id), data);
-            else {
-                if (!password) { alert('كلمة المرور مطلوبة للمستخدم الجديد.'); return; }
+
+            if (id) { // حالة التعديل
+                if (password) {
+                    data.password = password;
+                }
+                await updateDoc(doc(db, "Users", id), data);
+            } else { // حالة الإنشاء
+                if (!password) {
+                    alert('كلمة المرور مطلوبة للمستخدم الجديد.');
+                    return;
+                }
+                data.password = password;
                 await addDoc(collection(db, "Users"), data);
             }
             closeModal('user-modal');
         });
+
         document.getElementById('room-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('roomId').value;
@@ -194,8 +205,6 @@
             });
         });
 
-        // *** الكود المعدل هنا ***
-        // دالة واحدة لتحديث كل ما يخص القاعات
         onSnapshot(collection(db, "Rooms"), (snap) => {
             const roomsTableTbody = document.querySelector('#rooms-table tbody');
             const statusContainer = document.getElementById('room-status-container');
@@ -204,17 +213,11 @@
 
             snap.forEach(d => {
                 const r = d.data();
-                
-                // 1. تحديث جدول القاعات
                 const qrCodeDataUrl = generateQRCode(r.qrUrl || '');
                 roomsTableTbody.innerHTML += `<tr>
                     <td>${r.name}</td>
                     <td>${r.capacity}</td>
-                    <td>
-                        <div class="qr-code-container">
-                            ${r.qrUrl ? `<img src="${qrCodeDataUrl}" alt="QR Code">` : 'لا يوجد'}
-                        </div>
-                    </td>
+                    <td><div class="qr-code-container">${r.qrUrl ? `<img src="${qrCodeDataUrl}" alt="QR Code">` : 'لا يوجد'}</div></td>
                     <td>
                         <button class="btn btn-warning" onclick="editItem('Rooms', '${d.id}', 'room')">تعديل</button>
                         <button class="btn btn-danger" onclick="deleteItem('Rooms', '${d.id}', 'القاعة')">حذف</button>
@@ -222,8 +225,6 @@
                         <button class="btn btn-info" onclick="downloadQRCodeAsPNG('${r.name}', '${r.qrUrl}')">تحميل صورة الرمز</button>
                     </td>
                 </tr>`;
-
-                // 2. تحديث لوحة المراقبة
                 const statusClass = r.status === 'open' ? 'open' : 'closed';
                 statusContainer.innerHTML += `<div class="room-card ${statusClass}"><h4>${r.name}</h4><p>${r.status === 'open' ? 'مفتوحة' : 'مغلقة'}</p><button class="btn btn-warning" onclick="toggleRoomStatus('${d.id}', '${r.status}')">تغيير</button></div>`;
             });
