@@ -193,13 +193,21 @@
                 }
             });
         });
+
+        // *** الكود المعدل هنا ***
+        // دالة واحدة لتحديث كل ما يخص القاعات
         onSnapshot(collection(db, "Rooms"), (snap) => {
-            const tbody = document.querySelector('#rooms-table tbody');
-            tbody.innerHTML = '';
+            const roomsTableTbody = document.querySelector('#rooms-table tbody');
+            const statusContainer = document.getElementById('room-status-container');
+            roomsTableTbody.innerHTML = '';
+            statusContainer.innerHTML = '';
+
             snap.forEach(d => {
                 const r = d.data();
+                
+                // 1. تحديث جدول القاعات
                 const qrCodeDataUrl = generateQRCode(r.qrUrl || '');
-                tbody.innerHTML += `<tr>
+                roomsTableTbody.innerHTML += `<tr>
                     <td>${r.name}</td>
                     <td>${r.capacity}</td>
                     <td>
@@ -214,8 +222,13 @@
                         <button class="btn btn-info" onclick="downloadQRCodeAsPNG('${r.name}', '${r.qrUrl}')">تحميل صورة الرمز</button>
                     </td>
                 </tr>`;
+
+                // 2. تحديث لوحة المراقبة
+                const statusClass = r.status === 'open' ? 'open' : 'closed';
+                statusContainer.innerHTML += `<div class="room-card ${statusClass}"><h4>${r.name}</h4><p>${r.status === 'open' ? 'مفتوحة' : 'مغلقة'}</p><button class="btn btn-warning" onclick="toggleRoomStatus('${d.id}', '${r.status}')">تغيير</button></div>`;
             });
         });
+
         onSnapshot(collection(db, "Schedules"), (snap) => {
             const tbody = document.querySelector('#schedules-table tbody');
             tbody.innerHTML = '';
@@ -254,15 +267,6 @@
             });
         }
 
-        onSnapshot(collection(db, "Rooms"), (snap) => {
-            const container = document.getElementById('room-status-container');
-            container.innerHTML = '';
-            snap.forEach(d => {
-                const r = d.data();
-                const statusClass = r.status === 'open' ? 'open' : 'closed';
-                container.innerHTML += `<div class="room-card ${statusClass}"><h4>${r.name}</h4><p>${r.status === 'open' ? 'مفتوحة' : 'مغلقة'}</p><button class="btn btn-warning" onclick="toggleRoomStatus('${d.id}', '${r.status}')">تغيير</button></div>`;
-            });
-        });
         window.toggleRoomStatus = async (id, currentStatus) => {
             await updateDoc(doc(db, "Rooms", id), { status: currentStatus === 'open' ? 'closed' : 'open' });
         };
