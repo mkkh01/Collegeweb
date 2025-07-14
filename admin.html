@@ -150,9 +150,6 @@
             closeModal('room-modal');
         });
         
-        // ===================================================================
-        // ==== تعديل: منطق حفظ الجدول مع التحقق من التضارب ====
-        // ===================================================================
         document.getElementById('schedule-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('scheduleId').value;
@@ -160,14 +157,12 @@
             const day = document.getElementById('day').value;
             const time = document.getElementById('time').value;
 
-            // التحقق من وجود تضارب
             const schedulesRef = collection(db, "Schedules");
             const q = query(schedulesRef, where("room", "==", room), where("day", "==", day), where("time", "==", time));
             const querySnapshot = await getDocs(q);
             
             let conflict = false;
             querySnapshot.forEach((doc) => {
-                // إذا كان هناك مستند موجود لا يحمل نفس الـ ID الذي نقوم بتعديله، فهذا تضارب
                 if (doc.id !== id) {
                     conflict = true;
                 }
@@ -175,10 +170,9 @@
 
             if (conflict) {
                 alert('خطأ: هذه القاعة محجوزة بالفعل في نفس اليوم والوقت. يرجى اختيار وقت أو قاعة أخرى.');
-                return; // إيقاف عملية الحفظ
+                return;
             }
 
-            // إذا لم يكن هناك تضارب، استمر في الحفظ
             const data = {
                 courseCode: document.getElementById('courseCode').value, courseName: document.getElementById('courseName').value,
                 lecturer: document.getElementById('lecturer').value, room: room,
@@ -223,6 +217,10 @@
                 }
             });
         });
+
+        // ===================================================================
+        // ==== الكود المصحح: عرض القاعات في جدول الإدارة ====
+        // ===================================================================
         onSnapshot(collection(db, "Rooms"), (snap) => {
             const tbody = document.querySelector('#rooms-table tbody');
             tbody.innerHTML = '';
@@ -246,6 +244,7 @@
                 </tr>`;
             });
         });
+        
         onSnapshot(collection(db, "Schedules"), (snap) => {
             const tbody = document.querySelector('#schedules-table tbody');
             tbody.innerHTML = '';
@@ -285,13 +284,12 @@
         }
 
         // ===================================================================
-        // ==== تعديل: لوحة المراقبة لعرض معلومات المحاضرة ====
+        // ==== عرض حالة القاعات في لوحة المراقبة (يعمل بشكل منفصل وصحيح) ====
         // ===================================================================
         onSnapshot(collection(db, "Rooms"), async (roomsSnap) => {
             const container = document.getElementById('room-status-container');
             container.innerHTML = '';
 
-            // جلب كل الجداول مرة واحدة لتحسين الأداء
             const schedulesSnap = await getDocs(collection(db, "Schedules"));
             const allSchedules = schedulesSnap.docs.map(doc => doc.data());
 
@@ -300,7 +298,6 @@
                 const statusClass = r.status === 'open' ? 'open' : 'closed';
                 let lectureInfoHTML = '';
 
-                // إذا كانت القاعة مفتوحة، ابحث عن المحاضرة الحالية
                 if (r.status === 'open') {
                     const now = new Date();
                     const currentDay = now.toLocaleDateString('ar-EG', { weekday: 'long' });
@@ -309,7 +306,7 @@
                     const currentLecture = allSchedules.find(s => {
                         if (s.room === r.name && s.day === currentDay) {
                             const [startTime, endTime] = s.time.split('-');
-                            return currentTime >= startTime && currentTime <= endTime;
+                            return startTime && endTime && currentTime >= startTime && currentTime <= endTime;
                         }
                         return false;
                     });
