@@ -284,4 +284,13 @@
         
         window.deleteItem = async (collectionName, id, itemName) => { if (confirmDelete(itemName)) await deleteDoc(doc(db, collectionName, id)); };
         window.downloadIdCardAsPDF = (name, role, barcodeValue) => { const prepareArea = document.getElementById('pdf-prepare-area'); const cardElement = document.createElement('div'); cardElement.className = 'id-card'; cardElement.innerHTML = `<h4>${name}</h4><p>${role}</p><svg id="pdf-barcode"></svg>`; prepareArea.innerHTML = ''; prepareArea.appendChild(cardElement); if (barcodeValue) JsBarcode("#pdf-barcode", barcodeValue, { format: "CODE128", width: 3, height: 80, displayValue: true }); else cardElement.querySelector('svg').remove(); html2pdf().from(cardElement).set({ filename: `${name}_ID_Card.pdf`, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).save(); };
-        window.downloadRoomCardAsPDF = (name, qrUrl) => { const prepareArea = document.getElementById('pdf-prepare-area'); const cardElement = document.createElement('div'); cardElement.className = 'id-card'; cardElement.innerHTML = `<h4>بطاقة تعريف القاعة</h4><p>${name}</p><img src="${generateQRCode(qrUrl || '')}" alt="QR Code">`; prepareArea.innerHTML = ''; prepareArea.appendChild(cardElement); html2pdf().from(cardElement).set({ filename: `${name}_QR_Card.pdf`, jsPDF: { unit: '
+        window.downloadRoomCardAsPDF = (name, qrUrl) => { const prepareArea = document.getElementById('pdf-prepare-area'); const cardElement = document.createElement('div'); cardElement.className = 'id-card'; cardElement.innerHTML = `<h4>بطاقة تعريف القاعة</h4><p>${name}</p><img src="${generateQRCode(qrUrl || '')}" alt="QR Code">`; prepareArea.innerHTML = ''; prepareArea.appendChild(cardElement); html2pdf().from(cardElement).set({ filename: `${name}_QR_Card.pdf`, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).save(); };
+        window.downloadQRCodeAsPNG = (name, qrUrl) => { if (!qrUrl) { alert('لا يوجد رمز QR لهذه القاعة.'); return; } const dataUrl = generateQRCode(qrUrl); const link = document.createElement('a'); link.download = `${name}_QR_Code.png`; link.href = dataUrl; link.click(); };
+        window.downloadBarcodeAsPNG = (name, barcodeValue) => { if (!barcodeValue) { alert('لا يوجد رمز باركود لهذا المستخدم.'); return; } const canvas = document.createElement('canvas'); JsBarcode(canvas, barcodeValue, { format: "CODE128" }); const link = document.createElement('a'); link.download = `${name}_Barcode.png`; link.href = canvas.toDataURL("image/png"); link.click(); };
+
+        showPage('dashboard');
+
+        setInterval(renderDashboard, 60000); 
+    </script>
+</body>
+</html>
