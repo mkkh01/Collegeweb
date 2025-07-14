@@ -69,7 +69,8 @@
         <h2>لوحة التحكم</h2>
         <a href="#dashboard" class="nav-link" onclick="showPage('dashboard')">لوحة المراقبة</a>
         <a href="#users" class="nav-link" onclick="showPage('users')">إدارة المستخدمين</a>
-        <a href="#schedules" class="nav-link" onclick="showPage('schedules')">إدارة الجداول</a>
+        <!--  التعديل الأول: تغيير النص هنا -->
+        <a href="#schedules" class="nav-link" onclick="showPage('schedules')">الجدول الدراسي</a>
         <a href="#rooms" class="nav-link" onclick="showPage('rooms')">إدارة القاعات</a>
         <a href="index.html" style="color: var(--warning-color); margin-top: 30px;" onclick="sessionStorage.clear()">تسجيل الخروج</a>
     </div>
@@ -77,7 +78,14 @@
     <div class="main-content">
         <div id="dashboard" class="page"><div class="card"><h3>حالة القاعات الحالية</h3><div id="room-status-container" class="room-status-container"></div></div></div>
         <div id="users" class="page"><div class="card"><h3>المستخدمون</h3><button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم</button><table id="users-table"><thead><tr><th>الاسم الكامل</th><th>الدور</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
-        <div id="schedules" class="page"><div class="card"><h3>الجداول الدراسية</h3><button class="btn btn-primary" onclick="openModal('schedule-modal')">إضافة جدول</button><table id="schedules-table"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
+        <div id="schedules" class="page">
+            <div class="card">
+                <h3>الجداول الدراسية</h3>
+                <!-- التعديل الثاني: تغيير النص هنا -->
+                <button class="btn btn-primary" onclick="openModal('schedule-modal')">إضافة</button>
+                <table id="schedules-table"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>إجراء</th></tr></thead><tbody></tbody></table>
+            </div>
+        </div>
         <div id="rooms" class="page"><div class="card"><h3>القاعات الدراسية</h3><button class="btn btn-primary" onclick="openModal('room-modal')">إضافة قاعة</button><table id="rooms-table"><thead><tr><th>اسم القاعة</th><th>السعة</th><th>رمز QR</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
     </div>
 
@@ -217,7 +225,7 @@
                     const timeParts = schedule.time.split('-');
                     const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
                     const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]);
-                    return currentTime >= startTime && currentTime < endTime; // Use < endTime for exact minute change
+                    return currentTime >= startTime && currentTime < endTime;
                 });
 
                 const status = room.status || 'closed';
@@ -288,7 +296,6 @@
 
         showPage('dashboard');
 
-        // تحديث لوحة المراقبة كل دقيقة لتعكس تغير الوقت
         setInterval(renderDashboard, 60000); 
     </script>
 </body>
