@@ -37,6 +37,7 @@
         .room-card.open { background-color: var(--success-color); }
         .room-card.closed { background-color: var(--danger-color); }
         .room-card h4 { margin-top: 0; }
+        .room-card .lecture-info { font-size: 0.9em; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.5); }
         .qr-code-container, .barcode-container { display: flex; flex-direction: column; align-items: center; gap: 10px; }
         .qr-code-container img { max-width: 80px; height: auto; }
         .barcode-container svg { height: 50px; width: auto; }
@@ -62,7 +63,7 @@
         <h2>لوحة التحكم</h2>
         <a href="#dashboard" class="nav-link" onclick="showPage('dashboard')">لوحة المراقبة</a>
         <a href="#users" class="nav-link" onclick="showPage('users')">إدارة المستخدمين</a>
-        <a href="#schedules" class="nav-link" onclick="showPage('schedules')">إدارة الجداول</a>
+        <a href="#schedules" class="nav-link" onclick="showPage('schedules')">إدارة الجدول الدراسي</a>
         <a href="#rooms" class="nav-link" onclick="showPage('rooms')">إدارة القاعات</a>
         <a href="index.html" style="color: var(--warning-color); margin-top: 30px;" onclick="sessionStorage.clear()">تسجيل الخروج</a>
     </div>
@@ -70,7 +71,7 @@
     <div class="main-content">
         <div id="dashboard" class="page"><div class="card"><h3>حالة القاعات الحالية</h3><div id="room-status-container" class="room-status-container"></div></div></div>
         <div id="users" class="page"><div class="card"><h3>المستخدمون</h3><button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم</button><table id="users-table"><thead><tr><th>الاسم الكامل</th><th>الدور</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
-        <div id="schedules" class="page"><div class="card"><h3>الجداول الدراسية</h3><button class="btn btn-primary" onclick="openModal('schedule-modal')">إضافة جدول</button><table id="schedules-table"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
+        <div id="schedules" class="page"><div class="card"><h3>الجداول الدراسية</h3><button class="btn btn-primary" onclick="openModal('schedule-modal')">إضافة</button><table id="schedules-table"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
         <div id="rooms" class="page"><div class="card"><h3>القاعات الدراسية</h3><button class="btn btn-primary" onclick="openModal('room-modal')">إضافة قاعة</button><table id="rooms-table"><thead><tr><th>اسم القاعة</th><th>السعة</th><th>رمز QR</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
     </div>
 
@@ -82,7 +83,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         const db = getFirestore(initializeApp({
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
@@ -148,16 +149,45 @@
             }
             closeModal('room-modal');
         });
+        
+        // ===================================================================
+        // ==== تعديل: منطق حفظ الجدول مع التحقق من التضارب ====
+        // ===================================================================
         document.getElementById('schedule-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('scheduleId').value;
+            const room = document.getElementById('scheduleRoom').value;
+            const day = document.getElementById('day').value;
+            const time = document.getElementById('time').value;
+
+            // التحقق من وجود تضارب
+            const schedulesRef = collection(db, "Schedules");
+            const q = query(schedulesRef, where("room", "==", room), where("day", "==", day), where("time", "==", time));
+            const querySnapshot = await getDocs(q);
+            
+            let conflict = false;
+            querySnapshot.forEach((doc) => {
+                // إذا كان هناك مستند موجود لا يحمل نفس الـ ID الذي نقوم بتعديله، فهذا تضارب
+                if (doc.id !== id) {
+                    conflict = true;
+                }
+            });
+
+            if (conflict) {
+                alert('خطأ: هذه القاعة محجوزة بالفعل في نفس اليوم والوقت. يرجى اختيار وقت أو قاعة أخرى.');
+                return; // إيقاف عملية الحفظ
+            }
+
+            // إذا لم يكن هناك تضارب، استمر في الحفظ
             const data = {
                 courseCode: document.getElementById('courseCode').value, courseName: document.getElementById('courseName').value,
-                lecturer: document.getElementById('lecturer').value, room: document.getElementById('scheduleRoom').value,
-                day: document.getElementById('day').value, time: document.getElementById('time').value,
+                lecturer: document.getElementById('lecturer').value, room: room,
+                day: day, time: time,
             };
+
             if (id) await updateDoc(doc(db, "Schedules", id), data);
             else await addDoc(collection(db, "Schedules"), data);
+            
             closeModal('schedule-modal');
         });
 
@@ -254,15 +284,54 @@
             });
         }
 
-        onSnapshot(collection(db, "Rooms"), (snap) => {
+        // ===================================================================
+        // ==== تعديل: لوحة المراقبة لعرض معلومات المحاضرة ====
+        // ===================================================================
+        onSnapshot(collection(db, "Rooms"), async (roomsSnap) => {
             const container = document.getElementById('room-status-container');
             container.innerHTML = '';
-            snap.forEach(d => {
+
+            // جلب كل الجداول مرة واحدة لتحسين الأداء
+            const schedulesSnap = await getDocs(collection(db, "Schedules"));
+            const allSchedules = schedulesSnap.docs.map(doc => doc.data());
+
+            roomsSnap.forEach(d => {
                 const r = d.data();
                 const statusClass = r.status === 'open' ? 'open' : 'closed';
-                container.innerHTML += `<div class="room-card ${statusClass}"><h4>${r.name}</h4><p>${r.status === 'open' ? 'مفتوحة' : 'مغلقة'}</p><button class="btn btn-warning" onclick="toggleRoomStatus('${d.id}', '${r.status}')">تغيير</button></div>`;
+                let lectureInfoHTML = '';
+
+                // إذا كانت القاعة مفتوحة، ابحث عن المحاضرة الحالية
+                if (r.status === 'open') {
+                    const now = new Date();
+                    const currentDay = now.toLocaleDateString('ar-EG', { weekday: 'long' });
+                    const currentTime = now.toTimeString().slice(0, 5);
+
+                    const currentLecture = allSchedules.find(s => {
+                        if (s.room === r.name && s.day === currentDay) {
+                            const [startTime, endTime] = s.time.split('-');
+                            return currentTime >= startTime && currentTime <= endTime;
+                        }
+                        return false;
+                    });
+
+                    if (currentLecture) {
+                        lectureInfoHTML = `<div class="lecture-info">
+                            <p>المادة: ${currentLecture.courseName}</p>
+                            <p>المحاضر: ${currentLecture.lecturer}</p>
+                        </div>`;
+                    }
+                }
+
+                container.innerHTML += `
+                    <div class="room-card ${statusClass}">
+                        <h4>${r.name}</h4>
+                        <p>${r.status === 'open' ? 'مفتوحة' : 'مغلقة'}</p>
+                        ${lectureInfoHTML}
+                        <button class="btn btn-warning" onclick="toggleRoomStatus('${d.id}', '${r.status}')">تغيير</button>
+                    </div>`;
             });
         });
+
         window.toggleRoomStatus = async (id, currentStatus) => {
             await updateDoc(doc(db, "Rooms", id), { status: currentStatus === 'open' ? 'closed' : 'open' });
         };
