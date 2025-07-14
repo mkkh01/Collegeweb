@@ -186,7 +186,7 @@
             closeModal('schedule-modal');
         });
 
-        // --- عرض البيانات في الجداول ---
+        // --- عرض البيانات في الجداول (كل جدول له مستمع خاص به) ---
         onSnapshot(collection(db, "Users"), (snap) => {
             const tbody = document.querySelector('#users-table tbody');
             tbody.innerHTML = '';
@@ -196,6 +196,10 @@
                 if (u.barcodeId) { JsBarcode(`#barcode-${d.id}`,u.barcodeId,{format:"CODE128",lineColor:"#000",width:2,height:40,displayValue:true}); }
             });
         });
+        
+        // ===================================================================
+        // ==== المستمع الخاص بجدول إدارة القاعات (تم فصله) ====
+        // ===================================================================
         onSnapshot(collection(db, "Rooms"), (snap) => {
             const tbody = document.querySelector('#rooms-table tbody');
             tbody.innerHTML = '';
@@ -205,6 +209,7 @@
                 tbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td><div class="qr-code-container">${r.qrUrl?`<img src="${qrCodeDataUrl}" alt="QR Code">`:'لا يوجد'}</div></td><td><button class="btn btn-warning" onclick="editItem('Rooms','${d.id}','room')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms','${d.id}','القاعة')">حذف</button><button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}','${r.qrUrl}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadQRCodeAsPNG('${r.name}','${r.qrUrl}')">تحميل صورة الرمز</button></td></tr>`;
             });
         });
+
         onSnapshot(collection(db, "Schedules"), (snap) => {
             const tbody = document.querySelector('#schedules-table tbody');
             tbody.innerHTML = '';
@@ -260,17 +265,17 @@
         };
 
         // ===================================================================
-        // ==== لوحة المراقبة الذكية والديناميكية ====
+        // ==== لوحة المراقبة الذكية والديناميكية (لها مستمع خاص بها) ====
         // ===================================================================
-        let allRooms = [];
-        let allSchedules = [];
+        let allRoomsData = [];
+        let allSchedulesData = [];
 
         onSnapshot(collection(db, "Rooms"), (snap) => {
-            allRooms = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            allRoomsData = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             updateDashboard();
         });
         onSnapshot(collection(db, "Schedules"), (snap) => {
-            allSchedules = snap.docs.map(doc => doc.data());
+            allSchedulesData = snap.docs.map(doc => doc.data());
             updateDashboard();
         });
 
@@ -283,11 +288,11 @@
             const currentDay = now.toLocaleDateString('ar-EG', { weekday: 'long' });
             const currentTime = now.toTimeString().slice(0, 5);
 
-            allRooms.forEach(r => {
+            allRoomsData.forEach(r => {
                 const statusClass = r.status === 'open' ? 'open' : 'closed';
                 let lectureInfoHTML = '';
 
-                const currentLecture = allSchedules.find(s => {
+                const currentLecture = allSchedulesData.find(s => {
                     if (s.room === r.name && s.day === currentDay) {
                         const [startTime, endTime] = s.time.split('-');
                         return startTime && endTime && currentTime >= startTime && currentTime < endTime;
