@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>فتح / إغلاق القاعة</title>
+    <title>فتح القاعة</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .container { background: #ffffff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); width: 100%; max-width: 450px; text-align: center; }
@@ -12,190 +12,133 @@
         .form-group { margin-bottom: 20px; text-align: right; }
         .form-group label { display: block; margin-bottom: 8px; color: #555; font-weight: 600; }
         .form-group input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
-        .btn { width: 100%; padding: 12px; border: none; border-radius: 5px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; transition: background-color 0.3s; }
-        .btn-success { background-color: #28a745; }
-        .btn-success:hover { background-color: #218838; }
-        .btn-danger { background-color: #dc3545; }
-        .btn-danger:hover { background-color: #c82333; }
+        .btn { width: 100%; padding: 12px; background-color: #28a745; border: none; border-radius: 5px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; transition: background-color 0.3s; }
+        .btn:hover { background-color: #218838; }
         #message { margin-top: 20px; font-weight: 500; }
         .success { color: #28a745; }
         .error { color: #dc3545; }
-        /* إخفاء العناصر بشكل افتراضي */
-        #checkout-section { display: none; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1 id="room-title"></h1>
-        
-        <!-- قسم المصادقة الافتراضي -->
-        <div id="auth-section">
-            <p>أدخل بياناتك للمصادقة.</p>
-            <form id="auth-form">
-                <div class="form-group">
-                    <label for="username">اسم المستخدم</label>
-                    <input type="text" id="username" required>
-                </div>
-                <div class="form-group">
-                    <label for="password">كلمة المرور</label>
-                    <input type="password" id="password" required>
-                </div>
-                <button type="submit" class="btn btn-success">مصادقة</button>
-            </form>
-        </div>
-
-        <!-- قسم الإغلاق المبكر (مخفي افتراضيًا) -->
-        <div id="checkout-section">
-            <p>القاعة مفتوحة حاليًا بناءً على جدولك.</p>
-            <button id="checkout-btn" class="btn btn-danger">إنهاء الجلسة وإغلاق القاعة</button>
-        </div>
-
+        <p>أدخل بياناتك للمصادقة وفتح القاعة.</p>
+        <form id="auth-form">
+            <div class="form-group">
+                <label for="barcode">الباركود الخاص بك</label>
+                <input type="text" id="barcode" required>
+            </div>
+            <div class="form-group">
+                <label for="password">كلمة المرور</label>
+                <input type="password" id="password" required>
+            </div>
+            <button type="submit" class="btn">مصادقة وفتح</button>
+        </form>
         <div id="message"></div>
     </div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, query, where, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
+        import { getFirestore, collection, query, where, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+        import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-database.js";
 
-        const db = getFirestore(initializeApp({
-            apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
-            authDomain: "gggg-dc7d0.firebaseapp.com",
-            projectId: "gggg-dc7d0",
-            storageBucket: "gggg-dc7d0.appspot.com",
-            messagingSenderId: "151376454562",
-            appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
-        }));
+        const firebaseConfig = {
+            apiKey: "AIzaSyB...[Your-API-Key]",
+            authDomain: "cpld-a385c.firebaseapp.com",
+            projectId: "cpld-a385c",
+            storageBucket: "cpld-a385c.appspot.com",
+            messagingSenderId: "...",
+            appId: "..."
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const rtdb = getDatabase(app);
 
         const urlParams = new URLSearchParams(window.location.search);
         const roomName = urlParams.get('room');
-        
-        const roomTitleElement = document.getElementById('room-title');
-        const messageElement = document.getElementById('message');
-        const authSection = document.getElementById('auth-section');
-        const checkoutSection = document.getElementById('checkout-section');
-        const checkoutBtn = document.getElementById('checkout-btn');
-
-        if (roomName) {
-            roomTitleElement.textContent = `القاعة: ${roomName}`;
-        } else {
-            roomTitleElement.textContent = 'خطأ: لم يتم تحديد القاعة';
-            authSection.style.display = 'none';
-        }
-
-        // دالة للتحقق من الوقت الحالي
-        const isCurrentlyScheduled = (schedule) => {
-            const now = new Date();
-            const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-            const currentDay = days[now.getDay()];
-            const currentTime = now.getHours() * 60 + now.getMinutes();
-
-            if (schedule.day !== currentDay || !schedule.time || !schedule.time.includes('-')) {
-                return false;
-            }
-            const [startTimeStr, endTimeStr] = schedule.time.split('-');
-            const startTime = parseInt(startTimeStr.split(':')[0]) * 60 + parseInt(startTimeStr.split(':')[1]);
-            const endTime = parseInt(endTimeStr.split(':')[0]) * 60 + parseInt(endTimeStr.split(':')[1]);
-            return currentTime >= startTime && currentTime < endTime;
-        };
-
-        // دالة لإغلاق القاعة
-        const closeRoomNow = async () => {
-            try {
-                const roomQuery = query(collection(db, "Rooms"), where("name", "==", roomName));
-                const roomSnapshot = await getDocs(roomQuery);
-                if (!roomSnapshot.empty) {
-                    const roomDocId = roomSnapshot.docs[0].id;
-                    await updateDoc(doc(db, "Rooms", roomDocId), { status: 'closed' });
-                    messageElement.textContent = 'تم إغلاق القاعة بنجاح.';
-                    messageElement.className = 'success';
-                    checkoutSection.style.display = 'none'; // إخفاء زر الإغلاق بعد النجاح
-                }
-            } catch (error) {
-                console.error("خطأ أثناء إغلاق القاعة: ", error);
-                messageElement.textContent = 'حدث خطأ أثناء محاولة إغلاق القاعة.';
-                messageElement.className = 'error';
-            }
-        };
-
-        checkoutBtn.addEventListener('click', closeRoomNow);
+        document.getElementById('room-title').textContent = `قاعة: ${roomName || 'غير محددة'}`;
 
         document.getElementById('auth-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            if (!roomName) return;
-
-            const usernameInput = document.getElementById('username').value;
+            const barcodeInput = document.getElementById('barcode').value;
             const passwordInput = document.getElementById('password').value;
-            messageElement.textContent = '';
+            const messageElement = document.getElementById('message');
+
+            if (!roomName) {
+                messageElement.textContent = 'خطأ: اسم القاعة غير محدد في الرابط.';
+                messageElement.className = 'error';
+                return;
+            }
 
             try {
-                // 1. مصادقة المستخدم
-                const userQuery = query(collection(db, "Users"), where("username", "==", usernameInput));
-                const userSnapshot = await getDocs(userQuery);
+                const usersRef = collection(db, "Users");
+                const q = query(usersRef, where("barcode", "==", barcodeInput));
+                const querySnapshot = await getDocs(q);
 
-                if (userSnapshot.empty || userSnapshot.docs[0].data().password !== passwordInput) {
-                    messageElement.textContent = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
+                if (querySnapshot.empty) {
+                    messageElement.textContent = 'الباركود أو كلمة المرور غير صحيحة.';
                     messageElement.className = 'error';
                     return;
                 }
-                const userData = userSnapshot.docs[0].data();
 
-                // 2. التحقق من حالة القاعة
-                const roomQuery = query(collection(db, "Rooms"), where("name", "==", roomName));
-                const roomSnapshot = await getDocs(roomQuery);
-                if (roomSnapshot.empty) {
-                    messageElement.textContent = 'خطأ: القاعة غير موجودة في النظام.';
+                const userDoc = querySnapshot.docs[0];
+                const userData = userDoc.data();
+
+                if (userData.password !== passwordInput) {
+                    messageElement.textContent = 'الباركود أو كلمة المرور غير صحيحة.';
                     messageElement.className = 'error';
                     return;
                 }
-                const roomData = roomSnapshot.docs[0].data();
-                const roomDocId = roomSnapshot.docs[0].id;
 
-                // 3. المنطق الجديد: التعامل مع الحالات المختلفة
-                if (roomData.status === 'open') {
-                    // القاعة مفتوحة، هل هذا المستخدم هو من يجب أن يكون بداخلها؟
-                    const scheduleQuery = query(collection(db, "Schedules"), 
+                const userRole = userData.role.trim().toLowerCase();
+                let hasAccess = false;
+                
+                if (userRole === 'admin' || userRole === 'مشرف' || userRole === 'عامل نظافة') {
+                    hasAccess = true;
+                } else if (userRole === 'عضو هيئة تدريس') {
+                    const schedulesRef = collection(db, "Schedules");
+                    const scheduleQuery = query(schedulesRef, 
                         where("lecturer", "==", userData.displayName),
                         where("room", "==", roomName)
                     );
                     const scheduleSnapshot = await getDocs(scheduleQuery);
-                    const activeSchedule = scheduleSnapshot.docs.find(doc => isCurrentlyScheduled(doc.data()));
 
-                    if (activeSchedule) {
-                        // نعم، هذا هو المحاضر الحالي، اعرض له خيار الإغلاق
-                        authSection.style.display = 'none';
-                        checkoutSection.style.display = 'block';
-                    } else {
-                        messageElement.textContent = 'القاعة مشغولة حاليًا. لا يمكنك الدخول.';
-                        messageElement.className = 'error';
-                    }
-                } else {
-                    // القاعة مغلقة، تنفيذ منطق الفتح
-                    let hasAccess = false;
-                    const userRole = userData.role;
-
-                    if (userRole === 'admin' || userRole === 'مشرف' || userRole === 'عامل نظافة') {
-                        hasAccess = true;
-                    } else if (userRole === 'عضو هيئة تدريس') {
-                        const scheduleQuery = query(collection(db, "Schedules"), 
-                            where("lecturer", "==", userData.displayName),
-                            where("room", "==", roomName)
-                        );
-                        const scheduleSnapshot = await getDocs(scheduleQuery);
-                        if (scheduleSnapshot.docs.some(doc => isCurrentlyScheduled(doc.data()))) {
-                            hasAccess = true;
+                    if (!scheduleSnapshot.empty) {
+                        const now = new Date();
+                        const currentTime = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+                        
+                        for (const scheduleDoc of scheduleSnapshot.docs) {
+                            const schedule = scheduleDoc.data();
+                            if (currentTime >= schedule.startTime && currentTime <= schedule.endTime) {
+                                hasAccess = true;
+                                break;
+                            }
                         }
                     }
-
-                    if (hasAccess) {
-                        await updateDoc(doc(db, "Rooms", roomDocId), { status: 'open' });
-                        messageElement.textContent = 'تمت المصادقة بنجاح! سيتم فتح الباب.';
-                        messageElement.className = 'success';
-                        authSection.style.display = 'none'; // إخفاء النموذج بعد الفتح
-                    } else {
-                        messageElement.textContent = 'ليس لديك صلاحية لفتح هذه القاعة في هذا الوقت.';
-                        messageElement.className = 'error';
-                    }
                 }
+
+                if (hasAccess) {
+                    messageElement.textContent = 'تمت المصادقة بنجاح! سيتم فتح الباب.';
+                    messageElement.className = 'success';
+                    
+                    const roomQuery = query(collection(db, "Rooms"), where("name", "==", roomName));
+                    const roomSnapshot = await getDocs(roomQuery);
+                    
+                    if (!roomSnapshot.empty) {
+                        const roomDocId = roomSnapshot.docs[0].id;
+                        const roomDocRef = doc(db, "Rooms", roomDocId);
+                        await updateDoc(roomDocRef, { status: 'open' });
+                        
+                        const rtdbRef = ref(rtdb, 'room_status/' + roomName);
+                        await set(rtdbRef, 'open');
+                    }
+
+                } else {
+                    messageElement.textContent = 'ليس لديك صلاحية لفتح هذه القاعة في هذا الوقت.';
+                    messageElement.className = 'error';
+                }
+
             } catch (error) {
                 console.error("خطأ أثناء المصادقة: ", error);
                 messageElement.textContent = 'حدث خطأ في النظام.';
