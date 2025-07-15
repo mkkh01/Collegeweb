@@ -33,7 +33,7 @@
         .form-group label { display: block; margin-bottom: 5px; }
         .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
         .room-status-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
-        .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; display: flex; flex-direction: column; justify-content: space-between; min-height: 180px; }
+        .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; display: flex; flex-direction: column; justify-content: space-between; min-height: 180px; transition: background-color 0.5s ease; }
         .room-card.open { background-color: var(--success-color); }
         .room-card.closed { background-color: var(--danger-color); }
         .room-card h4 { margin-top: 0; font-size: 1.5rem; }
@@ -67,7 +67,6 @@
 
     <div class="sidebar">
         <h2>لوحة التحكم</h2>
-        <!-- التعديل الأول: تغيير النص هنا -->
         <a href="#dashboard" class="nav-link" onclick="showPage('dashboard')">لوحة الإعلانات</a>
         <a href="#users" class="nav-link" onclick="showPage('users')">إدارة المستخدمين</a>
         <a href="#schedules" class="nav-link" onclick="showPage('schedules')">الجدول الدراسي</a>
@@ -76,7 +75,6 @@
     </div>
 
     <div class="main-content">
-        <!-- التعديل الثاني: تغيير النص هنا -->
         <div id="dashboard" class="page"><div class="card"><h3>لوحة الإعلانات</h3><div id="room-status-container" class="room-status-container"></div></div></div>
         <div id="users" class="page"><div class="card"><h3>المستخدمون</h3><button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم</button><table id="users-table"><thead><tr><th>الاسم الكامل</th><th>الدور</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
         <div id="schedules" class="page"><div class="card"><h3>الجداول الدراسية</h3><button class="btn btn-primary" onclick="openModal('schedule-modal')">إضافة</button><table id="schedules-table"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
@@ -129,9 +127,6 @@
 
         const SITE_URL = "https://cpld.netlify.app";
 
-        let allSchedules = [];
-        let allRooms = [];
-
         window.showPage = (pageId) => {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(pageId).classList.add('active');
@@ -156,10 +151,8 @@
         document.getElementById('schedule-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('scheduleId').value;
-            
             const startTime = document.getElementById('startTime').value;
             const endTime = document.getElementById('endTime').value;
-
             const data = {
                 courseCode: document.getElementById('courseCode').value,
                 courseName: document.getElementById('courseName').value,
@@ -168,19 +161,26 @@
                 day: document.getElementById('day').value,
                 time: `${startTime}-${endTime}`,
             };
-
-            if (id) {
-                await updateDoc(doc(db, "Schedules", id), data);
-            } else {
-                await addDoc(collection(db, "Schedules"), data);
-            }
+            if (id) await updateDoc(doc(db, "Schedules", id), data);
+            else await addDoc(collection(db, "Schedules"), data);
             closeModal('schedule-modal');
         });
 
+        // ==================================================================
+        // ############ الكود الذي تم تعديله وإصلاحه هنا ############
+        // ==================================================================
+
+        let allSchedulesData = []; // لتخزين بيانات الجداول
+
+        // 1. نستمع للجداول أولاً ونخزن بياناتها
         onSnapshot(collection(db, "Schedules"), (snap) => {
-            allSchedules = snap.docs.map(doc => doc.data());
-            renderDashboard();
-            
+            allSchedulesData = snap.docs.map(doc => doc.data());
+            // نعيد رسم لوحة الإعلانات كلما تغير جدول
+            document.querySelectorAll('.room-card').forEach(card => {
+                updateDashboardCard(card.id);
+            });
+
+            // تحديث جدول الجداول في صفحة إدارة الجداول
             const tbody = document.querySelector('#schedules-table tbody');
             tbody.innerHTML = '';
             snap.forEach(d => {
@@ -189,51 +189,100 @@
             });
         });
 
-        onSnapshot(collection(db, "Rooms"), (snap) => {
-            allRooms = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            renderDashboard();
-            
+        // 2. نستمع للقاعات، ونتعامل مع كل تغيير بذكاء
+        onSnapshot(collection(db, "Rooms"), (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                const docId = change.doc.id;
+                const roomData = change.doc.data();
+
+                if (change.type === "added") {
+                    // إذا تمت إضافة قاعة جديدة، نرسم لها بطاقة جديدة
+                    createDashboardCard(docId, roomData);
+                }
+                if (change.type === "modified") {
+                    // إذا تم تعديل قاعة، نحدث بطاقتها الموجودة
+                    updateDashboardCard(docId, roomData);
+                }
+                if (change.type === "removed") {
+                    // إذا تم حذف قاعة، نزيل بطاقتها
+                    const card = document.getElementById(docId);
+                    if (card) card.remove();
+                }
+            });
+
+            // تحديث جدول القاعات في صفحة إدارة القاعات (هذا الجزء لم يتغير)
             const roomsTableTbody = document.querySelector('#rooms-table tbody');
             roomsTableTbody.innerHTML = '';
-            snap.forEach(d => {
+            snapshot.forEach(d => {
                 const r = d.data();
                 const qrCodeDataUrl = generateQRCode(r.qrUrl || '');
                 roomsTableTbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td><div class="qr-code-container">${r.qrUrl ? `<img src="${qrCodeDataUrl}" alt="QR Code">` : 'لا يوجد'}</div></td><td><button class="btn btn-warning" onclick="editItem('Rooms', '${d.id}', 'room')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms', '${d.id}', 'القاعة')">حذف</button><button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}', '${r.qrUrl}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadQRCodeAsPNG('${r.name}', '${r.qrUrl}')">تحميل صورة الرمز</button></td></tr>`;
             });
         });
 
-        function renderDashboard() {
+        // 3. دالة لإنشاء بطاقة جديدة في لوحة الإعلانات
+        function createDashboardCard(docId, roomData) {
             const statusContainer = document.getElementById('room-status-container');
-            statusContainer.innerHTML = '';
+            const card = document.createElement('div');
+            card.id = docId; // نعطي البطاقة ID فريد
+            statusContainer.appendChild(card);
+            updateDashboardCard(docId, roomData); // نستخدم دالة التحديث لملء البيانات
+        }
+
+        // 4. دالة لتحديث بطاقة موجودة (هذه هي الدالة الأساسية التي تصلح المشكلة)
+        async function updateDashboardCard(docId, roomData) {
+            const card = document.getElementById(docId);
+            if (!card) return; // إذا لم تكن البطاقة موجودة، لا تفعل شيئًا
+
+            // إذا لم تصلنا بيانات جديدة، نحضرها من قاعدة البيانات
+            if (!roomData) {
+                const docRef = doc(db, "Rooms", docId);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    roomData = docSnap.data();
+                } else {
+                    card.remove(); // إذا لم يعد المستند موجودًا، احذف البطاقة
+                    return;
+                }
+            }
 
             const now = new Date();
             const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
             const currentDay = days[now.getDay()];
             const currentTime = now.getHours() * 60 + now.getMinutes();
 
-            allRooms.forEach(room => {
-                const currentSchedule = allSchedules.find(schedule => {
-                    if (schedule.room !== room.name || schedule.day !== currentDay) {
-                        return false;
-                    }
-                    const timeParts = schedule.time.split('-');
-                    const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
-                    const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]);
-                    return currentTime >= startTime && currentTime < endTime;
-                });
-
-                const status = room.status || 'closed';
-                const statusClass = status === 'open' ? 'open' : 'closed';
-                const statusText = status === 'open' ? 'مفتوحة' : 'مغلقة';
-
-                let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
-                if (currentSchedule) {
-                    detailsHtml = `<div class="details"><p class="lecturer">${currentSchedule.lecturer}</p><p class="course">${currentSchedule.courseName}</p></div>`;
-                }
-
-                statusContainer.innerHTML += `<div class="room-card ${statusClass}"><div><h4>${room.name}</h4><p>${statusText}</p>${detailsHtml}</div><button class="btn btn-warning" onclick="toggleRoomStatus('${room.id}', '${status}')">تغيير الحالة</button></div>`;
+            const currentSchedule = allSchedulesData.find(schedule => {
+                if (schedule.room !== roomData.name || schedule.day !== currentDay) return false;
+                const timeParts = schedule.time.split('-');
+                const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
+                const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]);
+                return currentTime >= startTime && currentTime < endTime;
             });
+
+            const status = roomData.status || 'closed';
+            const statusText = status === 'open' ? 'مفتوحة' : 'مغلقة';
+            
+            card.className = `room-card ${status === 'open' ? 'open' : 'closed'}`;
+
+            let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
+            if (currentSchedule) {
+                detailsHtml = `<div class="details"><p class="lecturer">${currentSchedule.lecturer}</p><p class="course">${currentSchedule.courseName}</p></div>`;
+            }
+
+            // نقوم بتحديث محتوى البطاقة دون إعادة إنشائها بالكامل
+            card.innerHTML = `
+                <div>
+                    <h4>${roomData.name}</h4>
+                    <p>${statusText}</p>
+                    ${detailsHtml}
+                </div>
+                <button class="btn btn-warning" onclick="toggleRoomStatus('${docId}', '${status}')">تغيير الحالة</button>
+            `;
         }
+
+        // ==================================================================
+        // ############ نهاية منطقة الكود المعدل ############
+        // ==================================================================
 
         onSnapshot(collection(db, "Users"), (snap) => {
             const tbody = document.querySelector('#users-table tbody');
@@ -289,8 +338,6 @@
         window.downloadBarcodeAsPNG = (name, barcodeValue) => { if (!barcodeValue) { alert('لا يوجد رمز باركود لهذا المستخدم.'); return; } const canvas = document.createElement('canvas'); JsBarcode(canvas, barcodeValue, { format: "CODE128" }); const link = document.createElement('a'); link.download = `${name}_Barcode.png`; link.href = canvas.toDataURL("image/png"); link.click(); };
 
         showPage('dashboard');
-
-        setInterval(renderDashboard, 60000); 
     </script>
 </body>
 </html>
