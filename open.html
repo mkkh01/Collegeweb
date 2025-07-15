@@ -40,14 +40,11 @@
     </div>
 
     <script type="module">
-        // ===================================================================
-        // ==== هذا هو السطر الذي تم تصحيحه - تم إزالة 'or' من هنا ====
-        // ===================================================================
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
         import { getFirestore, collection, query, where, getDocs, doc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 
         const firebaseConfig = {
-            apiKey: "AIzaSyB...[Your-API-Key]",
+            apiKey: "AIzaSyB...[Your-API-Key]", // استبدل بمفتاحك
             authDomain: "cpld-a385c.firebaseapp.com",
             projectId: "cpld-a385c",
             storageBucket: "cpld-a385c.appspot.com",
@@ -68,14 +65,9 @@
             roomTitleElement.textContent = `القاعة: ${roomName}`;
             const roomDocRef = doc(db, "Rooms", roomName);
             getDoc(roomDocRef).then(docSnap => {
-                if (docSnap.exists()) {
-                    if (docSnap.data().status === 'open') {
-                        mainButton.textContent = 'إنهاء الجلسة وإغلاق القاعة';
-                        mainButton.classList.add('action-btn');
-                    } else {
-                        mainButton.textContent = 'فتح القاعة';
-                        mainButton.classList.remove('action-btn');
-                    }
+                if (docSnap.exists() && docSnap.data().status === 'open') {
+                    mainButton.textContent = 'إنهاء الجلسة وإغلاق القاعة';
+                    mainButton.classList.add('action-btn');
                 }
             });
         } else {
@@ -90,38 +82,29 @@
 
             try {
                 const usersRef = collection(db, "Users");
-                
-                // للأسف، Firestore v9 للويب لا تدعم استعلام OR مباشرة.
-                // سنقوم بإجراء استعلامين منفصلين. هذا هو الحل الأكثر موثوقية.
                 const q1 = query(usersRef, where("displayName", "==", usernameInput));
                 const q2 = query(usersRef, where("username", "==", usernameInput));
 
                 const [snapshot1, snapshot2] = await Promise.all([getDocs(q1), getDocs(q2)]);
-                
                 const allDocs = [...snapshot1.docs, ...snapshot2.docs];
-                
-                // إزالة أي مستندات مكررة إذا وجدها كلا الاستعلامين
                 const uniqueDocs = Array.from(new Map(allDocs.map(doc => [doc.id, doc])).values());
 
-                if (uniqueDocs.length === 0) {
-                    messageElement.textContent = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
-                    messageElement.className = 'error';
-                    return;
-                }
-
-                let userFound = false;
-                uniqueDocs.forEach(document => {
-                    const userData = document.data();
-                    if (userData.password === passwordInput) {
-                        userFound = true;
-                    }
+                // ===================================================================
+                // ==== هذا هو الجزء الذي تم إعادة كتابته بالكامل ====
+                // ===================================================================
+                const matchedUser = uniqueDocs.find(doc => {
+                    const userData = doc.data();
+                    const dbPassword = String(userData.password || '').trim();
+                    const inputPassword = String(passwordInput || '').trim();
+                    return dbPassword === inputPassword;
                 });
 
-                if (!userFound) {
+                if (!matchedUser) {
                     messageElement.textContent = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
                     messageElement.className = 'error';
                     return;
                 }
+                // ===================================================================
 
                 // إذا تم العثور على المستخدم وكلمة المرور صحيحة
                 const roomDocRef = doc(db, "Rooms", roomName);
@@ -147,7 +130,7 @@
                 }
 
             } catch (error) {
-                console.error("خطأ أثناء المصادقة: ", error);
+                console.error("خطأ فادح أثناء المصادقة: ", error);
                 messageElement.textContent = 'حدث خطأ في النظام.';
                 messageElement.className = 'error';
             }
