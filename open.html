@@ -17,126 +17,125 @@
         #message { margin-top: 20px; font-weight: 500; }
         .success { color: #28a745; }
         .error { color: #dc3545; }
+        .action-btn { background-color: #ffc107; color: #212529; margin-top: 10px; }
+        .action-btn:hover { background-color: #e0a800; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1 id="room-title"></h1>
-        <p>أدخل بياناتك للمصادقة وفتح القاعة.</p>
+        <p>أدخل بياناتك للمصادقة.</p>
         <form id="auth-form">
             <div class="form-group">
-                <label for="barcode">الباركود الخاص بك</label>
-                <input type="text" id="barcode" required>
+                <label for="username">اسم المستخدم الخاص بك</label>
+                <input type="text" id="username" required>
             </div>
             <div class="form-group">
                 <label for="password">كلمة المرور</label>
                 <input type="password" id="password" required>
             </div>
-            <button type="submit" class="btn">مصادقة وفتح</button>
+            <button type="submit" class="btn" id="main-action-btn">فتح القاعة</button>
         </form>
         <div id="message"></div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
-        import { getFirestore, collection, query, where, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
-        import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-database.js";
+        import { getFirestore, collection, query, where, getDocs, doc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyB...[Your-API-Key]",
             authDomain: "cpld-a385c.firebaseapp.com",
             projectId: "cpld-a385c",
             storageBucket: "cpld-a385c.appspot.com",
-            messagingSenderId: "...",
-            appId: "..."
+            messagingSenderId: "1083565336351",
+            appId: "1:1083565336351:web:55f0370425084803e7a3f7"
         };
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const rtdb = getDatabase(app);
 
         const urlParams = new URLSearchParams(window.location.search);
         const roomName = urlParams.get('room');
-        document.getElementById('room-title').textContent = `قاعة: ${roomName || 'غير محددة'}`;
+        const roomTitleElement = document.getElementById('room-title');
+        const mainButton = document.getElementById('main-action-btn');
+        const messageElement = document.getElementById('message');
+        let currentRoomStatus = '';
+
+        if (roomName) {
+            roomTitleElement.textContent = `القاعة: ${roomName}`;
+            const roomDocRef = doc(db, "Rooms", roomName);
+            getDoc(roomDocRef).then(docSnap => {
+                if (docSnap.exists()) {
+                    currentRoomStatus = docSnap.data().status;
+                    if (currentRoomStatus === 'open') {
+                        mainButton.textContent = 'إنهاء الجلسة وإغلاق القاعة';
+                        mainButton.classList.add('action-btn');
+                    } else {
+                        mainButton.textContent = 'فتح القاعة';
+                        mainButton.classList.remove('action-btn');
+                    }
+                }
+            });
+        } else {
+            roomTitleElement.textContent = 'خطأ: لم يتم تحديد قاعة';
+        }
 
         document.getElementById('auth-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const barcodeInput = document.getElementById('barcode').value;
+            const usernameInput = document.getElementById('username').value;
             const passwordInput = document.getElementById('password').value;
-            const messageElement = document.getElementById('message');
-
-            if (!roomName) {
-                messageElement.textContent = 'خطأ: اسم القاعة غير محدد في الرابط.';
-                messageElement.className = 'error';
-                return;
-            }
+            messageElement.textContent = '';
 
             try {
                 const usersRef = collection(db, "Users");
-                const q = query(usersRef, where("barcode", "==", barcodeInput));
+                const q = query(usersRef, where("displayName", "==", usernameInput));
                 const querySnapshot = await getDocs(q);
 
                 if (querySnapshot.empty) {
-                    messageElement.textContent = 'الباركود أو كلمة المرور غير صحيحة.';
+                    messageElement.textContent = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
                     messageElement.className = 'error';
                     return;
                 }
 
-                const userDoc = querySnapshot.docs[0];
-                const userData = userDoc.data();
+                let userFound = false;
+                let userDoc;
+                querySnapshot.forEach(document => {
+                    const userData = document.data();
+                    if (userData.password === passwordInput || userData.Password === passwordInput) {
+                        userFound = true;
+                        userDoc = { id: document.id, ...userData };
+                    }
+                });
 
-                if (userData.password !== passwordInput) {
-                    messageElement.textContent = 'الباركود أو كلمة المرور غير صحيحة.';
+                if (!userFound) {
+                    messageElement.textContent = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
                     messageElement.className = 'error';
                     return;
                 }
 
-                const userRole = userData.role.trim().toLowerCase();
-                let hasAccess = false;
+                // إذا كان المستخدم موجودًا وكلمة المرور صحيحة
+                const roomDocRef = doc(db, "Rooms", roomName);
+                const docSnap = await getDoc(roomDocRef);
+                if (!docSnap.exists()) {
+                     messageElement.textContent = 'خطأ: القاعة غير موجودة.';
+                     messageElement.className = 'error';
+                     return;
+                }
                 
-                if (userRole === 'admin' || userRole === 'مشرف' || userRole === 'عامل نظافة') {
-                    hasAccess = true;
-                } else if (userRole === 'عضو هيئة تدريس') {
-                    const schedulesRef = collection(db, "Schedules");
-                    const scheduleQuery = query(schedulesRef, 
-                        where("lecturer", "==", userData.displayName),
-                        where("room", "==", roomName)
-                    );
-                    const scheduleSnapshot = await getDocs(scheduleQuery);
+                const newStatus = docSnap.data().status === 'open' ? 'closed' : 'open';
+                await updateDoc(roomDocRef, { status: newStatus });
 
-                    if (!scheduleSnapshot.empty) {
-                        const now = new Date();
-                        const currentTime = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
-                        
-                        for (const scheduleDoc of scheduleSnapshot.docs) {
-                            const schedule = scheduleDoc.data();
-                            if (currentTime >= schedule.startTime && currentTime <= schedule.endTime) {
-                                hasAccess = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if (hasAccess) {
-                    messageElement.textContent = 'تمت المصادقة بنجاح! سيتم فتح الباب.';
-                    messageElement.className = 'success';
-                    
-                    const roomQuery = query(collection(db, "Rooms"), where("name", "==", roomName));
-                    const roomSnapshot = await getDocs(roomQuery);
-                    
-                    if (!roomSnapshot.empty) {
-                        const roomDocId = roomSnapshot.docs[0].id;
-                        const roomDocRef = doc(db, "Rooms", roomDocId);
-                        await updateDoc(roomDocRef, { status: 'open' });
-                        
-                        const rtdbRef = ref(rtdb, 'room_status/' + roomName);
-                        await set(rtdbRef, 'open');
-                    }
-
+                messageElement.textContent = `تمت المصادقة بنجاح! تم ${newStatus === 'open' ? 'فتح' : 'إغلاق'} القاعة.`;
+                messageElement.className = 'success';
+                
+                // تحديث حالة الزر
+                if (newStatus === 'open') {
+                    mainButton.textContent = 'إنهاء الجلسة وإغلاق القاعة';
+                    mainButton.classList.add('action-btn');
                 } else {
-                    messageElement.textContent = 'ليس لديك صلاحية لفتح هذه القاعة في هذا الوقت.';
-                    messageElement.className = 'error';
+                    mainButton.textContent = 'فتح القاعة';
+                    mainButton.classList.remove('action-btn');
                 }
 
             } catch (error) {
