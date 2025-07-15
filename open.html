@@ -40,65 +40,78 @@
     </div>
 
     <script type="module">
+        // استيراد الدوال اللازمة من Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
-        import { getFirestore, collection, query, where, getDocs, doc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+        import { getFirestore, collection, query, where, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 
-        // ===================================================================
-        // ==== تم تحديث معلومات الاتصال بالمعلومات الصحيحة التي قدمتها ====
-        // ===================================================================
+        // معلومات الاتصال بمشروع Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
             authDomain: "gggg-dc7d0.firebaseapp.com",
             projectId: "gggg-dc7d0",
-            storageBucket: "gggg-dc7d0.appspot.com", // تم استخدام .appspot.com للاتساق
+            storageBucket: "gggg-dc7d0.appspot.com",
             messagingSenderId: "151376454562",
             appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
         };
-        // ===================================================================
 
+        // تهيئة Firebase
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
+        // قراءة اسم القاعة من رابط الصفحة
         const urlParams = new URLSearchParams(window.location.search);
-        const roomName = urlParams.get('room');
+        const roomName = (urlParams.get('room') || '').trim();
+        
         const roomTitleElement = document.getElementById('room-title');
         const mainButton = document.getElementById('main-action-btn');
         const messageElement = document.getElementById('message');
         
         if (roomName) {
             roomTitleElement.textContent = `القاعة: ${roomName}`;
-            const roomDocRef = doc(db, "Rooms", roomName);
-            getDoc(roomDocRef).then(docSnap => {
-                if (docSnap.exists() && docSnap.data().status === 'open') {
-                    mainButton.textContent = 'إنهاء الجلسة وإغلاق القاعة';
-                    mainButton.classList.add('action-btn');
-                }
-            });
         } else {
             roomTitleElement.textContent = 'خطأ: لم يتم تحديد قاعة';
         }
 
+        /**
+         * @description تبحث عن مستند القاعة بناءً على قيمة حقل "name".
+         * @param {string} name - اسم القاعة للبحث عنه.
+         * @returns {DocumentSnapshot|null} - تُرجع مستند القاعة إذا تم العثور عليه، أو null.
+         */
+        async function findRoomByName(name) {
+            const roomsRef = collection(db, "Rooms");
+            // إنشاء استعلام للبحث عن مستند حيث حقل "name" يطابق الاسم المطلوب
+            const q = query(roomsRef, where("name", "==", name));
+            const querySnapshot = await getDocs(q);
+            
+            if (querySnapshot.empty) {
+                return null; // لم يتم العثور على أي قاعة بهذا الاسم
+            }
+            // إرجاع أول مستند مطابق يتم العثور عليه
+            return querySnapshot.docs[0];
+        }
+
+        // معالجة إرسال نموذج المصادقة
         document.getElementById('auth-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const usernameInput = document.getElementById('username').value;
+            const usernameInput = document.getElementById('username').value.trim();
             const passwordInput = document.getElementById('password').value;
             messageElement.textContent = '';
 
+            if (!roomName) {
+                messageElement.textContent = 'خطأ: لا يمكن المصادقة بدون تحديد قاعة.';
+                messageElement.className = 'error';
+                return;
+            }
+
             try {
+                // 1. التحقق من بيانات المستخدم (هذا الجزء يعمل بشكل صحيح)
                 const usersRef = collection(db, "Users");
                 const q1 = query(usersRef, where("displayName", "==", usernameInput));
                 const q2 = query(usersRef, where("username", "==", usernameInput));
-
                 const [snapshot1, snapshot2] = await Promise.all([getDocs(q1), getDocs(q2)]);
                 const allDocs = [...snapshot1.docs, ...snapshot2.docs];
                 const uniqueDocs = Array.from(new Map(allDocs.map(doc => [doc.id, doc])).values());
-
-                const matchedUser = uniqueDocs.find(doc => {
-                    const userData = doc.data();
-                    const dbPassword = String(userData.password || '').trim();
-                    const inputPassword = String(passwordInput || '').trim();
-                    return dbPassword === inputPassword;
-                });
+                const matchedUser = uniqueDocs.find(doc => (doc.data().password || '').trim() === passwordInput);
 
                 if (!matchedUser) {
                     messageElement.textContent = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
@@ -106,20 +119,25 @@
                     return;
                 }
 
-                const roomDocRef = doc(db, "Rooms", roomName);
-                const docSnap = await getDoc(roomDocRef);
-                if (!docSnap.exists()) {
-                     messageElement.textContent = 'خطأ: القاعة غير موجودة.';
+                // 2. البحث عن القاعة بالطريقة الصحيحة
+                const roomDoc = await findRoomByName(roomName);
+
+                if (!roomDoc) {
+                     messageElement.textContent = `خطأ: القاعة "${roomName}" غير موجودة.`;
                      messageElement.className = 'error';
                      return;
                 }
                 
-                const newStatus = docSnap.data().status === 'open' ? 'closed' : 'open';
+                // 3. تحديث حالة القاعة
+                const roomDocRef = doc(db, "Rooms", roomDoc.id); // استخدام المعرف الحقيقي للمستند
+                const currentStatus = roomDoc.data().status;
+                const newStatus = currentStatus === 'open' ? 'closed' : 'open';
                 await updateDoc(roomDocRef, { status: newStatus });
 
                 messageElement.textContent = `تمت المصادقة بنجاح! تم ${newStatus === 'open' ? 'فتح' : 'إغلاق'} القاعة.`;
                 messageElement.className = 'success';
                 
+                // تحديث نص الزر بناءً على الحالة الجديدة
                 if (newStatus === 'open') {
                     mainButton.textContent = 'إنهاء الجلسة وإغلاق القاعة';
                     mainButton.classList.add('action-btn');
@@ -129,8 +147,8 @@
                 }
 
             } catch (error) {
-                console.error("خطأ فادح أثناء المصادقة: ", error);
-                messageElement.textContent = 'حدث خطأ في النظام.';
+                console.error("خطأ فادح: ", error);
+                messageElement.textContent = 'حدث خطأ في النظام. يرجى مراجعة الـ console.';
                 messageElement.className = 'error';
             }
         });
