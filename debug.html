@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>صفحة التشخيص</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        #results { border: 1px solid #ccc; padding: 10px; margin-top: 20px; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>صفحة تشخيص الاتصال بـ Firestore</h1>
+    <p>أدخل اسم مستخدم واضغط على "بحث" لرؤية البيانات التي يتم جلبها من قاعدة البيانات.</p>
+    
+    <input type="text" id="usernameInput" placeholder="أدخل اسم المستخدم هنا">
+    <button id="searchButton">بحث</button>
+
+    <h2>النتائج:</h2>
+    <div id="results">...في انتظار البحث...</div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
+        import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB...[Your-API-Key]", // استبدل بمفتاحك
+            authDomain: "cpld-a385c.firebaseapp.com",
+            projectId: "cpld-a385c",
+            storageBucket: "cpld-a385c.appspot.com",
+            messagingSenderId: "1083565336351",
+            appId: "1:1083565336351:web:55f0370425084803e7a3f7"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const resultsDiv = document.getElementById('results');
+
+        document.getElementById('searchButton').addEventListener('click', async () => {
+            const username = document.getElementById('usernameInput').value;
+            if (!username) {
+                resultsDiv.textContent = "الرجاء إدخال اسم مستخدم.";
+                return;
+            }
+
+            resultsDiv.textContent = `جاري البحث عن المستخدم: "${username}"...`;
+
+            try {
+                const usersRef = collection(db, "Users");
+                const q1 = query(usersRef, where("displayName", "==", username));
+                const q2 = query(usersRef, where("username", "==", username));
+
+                const [snapshot1, snapshot2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+                
+                const allDocs = [...snapshot1.docs, ...snapshot2.docs];
+                const uniqueDocs = Array.from(new Map(allDocs.map(doc => [doc.id, doc])).values());
+
+                if (uniqueDocs.length === 0) {
+                    resultsDiv.textContent = "لم يتم العثور على أي مستخدم بهذا الاسم.\n\nتأكد من أن قواعد الأمان تسمح بالقراءة.";
+                } else {
+                    let output = `تم العثور على ${uniqueDocs.length} مستخدم:\n\n`;
+                    uniqueDocs.forEach(doc => {
+                        output += `--- مستند رقم: ${doc.id} ---\n`;
+                        output += JSON.stringify(doc.data(), null, 2);
+                        output += `\n\n`;
+                    });
+                    resultsDiv.textContent = output;
+                }
+
+            } catch (error) {
+                resultsDiv.textContent = "حدث خطأ فادح أثناء الاتصال بقاعدة البيانات!\n\n";
+                resultsDiv.textContent += `رسالة الخطأ: ${error.message}\n\n`;
+                resultsDiv.textContent += `تفاصيل الخطأ: ${JSON.stringify(error, null, 2)}`;
+            }
+        });
+    </script>
+</body>
+</html>
