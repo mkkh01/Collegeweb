@@ -41,7 +41,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
-        import { getFirestore, collection, query, where, getDocs, doc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+        import { getFirestore, collection, query, where, getDocs, doc, updateDoc, getDoc, or } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyB...[Your-API-Key]",
@@ -60,15 +60,13 @@
         const roomTitleElement = document.getElementById('room-title');
         const mainButton = document.getElementById('main-action-btn');
         const messageElement = document.getElementById('message');
-        let currentRoomStatus = '';
-
+        
         if (roomName) {
             roomTitleElement.textContent = `القاعة: ${roomName}`;
             const roomDocRef = doc(db, "Rooms", roomName);
             getDoc(roomDocRef).then(docSnap => {
                 if (docSnap.exists()) {
-                    currentRoomStatus = docSnap.data().status;
-                    if (currentRoomStatus === 'open') {
+                    if (docSnap.data().status === 'open') {
                         mainButton.textContent = 'إنهاء الجلسة وإغلاق القاعة';
                         mainButton.classList.add('action-btn');
                     } else {
@@ -90,11 +88,14 @@
             try {
                 const usersRef = collection(db, "Users");
                 
-                // ===============================================================
-                // ==== هذا هو السطر الذي تم تصحيحه ليتطابق مع قاعدة بياناتك ====
-                // ===============================================================
-                const q = query(usersRef, where("displayName", "==", usernameInput));
-                // ===============================================================
+                // ===================================================================
+                // ==== هذا هو السطر الذي تم تعديله ليبحث في كلا الحقلين ====
+                // ===================================================================
+                const q = query(usersRef, or(
+                    where("displayName", "==", usernameInput),
+                    where("username", "==", usernameInput)
+                ));
+                // ===================================================================
 
                 const querySnapshot = await getDocs(q);
 
@@ -105,12 +106,10 @@
                 }
 
                 let userFound = false;
-                let userDoc;
                 querySnapshot.forEach(document => {
                     const userData = document.data();
                     if (userData.password === passwordInput) {
                         userFound = true;
-                        userDoc = { id: document.id, ...userData };
                     }
                 });
 
@@ -144,7 +143,11 @@
 
             } catch (error) {
                 console.error("خطأ أثناء المصادقة: ", error);
-                messageElement.textContent = 'حدث خطأ في النظام.';
+                if (error.code === 'failed-precondition') {
+                    messageElement.textContent = 'خطأ في قاعدة البيانات: يجب إنشاء فهرس. يرجى مراجعة وحدة تحكم Firebase.';
+                } else {
+                    messageElement.textContent = 'حدث خطأ في النظام.';
+                }
                 messageElement.className = 'error';
             }
         });
