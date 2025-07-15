@@ -14,7 +14,7 @@
         .form-group input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
         .btn { width: 100%; padding: 12px; background-color: #28a745; border: none; border-radius: 5px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; transition: background-color 0.3s; }
         .btn:hover { background-color: #218838; }
-        #message { margin-top: 20px; font-weight: 500; }
+        #message { margin-top: 20px; font-weight: 500; min-height: 20px; }
         .success { color: #28a745; }
         .error { color: #dc3545; }
         .action-btn { background-color: #ffc107; color: #212529; margin-top: 10px; }
@@ -40,8 +40,11 @@
     </div>
 
     <script type="module">
+        // ===================================================================
+        // ==== هذا هو السطر الذي تم تصحيحه - تم إزالة 'or' من هنا ====
+        // ===================================================================
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
-        import { getFirestore, collection, query, where, getDocs, doc, updateDoc, getDoc, or } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+        import { getFirestore, collection, query, where, getDocs, doc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyB...[Your-API-Key]",
@@ -88,25 +91,26 @@
             try {
                 const usersRef = collection(db, "Users");
                 
-                // ===================================================================
-                // ==== هذا هو السطر الذي تم تعديله ليبحث في كلا الحقلين ====
-                // ===================================================================
-                const q = query(usersRef, or(
-                    where("displayName", "==", usernameInput),
-                    where("username", "==", usernameInput)
-                ));
-                // ===================================================================
+                // للأسف، Firestore v9 للويب لا تدعم استعلام OR مباشرة.
+                // سنقوم بإجراء استعلامين منفصلين. هذا هو الحل الأكثر موثوقية.
+                const q1 = query(usersRef, where("displayName", "==", usernameInput));
+                const q2 = query(usersRef, where("username", "==", usernameInput));
 
-                const querySnapshot = await getDocs(q);
+                const [snapshot1, snapshot2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+                
+                const allDocs = [...snapshot1.docs, ...snapshot2.docs];
+                
+                // إزالة أي مستندات مكررة إذا وجدها كلا الاستعلامين
+                const uniqueDocs = Array.from(new Map(allDocs.map(doc => [doc.id, doc])).values());
 
-                if (querySnapshot.empty) {
+                if (uniqueDocs.length === 0) {
                     messageElement.textContent = 'اسم المستخدم أو كلمة المرور غير صحيحة.';
                     messageElement.className = 'error';
                     return;
                 }
 
                 let userFound = false;
-                querySnapshot.forEach(document => {
+                uniqueDocs.forEach(document => {
                     const userData = document.data();
                     if (userData.password === passwordInput) {
                         userFound = true;
@@ -119,6 +123,7 @@
                     return;
                 }
 
+                // إذا تم العثور على المستخدم وكلمة المرور صحيحة
                 const roomDocRef = doc(db, "Rooms", roomName);
                 const docSnap = await getDoc(roomDocRef);
                 if (!docSnap.exists()) {
@@ -143,11 +148,7 @@
 
             } catch (error) {
                 console.error("خطأ أثناء المصادقة: ", error);
-                if (error.code === 'failed-precondition') {
-                    messageElement.textContent = 'خطأ في قاعدة البيانات: يجب إنشاء فهرس. يرجى مراجعة وحدة تحكم Firebase.';
-                } else {
-                    messageElement.textContent = 'حدث خطأ في النظام.';
-                }
+                messageElement.textContent = 'حدث خطأ في النظام.';
                 messageElement.className = 'error';
             }
         });
