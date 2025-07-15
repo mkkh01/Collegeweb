@@ -89,7 +89,13 @@
 
             try {
                 const usersRef = collection(db, "Users");
+                
+                // ===============================================================
+                // ==== هذا هو السطر الذي تم تصحيحه ليتطابق مع قاعدة بياناتك ====
+                // ===============================================================
                 const q = query(usersRef, where("displayName", "==", usernameInput));
+                // ===============================================================
+
                 const querySnapshot = await getDocs(q);
 
                 if (querySnapshot.empty) {
@@ -102,7 +108,8 @@
                 let userDoc;
                 querySnapshot.forEach(document => {
                     const userData = document.data();
-                    if (userData.password === passwordInput || userData.Password === passwordInput) {
+                    // تم التأكد من أن حقل كلمة المرور هو password (حروف صغيرة)
+                    if (userData.password === passwordInput) {
                         userFound = true;
                         userDoc = { id: document.id, ...userData };
                     }
@@ -114,7 +121,6 @@
                     return;
                 }
 
-                // إذا كان المستخدم موجودًا وكلمة المرور صحيحة
                 const roomDocRef = doc(db, "Rooms", roomName);
                 const docSnap = await getDoc(roomDocRef);
                 if (!docSnap.exists()) {
@@ -129,7 +135,6 @@
                 messageElement.textContent = `تمت المصادقة بنجاح! تم ${newStatus === 'open' ? 'فتح' : 'إغلاق'} القاعة.`;
                 messageElement.className = 'success';
                 
-                // تحديث حالة الزر
                 if (newStatus === 'open') {
                     mainButton.textContent = 'إنهاء الجلسة وإغلاق القاعة';
                     mainButton.classList.add('action-btn');
