@@ -43,14 +43,18 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
         import { getFirestore, collection, query, where, getDocs, doc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 
+        // ===================================================================
+        // ==== تم تحديث معلومات الاتصال بالمعلومات الصحيحة التي قدمتها ====
+        // ===================================================================
         const firebaseConfig = {
-            apiKey: "AIzaSyB...[Your-API-Key]", // استبدل بمفتاحك
-            authDomain: "cpld-a385c.firebaseapp.com",
-            projectId: "cpld-a385c",
-            storageBucket: "cpld-a385c.appspot.com",
-            messagingSenderId: "1083565336351",
-            appId: "1:1083565336351:web:55f0370425084803e7a3f7"
+            apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
+            authDomain: "gggg-dc7d0.firebaseapp.com",
+            projectId: "gggg-dc7d0",
+            storageBucket: "gggg-dc7d0.appspot.com", // تم استخدام .appspot.com للاتساق
+            messagingSenderId: "151376454562",
+            appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
         };
+        // ===================================================================
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
@@ -89,9 +93,6 @@
                 const allDocs = [...snapshot1.docs, ...snapshot2.docs];
                 const uniqueDocs = Array.from(new Map(allDocs.map(doc => [doc.id, doc])).values());
 
-                // ===================================================================
-                // ==== هذا هو الجزء الذي تم إعادة كتابته بالكامل ====
-                // ===================================================================
                 const matchedUser = uniqueDocs.find(doc => {
                     const userData = doc.data();
                     const dbPassword = String(userData.password || '').trim();
@@ -104,9 +105,7 @@
                     messageElement.className = 'error';
                     return;
                 }
-                // ===================================================================
 
-                // إذا تم العثور على المستخدم وكلمة المرور صحيحة
                 const roomDocRef = doc(db, "Rooms", roomName);
                 const docSnap = await getDoc(roomDocRef);
                 if (!docSnap.exists()) {
