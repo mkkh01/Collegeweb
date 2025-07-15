@@ -108,7 +108,6 @@
                 let userDoc;
                 querySnapshot.forEach(document => {
                     const userData = document.data();
-                    // تم التأكد من أن حقل كلمة المرور هو password (حروف صغيرة)
                     if (userData.password === passwordInput) {
                         userFound = true;
                         userDoc = { id: document.id, ...userData };
