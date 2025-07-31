@@ -115,17 +115,32 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        // ## تعديل 1: استيراد دوال Realtime Database ##
+        import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-        const db = getFirestore(initializeApp({
+        const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
             authDomain: "gggg-dc7d0.firebaseapp.com",
             projectId: "gggg-dc7d0",
             storageBucket: "gggg-dc7d0.appspot.com",
             messagingSenderId: "151376454562",
             appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
-        }));
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        // ## تعديل 2: تهيئة Realtime Database ##
+        const rtdb = getDatabase(app);
 
         const SITE_URL = "https://cpld.netlify.app";
+
+        // ## تعديل 3: إضافة دالة مساعدة لتحديث Realtime Database ##
+        function updateRealtimeDBStatus(roomName, newStatus) {
+            const lockRef = ref(rtdb, 'locks/Room' + roomName);
+            set(lockRef, newStatus)
+                .then(() => console.log(`Realtime DB updated for Room${roomName} to ${newStatus}`))
+                .catch((error) => console.error("Error updating Realtime DB: ", error));
+        }
 
         window.showPage = (pageId) => {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -146,7 +161,7 @@
         const confirmDelete = (item) => confirm(`هل أنت متأكد من حذف هذا ${item}؟`);
 
         document.getElementById('user-form').addEventListener('submit', async (e) => { e.preventDefault(); const id = document.getElementById('userId').value; const password = document.getElementById('password').value; const data = { displayName: document.getElementById('displayName').value, username: document.getElementById('username').value, role: document.getElementById('role').value, barcodeId: document.getElementById('barcodeId').value, rfid: document.getElementById('rfid').value, }; if (id) { if (password) { data.password = password; } await updateDoc(doc(db, "Users", id), data); } else { if (!password) { alert('كلمة المرور مطلوبة للمستخدم الجديد.'); return; } data.password = password; await addDoc(collection(db, "Users"), data); } closeModal('user-modal'); });
-        document.getElementById('room-form').addEventListener('submit', async (e) => { e.preventDefault(); const id = document.getElementById('roomId').value; const roomName = document.getElementById('roomName').value; const data = { name: roomName, capacity: parseInt(document.getElementById('roomCapacity').value), qrUrl: `${SITE_URL}/open.html?room=${encodeURIComponent(roomName)}` }; if (id) await updateDoc(doc(db, "Rooms", id), data); else { data.status = 'closed'; await addDoc(collection(db, "Rooms"), data); } closeModal('room-modal'); });
+        document.getElementById('room-form').addEventListener('submit', async (e) => { e.preventDefault(); const id = document.getElementById('roomId').value; const roomName = document.getElementById('roomName').value; const data = { name: roomName, capacity: parseInt(document.getElementById('roomCapacity').value), qrUrl: `${SITE_URL}/open.html?room=${encodeURIComponent(roomName)}` }; if (id) { await updateDoc(doc(db, "Rooms", id), data); } else { data.status = 'closed'; await addDoc(collection(db, "Rooms"), data); updateRealtimeDBStatus(roomName, 'closed'); } closeModal('room-modal'); });
         
         document.getElementById('schedule-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -166,21 +181,14 @@
             closeModal('schedule-modal');
         });
 
-        // ==================================================================
-        // ############ الكود الذي تم تعديله وإصلاحه هنا ############
-        // ==================================================================
+        let allSchedulesData = []; 
 
-        let allSchedulesData = []; // لتخزين بيانات الجداول
-
-        // 1. نستمع للجداول أولاً ونخزن بياناتها
         onSnapshot(collection(db, "Schedules"), (snap) => {
             allSchedulesData = snap.docs.map(doc => doc.data());
-            // نعيد رسم لوحة الإعلانات كلما تغير جدول
             document.querySelectorAll('.room-card').forEach(card => {
                 updateDashboardCard(card.id);
             });
 
-            // تحديث جدول الجداول في صفحة إدارة الجداول
             const tbody = document.querySelector('#schedules-table tbody');
             tbody.innerHTML = '';
             snap.forEach(d => {
@@ -189,28 +197,23 @@
             });
         });
 
-        // 2. نستمع للقاعات، ونتعامل مع كل تغيير بذكاء
         onSnapshot(collection(db, "Rooms"), (snapshot) => {
             snapshot.docChanges().forEach((change) => {
                 const docId = change.doc.id;
                 const roomData = change.doc.data();
 
                 if (change.type === "added") {
-                    // إذا تمت إضافة قاعة جديدة، نرسم لها بطاقة جديدة
                     createDashboardCard(docId, roomData);
                 }
                 if (change.type === "modified") {
-                    // إذا تم تعديل قاعة، نحدث بطاقتها الموجودة
                     updateDashboardCard(docId, roomData);
                 }
                 if (change.type === "removed") {
-                    // إذا تم حذف قاعة، نزيل بطاقتها
                     const card = document.getElementById(docId);
                     if (card) card.remove();
                 }
             });
 
-            // تحديث جدول القاعات في صفحة إدارة القاعات (هذا الجزء لم يتغير)
             const roomsTableTbody = document.querySelector('#rooms-table tbody');
             roomsTableTbody.innerHTML = '';
             snapshot.forEach(d => {
@@ -220,28 +223,25 @@
             });
         });
 
-        // 3. دالة لإنشاء بطاقة جديدة في لوحة الإعلانات
         function createDashboardCard(docId, roomData) {
             const statusContainer = document.getElementById('room-status-container');
             const card = document.createElement('div');
-            card.id = docId; // نعطي البطاقة ID فريد
+            card.id = docId; 
             statusContainer.appendChild(card);
-            updateDashboardCard(docId, roomData); // نستخدم دالة التحديث لملء البيانات
+            updateDashboardCard(docId, roomData); 
         }
 
-        // 4. دالة لتحديث بطاقة موجودة (هذه هي الدالة الأساسية التي تصلح المشكلة)
         async function updateDashboardCard(docId, roomData) {
             const card = document.getElementById(docId);
-            if (!card) return; // إذا لم تكن البطاقة موجودة، لا تفعل شيئًا
+            if (!card) return; 
 
-            // إذا لم تصلنا بيانات جديدة، نحضرها من قاعدة البيانات
             if (!roomData) {
                 const docRef = doc(db, "Rooms", docId);
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                     roomData = docSnap.data();
                 } else {
-                    card.remove(); // إذا لم يعد المستند موجودًا، احذف البطاقة
+                    card.remove(); 
                     return;
                 }
             }
@@ -269,7 +269,6 @@
                 detailsHtml = `<div class="details"><p class="lecturer">${currentSchedule.lecturer}</p><p class="course">${currentSchedule.courseName}</p></div>`;
             }
 
-            // نقوم بتحديث محتوى البطاقة دون إعادة إنشائها بالكامل
             card.innerHTML = `
                 <div>
                     <h4>${roomData.name}</h4>
@@ -279,10 +278,6 @@
                 <button class="btn btn-warning" onclick="toggleRoomStatus('${docId}', '${status}')">تغيير الحالة</button>
             `;
         }
-
-        // ==================================================================
-        // ############ نهاية منطقة الكود المعدل ############
-        // ==================================================================
 
         onSnapshot(collection(db, "Users"), (snap) => {
             const tbody = document.querySelector('#users-table tbody');
@@ -296,7 +291,16 @@
 
         function generateQRCode(text) { if (!text) return ''; const typeNumber = 4; const errorCorrectionLevel = 'L'; const qr = qrcode(typeNumber, errorCorrectionLevel); qr.addData(text); qr.make(); return qr.createDataURL(4); }
         async function populateSelects() { const usersSnap = await getDocs(collection(db, "Users")); const roomsSnap = await getDocs(collection(db, "Rooms")); const lecturerSelect = document.getElementById('lecturer'); const roomSelect = document.getElementById('scheduleRoom'); lecturerSelect.innerHTML = '<option value="">اختر محاضر</option>'; roomSelect.innerHTML = '<option value="">اختر قاعة</option>'; usersSnap.forEach(d => { const user = d.data(); if (user.role && user.role.trim() === "عضو هيئة تدريس") { lecturerSelect.innerHTML += `<option value="${user.displayName}">${user.displayName}</option>`; } }); roomsSnap.forEach(d => { const room = d.data(); roomSelect.innerHTML += `<option value="${room.name}">${room.name}</option>`; }); }
-        window.toggleRoomStatus = async (id, currentStatus) => { await updateDoc(doc(db, "Rooms", id), { status: currentStatus === 'open' ? 'closed' : 'open' }); };
+        
+        window.toggleRoomStatus = async (id, currentStatus) => {
+            const newStatus = currentStatus === 'open' ? 'closed' : 'open';
+            await updateDoc(doc(db, "Rooms", id), { status: newStatus });
+            
+            // ## تعديل 4: استدعاء دالة التحديث لـ Realtime Database ##
+            const roomDoc = await getDoc(doc(db, "Rooms", id));
+            const roomName = roomDoc.data().name;
+            updateRealtimeDBStatus(roomName, newStatus);
+        };
         
         window.editItem = async (collectionName, id, type) => {
             openModal(`${type}-modal`); 
