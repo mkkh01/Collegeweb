@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>إدارة القاعة</title>
     <style>
-        :root { --success-color: #28a745; --danger-color: #dc3545; --primary-color: #007bff; }
+        :root { --success-color: #28a745; --danger-color: #dc3545; --primary-color: #007bff; --secondary-color: #6c757d; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .container { background: #ffffff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); width: 100%; max-width: 450px; text-align: center; transition: all 0.3s ease; }
         h1 { color: #333; margin-bottom: 10px; }
@@ -13,11 +13,13 @@
         .form-group { margin-bottom: 20px; text-align: right; }
         .form-group label { display: block; margin-bottom: 8px; color: #555; font-weight: 600; }
         .form-group input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
-        .btn { width: 100%; padding: 12px; border: none; border-radius: 5px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; transition: background-color 0.3s; }
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 5px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; transition: background-color 0.3s; margin-top: 10px; }
         .btn-open { background-color: var(--success-color); }
         .btn-open:hover { background-color: #218838; }
         .btn-close { background-color: var(--danger-color); }
         .btn-close:hover { background-color: #c82333; }
+        .btn-logout { background-color: var(--secondary-color); }
+        .btn-logout:hover { background-color: #5a6268; }
         #message { margin-top: 20px; font-weight: 500; min-height: 20px; }
         .success { color: var(--success-color); }
         .error { color: var(--danger-color); }
@@ -31,9 +33,9 @@
     <div class="container">
         <h1 id="room-title"></h1>
         
-        <!-- قسم المصادقة (يظهر عندما تكون القاعة مغلقة) -->
+        <!-- 1. قسم المصادقة (الحالة الأولية) -->
         <div id="auth-section">
-            <p>القاعة مغلقة حاليًا. أدخل بياناتك لفتحها.</p>
+            <p>أدخل بياناتك للمصادقة وفتح القاعة.</p>
             <form id="auth-form">
                 <div class="form-group">
                     <label for="username">اسم المستخدم</label>
@@ -43,15 +45,23 @@
                     <label for="password">كلمة المرور</label>
                     <input type="password" id="password" required>
                 </div>
-                <button type="submit" class="btn btn-open">مصادقة وفتح القاعة</button>
+                <button type="submit" class="btn btn-open">مصادقة وفتح</button>
             </form>
         </div>
 
-        <!-- قسم التحكم (يظهر عندما تكون القاعة مفتوحة) -->
+        <!-- 2. قسم التحكم (عندما تكون القاعة مفتوحة) -->
         <div id="control-section" class="hidden">
-            <div id="status-indicator" class="status-display"></div>
-            <p>يمكنك الآن إنهاء الجلسة وإغلاق القاعة.</p>
+            <div id="status-indicator-open" class="status-display status-open">حالة القاعة: مفتوحة</div>
+            <p>أنت تدير هذه الجلسة حاليًا.</p>
             <button id="close-room-btn" class="btn btn-close">إنهاء الجلسة وإغلاق القاعة</button>
+        </div>
+
+        <!-- 3. قسم الخيارات (بعد إغلاق القاعة) -->
+        <div id="post-close-section" class="hidden">
+            <div id="status-indicator-closed" class="status-display status-closed">تم إغلاق القاعة بنجاح</div>
+            <p>ماذا تريد أن تفعل الآن؟</p>
+            <button id="reopen-room-btn" class="btn btn-open">إعادة فتح القاعة</button>
+            <button id="logout-btn" class="btn btn-logout">تسجيل الخروج</button>
         </div>
 
         <div id="message"></div>
@@ -82,69 +92,70 @@
         const messageElement = document.getElementById('message');
         const authSection = document.getElementById('auth-section');
         const controlSection = document.getElementById('control-section');
-        const statusIndicator = document.getElementById('status-indicator');
-        const authForm = document.getElementById('auth-form');
-        const closeRoomBtn = document.getElementById('close-room-btn');
-
-        let roomDocRef = null; // سيتم تخزين مرجع مستند القاعة هنا
+        const postCloseSection = document.getElementById('post-close-section');
+        
+        let roomDocRef = null;
+        let isAuthenticated = false; // لتتبع حالة المصادقة
 
         function updateRealtimeDBStatus(rName, newStatus) {
             const lockRef = ref(rtdb, 'locks/Room' + rName);
             set(lockRef, newStatus);
         }
 
-        // دالة لتحديث واجهة المستخدم بناءً على حالة القاعة
-        function updateUI(status) {
-            if (status === 'open') {
-                authSection.classList.add('hidden');
-                controlSection.classList.remove('hidden');
-                statusIndicator.textContent = `حالة القاعة: مفتوحة`;
-                statusIndicator.className = 'status-display status-open';
-            } else { // 'closed' or any other status
-                authSection.classList.remove('hidden');
-                controlSection.classList.add('hidden');
-                // إعادة تعيين نموذج المصادقة عند الإغلاق
-                authForm.reset();
-            }
+        function showSection(sectionToShow) {
+            [authSection, controlSection, postCloseSection].forEach(section => {
+                section.classList.add('hidden');
+            });
+            sectionToShow.classList.remove('hidden');
             messageElement.textContent = '';
         }
 
-        // التحقق من اسم القاعة والبدء في الاستماع للتغييرات
+        async function setRoomStatus(newStatus) {
+            if (!roomDocRef) return;
+            messageElement.textContent = `جاري ${newStatus === 'open' ? 'فتح' : 'إغلاق'} القاعة...`;
+            try {
+                await updateDoc(roomDocRef, { status: newStatus });
+                updateRealtimeDBStatus(roomName, newStatus);
+            } catch (error) {
+                messageElement.textContent = 'فشلت العملية. حاول مرة أخرى.';
+                messageElement.className = 'error';
+            }
+        }
+
         if (!roomName) {
             roomTitleElement.textContent = 'خطأ: لم يتم تحديد قاعة';
-            authSection.classList.add('hidden');
+            showSection(authSection);
+            authSection.innerHTML = '<p class="error">رابط غير صالح. يرجى مسح رمز QR صحيح.</p>';
         } else {
             roomTitleElement.textContent = `إدارة القاعة: ${roomName}`;
-            const roomsRef = collection(db, "Rooms");
-            const q = query(roomsRef, where("name", "==", roomName));
+            const q = query(collection(db, "Rooms"), where("name", "==", roomName));
             
             getDocs(q).then(snapshot => {
                 if (snapshot.empty) {
-                    messageElement.textContent = `خطأ: القاعة "${roomName}" غير موجودة.`;
-                    messageElement.className = 'error';
-                    authSection.classList.add('hidden');
+                    showSection(authSection);
+                    authSection.innerHTML = `<p class="error">القاعة "${roomName}" غير موجودة.</p>`;
                     return;
                 }
                 
-                const roomDoc = snapshot.docs[0];
-                roomDocRef = doc(db, "Rooms", roomDoc.id);
-
-                // استخدام onSnapshot للاستماع للتغييرات الحية في حالة القاعة
+                roomDocRef = doc(db, "Rooms", snapshot.docs[0].id);
                 onSnapshot(roomDocRef, (docSnap) => {
                     if (docSnap.exists()) {
                         const roomData = docSnap.data();
-                        updateUI(roomData.status);
+                        if (isAuthenticated) {
+                            if (roomData.status === 'open') {
+                                showSection(controlSection);
+                            } else {
+                                showSection(postCloseSection);
+                            }
+                        } else {
+                            showSection(authSection);
+                        }
                     }
                 });
-            }).catch(error => {
-                console.error("Error getting room document:", error);
-                messageElement.textContent = 'خطأ في الاتصال بقاعدة البيانات.';
-                messageElement.className = 'error';
             });
         }
 
-        // معالجة نموذج المصادقة والفتح
-        authForm.addEventListener('submit', async (e) => {
+        document.getElementById('auth-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const usernameInput = document.getElementById('username').value.trim();
             const passwordInput = document.getElementById('password').value;
@@ -152,48 +163,35 @@
             messageElement.className = '';
 
             try {
-                const usersRef = collection(db, "Users");
-                const userQuery = query(usersRef, where("username", "==", usernameInput));
+                const userQuery = query(collection(db, "Users"), where("username", "==", usernameInput));
                 const userSnapshot = await getDocs(userQuery);
 
-                if (userSnapshot.empty) {
+                if (userSnapshot.empty || userSnapshot.docs[0].data().password !== passwordInput) {
                     throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة.');
                 }
-
+                
                 const userData = userSnapshot.docs[0].data();
-                if (userData.password !== passwordInput) {
-                    throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة.');
-                }
-
                 const allowedRoles = ['admin', 'عضو هيئة تدريس', 'مشرف'];
-                if (!userData.role || !allowedRoles.includes(userData.role.trim())) {
-                    throw new Error('ليس لديك الصلاحية لفتح هذه القاعة.');
+                if (!allowedRoles.includes(userData.role?.trim())) {
+                    throw new Error('ليس لديك الصلاحية لإدارة القاعات.');
                 }
 
-                // تحديث الحالة إلى "open"
-                await updateDoc(roomDocRef, { status: 'open' });
-                updateRealtimeDBStatus(roomName, 'open');
-                // سيقوم onSnapshot بتحديث الواجهة تلقائيًا
+                isAuthenticated = true;
+                await setRoomStatus('open');
 
             } catch (error) {
                 messageElement.textContent = error.message;
                 messageElement.className = 'error';
+                isAuthenticated = false;
             }
         });
 
-        // معالجة زر الإغلاق
-        closeRoomBtn.addEventListener('click', async () => {
-            messageElement.textContent = 'جاري إغلاق القاعة...';
-            messageElement.className = '';
-            try {
-                // تحديث الحالة إلى "closed"
-                await updateDoc(roomDocRef, { status: 'closed' });
-                updateRealtimeDBStatus(roomName, 'closed');
-                // سيقوم onSnapshot بتحديث الواجهة تلقائيًا
-            } catch (error) {
-                messageElement.textContent = 'فشل إغلاق القاعة. حاول مرة أخرى.';
-                messageElement.className = 'error';
-            }
+        document.getElementById('close-room-btn').addEventListener('click', () => setRoomStatus('closed'));
+        document.getElementById('reopen-room-btn').addEventListener('click', () => setRoomStatus('open'));
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            isAuthenticated = false;
+            document.getElementById('auth-form').reset();
+            showSection(authSection);
         });
     </script>
 </body>
