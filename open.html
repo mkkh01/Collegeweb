@@ -150,12 +150,11 @@
                     throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة.');
                 }
                 
-                const userData = userSnapshot.docs[0].data();
-                const allowedRoles = ['admin', 'عضو هيئة تدريس', 'مشرف'];
-                if (!allowedRoles.includes(userData.role?.trim())) {
-                    throw new Error('ليس لديك الصلاحية لإدارة القاعات.');
-                }
+                // --- بداية التعديل ---
+                // تم حذف التحقق من صلاحية الدور للسماح لجميع المستخدمين بالوصول
+                // --- نهاية التعديل ---
 
+                const userData = userSnapshot.docs[0].data();
                 authenticatedUser = userData;
                 showSection(controlSection);
                 await setRoomStatus('open');
