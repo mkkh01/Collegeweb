@@ -44,7 +44,7 @@
             </form>
         </div>
 
-        <!-- 2. قسم التحكم (يظهر بعد المصادقة الناجحة لجميع الأدوار) -->
+        <!-- 2. قسم التحكم (يظهر بعد المصادقة الناجحة) -->
         <div id="control-section" class="hidden">
             <div id="status-indicator" class="status-display"></div>
             <p id="control-message"></p>
@@ -88,11 +88,15 @@
 
         let roomDocRef = null;
         let authenticatedUser = null;
-        let roomStatusUnsubscribe = null; // متغير لإلغاء الاشتراك في onSnapshot
+        let roomStatusUnsubscribe = null;
 
-        function updateRealtimeDBStatus(rName, newStatus) {
+        // ## تعديل 1: تحديث دالة Realtime DB لتستخدم البنية الجديدة ##
+        function updateRealtimeDBStatus(rName, newStatus, userId) {
             const lockRef = ref(rtdb, 'locks/Room' + rName);
-            set(lockRef, newStatus);
+            set(lockRef, {
+                status: newStatus,
+                last_user_uid: userId
+            });
         }
 
         function showSection(sectionToShow) {
@@ -101,15 +105,24 @@
             messageElement.textContent = '';
         }
 
-        async function setRoomStatus(newStatus, userDisplayName) {
-            if (!roomDocRef) return;
+        // ## تعديل 2: تحديث دالة setRoomStatus لتمرير UID المستخدم ##
+        async function setRoomStatus(newStatus, user) {
+            if (!roomDocRef || !user) return;
             actionBtn.disabled = true;
             logoutBtn.disabled = true;
             try {
+                // تحديث Firestore
                 await updateDoc(roomDocRef, { status: newStatus });
-                updateRealtimeDBStatus(roomName, newStatus);
-                // تحديث الواجهة فوراً بعد تغيير الحالة
-                updateControlUI(newStatus, userDisplayName);
+                
+                // تحديد UID بناءً على الحالة
+                const userUid = newStatus === 'open' ? user.id : 'none';
+                
+                // تحديث Realtime Database بالمعلومات الكاملة
+                updateRealtimeDBStatus(roomName, newStatus, userUid);
+                
+                // تحديث الواجهة (لا حاجة لتمرير user.displayName لأنه موجود بالفعل)
+                updateControlUI(newStatus);
+
             } catch (error) {
                 messageElement.textContent = 'فشلت العملية. حاول مرة أخرى.';
                 messageElement.className = 'error';
@@ -119,21 +132,24 @@
             }
         }
 
-        function updateControlUI(status, userDisplayName) {
+        // ## تعديل 3: تحديث واجهة التحكم ##
+        function updateControlUI(status) {
+            if (!authenticatedUser) return; // التأكد من وجود مستخدم مسجل
+
             if (status === 'open') {
                 statusIndicator.textContent = `القاعة ${roomName} مفتوحة`;
                 statusIndicator.className = 'status-display status-open';
-                controlMessage.textContent = `مرحبًا ${userDisplayName}.`;
+                controlMessage.textContent = `مرحبًا ${authenticatedUser.displayName}.`;
                 actionBtn.textContent = 'إنهاء الجلسة وإغلاق القاعة';
                 actionBtn.className = 'btn btn-close';
-                actionBtn.onclick = () => setRoomStatus('closed', userDisplayName);
+                actionBtn.onclick = () => setRoomStatus('closed', authenticatedUser);
             } else { // closed
                 statusIndicator.textContent = `القاعة ${roomName} مغلقة`;
                 statusIndicator.className = 'status-display status-closed';
                 controlMessage.textContent = 'القاعة مغلقة حاليًا.';
                 actionBtn.textContent = 'فتح القاعة';
                 actionBtn.className = 'btn btn-open';
-                actionBtn.onclick = () => setRoomStatus('open', userDisplayName);
+                actionBtn.onclick = () => setRoomStatus('open', authenticatedUser);
             }
         }
 
@@ -153,33 +169,30 @@
                     throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة.');
                 }
                 
-                const userData = userSnapshot.docs[0].data();
+                const userDoc = userSnapshot.docs[0];
+                const userData = userDoc.data();
+
+                // ## تعديل 4: تخزين معلومات المستخدم كاملة بما في ذلك الـ ID ##
                 authenticatedUser = {
+                    id: userDoc.id, // <-- هذا هو المعرف الفريد للمستخدم
                     username: userData.username,
-                    displayName: userData.displayName || userData.username, // استخدم displayName أو username
+                    displayName: userData.displayName || userData.username,
                     role: userData.role
                 };
 
-                // --- بداية التعديل ---
-                // تم حذف التحقق من الدور لإظهار واجهة التحكم الكاملة للجميع
-                // --- نهاية التعديل ---
-
-                // إظهار قسم التحكم والبدء في مراقبة حالة القاعة
                 showSection(controlSection);
                 
-                // إلغاء الاشتراك القديم إذا كان موجودًا
                 if (roomStatusUnsubscribe) roomStatusUnsubscribe();
 
-                // الاشتراك في تحديثات حالة القاعة
                 roomStatusUnsubscribe = onSnapshot(roomDocRef, (docSnap) => {
                     if (docSnap.exists() && authenticatedUser) {
                         const roomStatus = docSnap.data().status;
-                        updateControlUI(roomStatus, authenticatedUser.displayName);
+                        updateControlUI(roomStatus);
                     }
                 });
 
-                // فتح القاعة تلقائيًا عند تسجيل الدخول
-                await setRoomStatus('open', authenticatedUser.displayName);
+                // فتح القاعة تلقائيًا عند تسجيل الدخول مع تمرير معلومات المستخدم
+                await setRoomStatus('open', authenticatedUser);
 
             } catch (error) {
                 messageElement.textContent = error.message;
@@ -190,7 +203,6 @@
         });
 
         logoutBtn.addEventListener('click', () => {
-            // إلغاء الاشتراك عند تسجيل الخروج لمنع التحديثات في الخلفية
             if (roomStatusUnsubscribe) roomStatusUnsubscribe();
             roomStatusUnsubscribe = null;
             authenticatedUser = null;
