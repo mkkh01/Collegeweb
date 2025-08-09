@@ -111,11 +111,10 @@
             </form>
         </div>
     </div>
-
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
@@ -133,41 +132,30 @@
         const SITE_URL = "https://cpld.netlify.app";
 
         // ======================================================================
-        // ## تعديل 1: إضافة دالة المزامنة من Firestore إلى Realtime Database ##
+        // ## الفكرة الجديدة: مخزن بيانات موحد ##
         // ======================================================================
+        const roomDataStore = {}; // هذا المتغير سيحتوي على البيانات المدمجة من المصدرين
+
         async function syncRfidsToRtdb() {
-            console.log("Starting RFID sync to Realtime DB...");
             const usersRef = collection(db, "Users");
             const usersSnapshot = await getDocs(usersRef);
-            
             const allowedRfids = {};
             usersSnapshot.forEach(doc => {
                 const userData = doc.data();
                 if (userData.rfid && userData.rfid.trim() !== "") {
-                    // توحيد الصيغة: إزالة المسافات وتحويلها إلى أحرف كبيرة
                     const normalizedRfid = userData.rfid.replace(/\s/g, '').toUpperCase();
                     allowedRfids[normalizedRfid] = true;
                 }
             });
-
             const rtdbRef = ref(rtdb, 'allowed_rfids');
-            try {
-                await set(rtdbRef, allowedRfids);
-                console.log("Successfully synced RFIDs to Realtime DB:", allowedRfids);
-            } catch (error) {
-                console.error("Error syncing RFIDs to Realtime DB:", error);
-            }
+            await set(rtdbRef, allowedRfids);
         }
 
         function updateRealtimeDBStatus(roomName, newStatus, userId = 'none') {
-            const lockRef = ref(rtdb, 'locks/' + roomName);
-            const data = {
-                status: newStatus,
-                last_user_uid: userId
-            };
-            set(lockRef, data)
-                .then(() => console.log(`Realtime DB updated for ${roomName}:`, data))
-                .catch((error) => console.error("Error updating Realtime DB: ", error));
+            const lockName = "Room" + roomName;
+            const lockRef = ref(rtdb, 'locks/' + lockName);
+            const data = { status: newStatus, last_user_uid: userId };
+            set(lockRef, data);
         }
 
         window.showPage = (pageId) => {
@@ -251,8 +239,8 @@
 
         onSnapshot(collection(db, "Schedules"), (snap) => {
             allSchedulesData = snap.docs.map(doc => doc.data());
-            document.querySelectorAll('.room-card').forEach(card => {
-                updateDashboardCard(card.id);
+            Object.keys(roomDataStore).forEach(docId => {
+                updateDashboardCard(docId);
             });
 
             const tbody = document.querySelector('#schedules-table tbody');
@@ -263,25 +251,33 @@
             });
         });
 
+        // ======================================================================
+        // ## الفكرة الجديدة: الاستماع للمصدر الأول (Firestore) ##
+        // ======================================================================
         onSnapshot(collection(db, "Rooms"), (snapshot) => {
+            const roomsTableTbody = document.querySelector('#rooms-table tbody');
+            roomsTableTbody.innerHTML = '';
+
             snapshot.docChanges().forEach((change) => {
                 const docId = change.doc.id;
                 const roomData = change.doc.data();
 
                 if (change.type === "added") {
-                    createDashboardCard(docId, roomData);
+                    roomDataStore[docId] = roomData; // إضافة البيانات الأساسية
+                    createDashboardCard(docId);
                 }
                 if (change.type === "modified") {
-                    updateDashboardCard(docId, roomData);
+                    // دمج البيانات الجديدة مع القديمة
+                    roomDataStore[docId] = { ...roomDataStore[docId], ...roomData };
+                    updateDashboardCard(docId);
                 }
                 if (change.type === "removed") {
+                    delete roomDataStore[docId]; // حذف القاعة من المخزن
                     const card = document.getElementById(docId);
                     if (card) card.remove();
                 }
             });
 
-            const roomsTableTbody = document.querySelector('#rooms-table tbody');
-            roomsTableTbody.innerHTML = '';
             snapshot.forEach(d => {
                 const r = d.data();
                 const qrCodeDataUrl = generateQRCode(r.qrUrl || '');
@@ -289,28 +285,44 @@
             });
         });
 
-        function createDashboardCard(docId, roomData) {
+        // ======================================================================
+        // ## الفكرة الجديدة: الاستماع للمصدر الثاني (Realtime DB) ##
+        // ======================================================================
+        const locksRef = ref(rtdb, 'locks');
+        onValue(locksRef, (snapshot) => {
+            const allLocksStatus = snapshot.val();
+            if (!allLocksStatus) return;
+
+            // المرور على كل القاعات المخزنة لدينا
+            for (const docId in roomDataStore) {
+                const roomName = roomDataStore[docId].name;
+                const lockName = "Room" + roomName; 
+                
+                // التحقق مما إذا كانت هناك حالة جديدة من Realtime DB لهذه القاعة
+                if (allLocksStatus[lockName]) {
+                    const newStatus = allLocksStatus[lockName].status;
+                    // تحديث الواجهة فقط إذا تغيرت الحالة
+                    if (roomDataStore[docId].status !== newStatus) {
+                        console.log(`RTDB Change Detected for ${lockName}: ${newStatus}`);
+                        roomDataStore[docId].status = newStatus; // تحديث الحالة في المخزن
+                        updateDashboardCard(docId); // إعادة رسم البطاقة
+                    }
+                }
+            }
+        });
+
+        function createDashboardCard(docId) {
             const statusContainer = document.getElementById('room-status-container');
             const card = document.createElement('div');
             card.id = docId; 
             statusContainer.appendChild(card);
-            updateDashboardCard(docId, roomData); 
+            updateDashboardCard(docId); 
         }
 
-        async function updateDashboardCard(docId, roomData) {
+        function updateDashboardCard(docId) {
             const card = document.getElementById(docId);
-            if (!card) return; 
-
-            if (!roomData) {
-                const docRef = doc(db, "Rooms", docId);
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    roomData = docSnap.data();
-                } else {
-                    card.remove(); 
-                    return;
-                }
-            }
+            const roomData = roomDataStore[docId];
+            if (!card || !roomData) return; 
 
             const now = new Date();
             const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
@@ -345,9 +357,6 @@
             `;
         }
 
-        // ======================================================================
-        // ## تعديل 2: استدعاء المزامنة عند أي تغيير في مجموعة المستخدمين ##
-        // ======================================================================
         onSnapshot(collection(db, "Users"), (snap) => {
             const tbody = document.querySelector('#users-table tbody');
             tbody.innerHTML = '';
@@ -356,7 +365,6 @@
                 tbody.innerHTML += `<tr><td>${u.displayName || ''}</td><td>${u.role || ''}</td><td><div class="barcode-container">${u.barcodeId ? `<svg id="barcode-${d.id}"></svg>` : 'لا يوجد'}</div></td><td>${u.rfid || 'لا يوجد'}</td><td><button class="btn btn-warning" onclick="editItem('Users', '${d.id}', 'user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users', '${d.id}', 'المستخدم')">حذف</button><button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}', '${u.role}', '${u.barcodeId}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadBarcodeAsPNG('${u.displayName}', '${u.barcodeId}')">تحميل صورة الرمز</button></td></tr>`;
                 if (u.barcodeId) { JsBarcode(`#barcode-${d.id}`, u.barcodeId, { format: "CODE128", lineColor: "#000", width: 2, height: 40, displayValue: true }); }
             });
-            // استدعاء المزامنة لضمان تحديث القائمة دائمًا
             syncRfidsToRtdb();
         });
 
@@ -367,9 +375,7 @@
             const newStatus = currentStatus === 'open' ? 'closed' : 'open';
             await updateDoc(doc(db, "Rooms", id), { status: newStatus });
             
-            const roomDoc = await getDoc(doc(db, "Rooms", id));
-            const roomName = roomDoc.data().name;
-            
+            const roomName = roomDataStore[id].name;
             const adminUser = JSON.parse(sessionStorage.getItem('user'));
             const adminUid = newStatus === 'open' ? adminUser.id : 'none';
 
@@ -411,6 +417,14 @@
         
         window.deleteItem = async (collectionName, id, itemName) => { 
             if (confirmDelete(itemName)) {
+                if (collectionName === 'Rooms') {
+                    const roomName = roomDataStore[id]?.name;
+                    if (roomName) {
+                        const lockName = "Room" + roomName;
+                        const lockRef = ref(rtdb, 'locks/' + lockName);
+                        await set(lockRef, null);
+                    }
+                }
                 await deleteDoc(doc(db, collectionName, id));
             }
         };
@@ -427,9 +441,34 @@
             html2pdf().from(cardElement).set({ filename: `${name}_ID_Card.pdf`, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).save();
         };
 
-        window.downloadRoomCardAsPDF = (name, qrUrl) => { const prepareArea = document.getElementById('pdf-prepare-area'); const cardElement = document.createElement('div'); cardElement.className = 'id-card'; cardElement.innerHTML = `<h4>بطاقة تعريف القاعة</h4><p>${name}</p><img src="${generateQRCode(qrUrl || '')}" alt="QR Code">`; prepareArea.innerHTML = ''; prepareArea.appendChild(cardElement); html2pdf().from(cardElement).set({ filename: `${name}_QR_Card.pdf`, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).save(); };
-        window.downloadQRCodeAsPNG = (name, qrUrl) => { if (!qrUrl) { alert('لا يوجد رمز QR لهذه القاعة.'); return; } const dataUrl = generateQRCode(qrUrl); const link = document.createElement('a'); link.download = `${name}_QR_Code.png`; link.href = dataUrl; link.click(); };
-        window.downloadBarcodeAsPNG = (name, barcodeValue) => { if (!barcodeValue) { alert('لا يوجد رمز باركود لهذا المستخدم.'); return; } const canvas = document.createElement('canvas'); JsBarcode(canvas, barcodeValue, { format: "CODE128" }); const link = document.createElement('a'); link.download = `${name}_Barcode.png`; link.href = canvas.toDataURL("image/png"); link.click(); };
+        window.downloadRoomCardAsPDF = (name, qrUrl) => { 
+            const prepareArea = document.getElementById('pdf-prepare-area'); 
+            const cardElement = document.createElement('div'); 
+            cardElement.className = 'id-card'; 
+            cardElement.innerHTML = `<h4>بطاقة تعريف القاعة</h4><p>${name}</p><img src="${generateQRCode(qrUrl || '')}" alt="QR Code">`; 
+            prepareArea.innerHTML = ''; 
+            prepareArea.appendChild(cardElement); 
+            html2pdf().from(cardElement).set({ filename: `${name}_QR_Card.pdf`, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).save(); 
+        };
+
+        window.downloadQRCodeAsPNG = (name, qrUrl) => { 
+            if (!qrUrl) { alert('لا يوجد رمز QR لهذه القاعة.'); return; } 
+            const dataUrl = generateQRCode(qrUrl); 
+            const link = document.createElement('a'); 
+            link.download = `${name}_QR_Code.png`; 
+            link.href = dataUrl; 
+            link.click(); 
+        };
+
+        window.downloadBarcodeAsPNG = (name, barcodeValue) => { 
+            if (!barcodeValue) { alert('لا يوجد رمز باركود لهذا المستخدم.'); return; } 
+            const canvas = document.createElement('canvas'); 
+            JsBarcode(canvas, barcodeValue, { format: "CODE128" }); 
+            const link = document.createElement('a'); 
+            link.download = `${name}_Barcode.png`; 
+            link.href = canvas.toDataURL("image/png"); 
+            link.click(); 
+        };
 
         // استدعاء المزامنة عند بدء تشغيل الصفحة لأول مرة
         showPage('dashboard');
@@ -438,3 +477,4 @@
     </script>
 </body>
 </html>
+
