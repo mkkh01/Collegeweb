@@ -132,15 +132,41 @@
 
         const SITE_URL = "https://cpld.netlify.app";
 
-        // ## تعديل 1: دالة مساعدة لتحديث Realtime Database بالبنية الجديدة ##
+        // ======================================================================
+        // ## تعديل 1: إضافة دالة المزامنة من Firestore إلى Realtime Database ##
+        // ======================================================================
+        async function syncRfidsToRtdb() {
+            console.log("Starting RFID sync to Realtime DB...");
+            const usersRef = collection(db, "Users");
+            const usersSnapshot = await getDocs(usersRef);
+            
+            const allowedRfids = {};
+            usersSnapshot.forEach(doc => {
+                const userData = doc.data();
+                if (userData.rfid && userData.rfid.trim() !== "") {
+                    // توحيد الصيغة: إزالة المسافات وتحويلها إلى أحرف كبيرة
+                    const normalizedRfid = userData.rfid.replace(/\s/g, '').toUpperCase();
+                    allowedRfids[normalizedRfid] = true;
+                }
+            });
+
+            const rtdbRef = ref(rtdb, 'allowed_rfids');
+            try {
+                await set(rtdbRef, allowedRfids);
+                console.log("Successfully synced RFIDs to Realtime DB:", allowedRfids);
+            } catch (error) {
+                console.error("Error syncing RFIDs to Realtime DB:", error);
+            }
+        }
+
         function updateRealtimeDBStatus(roomName, newStatus, userId = 'none') {
-            const lockRef = ref(rtdb, 'locks/Room' + roomName);
+            const lockRef = ref(rtdb, 'locks/' + roomName);
             const data = {
                 status: newStatus,
                 last_user_uid: userId
             };
             set(lockRef, data)
-                .then(() => console.log(`Realtime DB updated for Room${roomName}:`, data))
+                .then(() => console.log(`Realtime DB updated for ${roomName}:`, data))
                 .catch((error) => console.error("Error updating Realtime DB: ", error));
         }
 
@@ -162,9 +188,28 @@
         window.closeModal = (modalId) => { document.getElementById(modalId).style.display = 'none'; };
         const confirmDelete = (item) => confirm(`هل أنت متأكد من حذف هذا ${item}؟`);
 
-        document.getElementById('user-form').addEventListener('submit', async (e) => { e.preventDefault(); const id = document.getElementById('userId').value; const password = document.getElementById('password').value; const data = { displayName: document.getElementById('displayName').value, username: document.getElementById('username').value, role: document.getElementById('role').value, barcodeId: document.getElementById('barcodeId').value, rfid: document.getElementById('rfid').value, }; if (id) { if (password) { data.password = password; } await updateDoc(doc(db, "Users", id), data); } else { if (!password) { alert('كلمة المرور مطلوبة للمستخدم الجديد.'); return; } data.password = password; await addDoc(collection(db, "Users"), data); } closeModal('user-modal'); });
+        document.getElementById('user-form').addEventListener('submit', async (e) => { 
+            e.preventDefault(); 
+            const id = document.getElementById('userId').value; 
+            const password = document.getElementById('password').value; 
+            const data = { 
+                displayName: document.getElementById('displayName').value, 
+                username: document.getElementById('username').value, 
+                role: document.getElementById('role').value, 
+                barcodeId: document.getElementById('barcodeId').value, 
+                rfid: document.getElementById('rfid').value, 
+            }; 
+            if (id) { 
+                if (password) { data.password = password; } 
+                await updateDoc(doc(db, "Users", id), data); 
+            } else { 
+                if (!password) { alert('كلمة المرور مطلوبة للمستخدم الجديد.'); return; } 
+                data.password = password; 
+                await addDoc(collection(db, "Users"), data); 
+            } 
+            closeModal('user-modal'); 
+        });
         
-        // ## تعديل 2: تحديث دالة إضافة القاعات لاستخدام البنية الجديدة ##
         document.getElementById('room-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('roomId').value;
@@ -179,7 +224,6 @@
             } else {
                 data.status = 'closed';
                 await addDoc(collection(db, "Rooms"), data);
-                // استخدام الدالة المساعدة بالبنية الجديدة عند إنشاء قاعة
                 updateRealtimeDBStatus(roomName, 'closed', 'none');
             }
             closeModal('room-modal');
@@ -301,21 +345,24 @@
             `;
         }
 
+        // ======================================================================
+        // ## تعديل 2: استدعاء المزامنة عند أي تغيير في مجموعة المستخدمين ##
+        // ======================================================================
         onSnapshot(collection(db, "Users"), (snap) => {
             const tbody = document.querySelector('#users-table tbody');
             tbody.innerHTML = '';
             snap.forEach(d => {
                 const u = d.data();
-                // ## تعديل 3: إضافة doc.id إلى زر تحميل البطاقة لعرض الـ UID ##
-                tbody.innerHTML += `<tr><td>${u.displayName || ''}</td><td>${u.role || ''}</td><td><div class="barcode-container">${u.barcodeId ? `<svg id="barcode-${d.id}"></svg>` : 'لا يوجد'}</div></td><td>${u.rfid || 'لا يوجد'}</td><td><button class="btn btn-warning" onclick="editItem('Users', '${d.id}', 'user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users', '${d.id}', 'المستخدم')">حذف</button><button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}', '${u.role}', '${u.barcodeId}', '${d.id}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadBarcodeAsPNG('${u.displayName}', '${u.barcodeId}')">تحميل صورة الرمز</button></td></tr>`;
+                tbody.innerHTML += `<tr><td>${u.displayName || ''}</td><td>${u.role || ''}</td><td><div class="barcode-container">${u.barcodeId ? `<svg id="barcode-${d.id}"></svg>` : 'لا يوجد'}</div></td><td>${u.rfid || 'لا يوجد'}</td><td><button class="btn btn-warning" onclick="editItem('Users', '${d.id}', 'user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users', '${d.id}', 'المستخدم')">حذف</button><button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}', '${u.role}', '${u.barcodeId}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadBarcodeAsPNG('${u.displayName}', '${u.barcodeId}')">تحميل صورة الرمز</button></td></tr>`;
                 if (u.barcodeId) { JsBarcode(`#barcode-${d.id}`, u.barcodeId, { format: "CODE128", lineColor: "#000", width: 2, height: 40, displayValue: true }); }
             });
+            // استدعاء المزامنة لضمان تحديث القائمة دائمًا
+            syncRfidsToRtdb();
         });
 
         function generateQRCode(text) { if (!text) return ''; const typeNumber = 4; const errorCorrectionLevel = 'L'; const qr = qrcode(typeNumber, errorCorrectionLevel); qr.addData(text); qr.make(); return qr.createDataURL(4); }
         async function populateSelects() { const usersSnap = await getDocs(collection(db, "Users")); const roomsSnap = await getDocs(collection(db, "Rooms")); const lecturerSelect = document.getElementById('lecturer'); const roomSelect = document.getElementById('scheduleRoom'); lecturerSelect.innerHTML = '<option value="">اختر محاضر</option>'; roomSelect.innerHTML = '<option value="">اختر قاعة</option>'; usersSnap.forEach(d => { const user = d.data(); if (user.role && user.role.trim() === "عضو هيئة تدريس") { lecturerSelect.innerHTML += `<option value="${user.displayName}">${user.displayName}</option>`; } }); roomsSnap.forEach(d => { const room = d.data(); roomSelect.innerHTML += `<option value="${room.name}">${room.name}</option>`; }); }
         
-        // ## تعديل 4: تحديث دالة تغيير الحالة لتمرير UID الأدمن ##
         window.toggleRoomStatus = async (id, currentStatus) => {
             const newStatus = currentStatus === 'open' ? 'closed' : 'open';
             await updateDoc(doc(db, "Rooms", id), { status: newStatus });
@@ -323,7 +370,6 @@
             const roomDoc = await getDoc(doc(db, "Rooms", id));
             const roomName = roomDoc.data().name;
             
-            // الحصول على معلومات الأدمن الحالي من sessionStorage
             const adminUser = JSON.parse(sessionStorage.getItem('user'));
             const adminUid = newStatus === 'open' ? adminUser.id : 'none';
 
@@ -363,15 +409,17 @@
             }
         };
         
-        window.deleteItem = async (collectionName, id, itemName) => { if (confirmDelete(itemName)) await deleteDoc(doc(db, collectionName, id)); };
+        window.deleteItem = async (collectionName, id, itemName) => { 
+            if (confirmDelete(itemName)) {
+                await deleteDoc(doc(db, collectionName, id));
+            }
+        };
         
-        // ## تعديل 5: إضافة UID إلى دالة تحميل البطاقة ##
-        window.downloadIdCardAsPDF = (name, role, barcodeValue, userId) => {
+        window.downloadIdCardAsPDF = (name, role, barcodeValue) => {
             const prepareArea = document.getElementById('pdf-prepare-area');
             const cardElement = document.createElement('div');
             cardElement.className = 'id-card';
-            // إضافة UID إلى البطاقة
-            cardElement.innerHTML = `<h4>${name}</h4><p>${role}</p><svg id="pdf-barcode"></svg><p style="font-size: 10px; color: grey; margin-top: 15px;">UID: ${userId}</p>`;
+            cardElement.innerHTML = `<h4>${name}</h4><p>${role}</p><svg id="pdf-barcode"></svg>`;
             prepareArea.innerHTML = '';
             prepareArea.appendChild(cardElement);
             if (barcodeValue) JsBarcode("#pdf-barcode", barcodeValue, { format: "CODE128", width: 3, height: 80, displayValue: true });
@@ -383,7 +431,10 @@
         window.downloadQRCodeAsPNG = (name, qrUrl) => { if (!qrUrl) { alert('لا يوجد رمز QR لهذه القاعة.'); return; } const dataUrl = generateQRCode(qrUrl); const link = document.createElement('a'); link.download = `${name}_QR_Code.png`; link.href = dataUrl; link.click(); };
         window.downloadBarcodeAsPNG = (name, barcodeValue) => { if (!barcodeValue) { alert('لا يوجد رمز باركود لهذا المستخدم.'); return; } const canvas = document.createElement('canvas'); JsBarcode(canvas, barcodeValue, { format: "CODE128" }); const link = document.createElement('a'); link.download = `${name}_Barcode.png`; link.href = canvas.toDataURL("image/png"); link.click(); };
 
+        // استدعاء المزامنة عند بدء تشغيل الصفحة لأول مرة
         showPage('dashboard');
+        syncRfidsToRtdb();
+
     </script>
 </body>
 </html>
