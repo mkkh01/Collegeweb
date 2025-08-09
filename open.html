@@ -44,7 +44,7 @@
             </form>
         </div>
 
-        <!-- 2. قسم التحكم (يظهر بعد المصادقة الناجحة) -->
+        <!-- 2. قسم التحكم (يظهر بعد المصادقة الناجحة لجميع الأدوار) -->
         <div id="control-section" class="hidden">
             <div id="status-indicator" class="status-display"></div>
             <p id="control-message"></p>
@@ -88,6 +88,7 @@
 
         let roomDocRef = null;
         let authenticatedUser = null;
+        let roomStatusUnsubscribe = null; // متغير لإلغاء الاشتراك في onSnapshot
 
         function updateRealtimeDBStatus(rName, newStatus) {
             const lockRef = ref(rtdb, 'locks/Room' + rName);
@@ -100,13 +101,15 @@
             messageElement.textContent = '';
         }
 
-        async function setRoomStatus(newStatus) {
+        async function setRoomStatus(newStatus, userDisplayName) {
             if (!roomDocRef) return;
             actionBtn.disabled = true;
             logoutBtn.disabled = true;
             try {
                 await updateDoc(roomDocRef, { status: newStatus });
                 updateRealtimeDBStatus(roomName, newStatus);
+                // تحديث الواجهة فوراً بعد تغيير الحالة
+                updateControlUI(newStatus, userDisplayName);
             } catch (error) {
                 messageElement.textContent = 'فشلت العملية. حاول مرة أخرى.';
                 messageElement.className = 'error';
@@ -116,21 +119,21 @@
             }
         }
 
-        function updateControlUI(status) {
+        function updateControlUI(status, userDisplayName) {
             if (status === 'open') {
                 statusIndicator.textContent = `القاعة ${roomName} مفتوحة`;
                 statusIndicator.className = 'status-display status-open';
-                controlMessage.textContent = `مرحبًا ${authenticatedUser.displayName}.`;
+                controlMessage.textContent = `مرحبًا ${userDisplayName}.`;
                 actionBtn.textContent = 'إنهاء الجلسة وإغلاق القاعة';
                 actionBtn.className = 'btn btn-close';
-                actionBtn.onclick = () => setRoomStatus('closed');
+                actionBtn.onclick = () => setRoomStatus('closed', userDisplayName);
             } else { // closed
                 statusIndicator.textContent = `القاعة ${roomName} مغلقة`;
                 statusIndicator.className = 'status-display status-closed';
-                controlMessage.textContent = 'يمكنك إعادة فتح القاعة.';
-                actionBtn.textContent = 'إعادة فتح القاعة';
+                controlMessage.textContent = 'القاعة مغلقة حاليًا.';
+                actionBtn.textContent = 'فتح القاعة';
                 actionBtn.className = 'btn btn-open';
-                actionBtn.onclick = () => setRoomStatus('open');
+                actionBtn.onclick = () => setRoomStatus('open', userDisplayName);
             }
         }
 
@@ -150,14 +153,33 @@
                     throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة.');
                 }
                 
+                const userData = userSnapshot.docs[0].data();
+                authenticatedUser = {
+                    username: userData.username,
+                    displayName: userData.displayName || userData.username, // استخدم displayName أو username
+                    role: userData.role
+                };
+
                 // --- بداية التعديل ---
-                // تم حذف التحقق من صلاحية الدور للسماح لجميع المستخدمين بالوصول
+                // تم حذف التحقق من الدور لإظهار واجهة التحكم الكاملة للجميع
                 // --- نهاية التعديل ---
 
-                const userData = userSnapshot.docs[0].data();
-                authenticatedUser = userData;
+                // إظهار قسم التحكم والبدء في مراقبة حالة القاعة
                 showSection(controlSection);
-                await setRoomStatus('open');
+                
+                // إلغاء الاشتراك القديم إذا كان موجودًا
+                if (roomStatusUnsubscribe) roomStatusUnsubscribe();
+
+                // الاشتراك في تحديثات حالة القاعة
+                roomStatusUnsubscribe = onSnapshot(roomDocRef, (docSnap) => {
+                    if (docSnap.exists() && authenticatedUser) {
+                        const roomStatus = docSnap.data().status;
+                        updateControlUI(roomStatus, authenticatedUser.displayName);
+                    }
+                });
+
+                // فتح القاعة تلقائيًا عند تسجيل الدخول
+                await setRoomStatus('open', authenticatedUser.displayName);
 
             } catch (error) {
                 messageElement.textContent = error.message;
@@ -168,11 +190,15 @@
         });
 
         logoutBtn.addEventListener('click', () => {
+            // إلغاء الاشتراك عند تسجيل الخروج لمنع التحديثات في الخلفية
+            if (roomStatusUnsubscribe) roomStatusUnsubscribe();
+            roomStatusUnsubscribe = null;
             authenticatedUser = null;
             document.getElementById('auth-form').reset();
             showSection(authSection);
         });
 
+        // الإعداد الأولي عند تحميل الصفحة
         if (!roomName) {
             roomTitleElement.textContent = 'خطأ';
             authSection.innerHTML = '<p class="error">رابط غير صالح. يرجى مسح رمز QR صحيح.</p>';
@@ -185,11 +211,8 @@
                     return;
                 }
                 roomDocRef = doc(db, "Rooms", snapshot.docs[0].id);
-                onSnapshot(roomDocRef, (docSnap) => {
-                    if (docSnap.exists() && authenticatedUser) {
-                        updateControlUI(docSnap.data().status);
-                    }
-                });
+            }).catch(err => {
+                 authSection.innerHTML = `<p class="error">حدث خطأ في الاتصال بقاعدة البيانات.</p>`;
             });
         }
     </script>
