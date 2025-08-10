@@ -167,6 +167,7 @@
         const SITE_URL = "https://cpld.netlify.app";
         const roomDataStore = {};
         let allSchedulesData = [];
+        let allUsersData = {}; // ## تعديل: لتخزين بيانات المستخدمين مؤقتًا
         const departments = [
             "القسم العام", "قسم الهندسة الكهربائية والالكترونية", "قسم الهندسة الكيميائية", 
             "قسم الهندسة المدنية", "قسم الهندسة الميكانيكية", "قسم الهندسة المعمارية"
@@ -277,6 +278,8 @@
                 const schedule = doc.data();
                 const roomName = "Room" + schedule.room;
                 if (!schedulesByRoom[roomName]) schedulesByRoom[roomName] = {};
+                // ## تعديل: إضافة اسم المحاضر للبيانات المتزامنة
+                schedule.lecturerName = allUsersData[schedule.lecturerId] || 'غير محدد';
                 schedulesByRoom[roomName][doc.id] = schedule;
             });
             await set(ref(rtdb, 'schedules_by_room'), schedulesByRoom);
@@ -335,7 +338,7 @@
                 department: document.getElementById('scheduleDepartment').value,
                 courseCode: document.getElementById('courseCode').value,
                 courseName: document.getElementById('courseName').value,
-                lecturer: document.getElementById('lecturer').value,
+                lecturerId: document.getElementById('lecturer').value, // ## تعديل: حفظ ID المحاضر
                 room: document.getElementById('scheduleRoom').value,
                 day: document.getElementById('day').value,
                 time: `${document.getElementById('startTime').value}-${document.getElementById('endTime').value}`,
@@ -348,6 +351,11 @@
 
         // --- عرض البيانات في الجداول والتبويبات ---
         onSnapshot(collection(db, "Users"), (snap) => {
+            allUsersData = {}; // تفريغ البيانات القديمة
+            snap.forEach(d => {
+                allUsersData[d.id] = d.data().displayName; // تخزين ID والاسم
+            });
+
             const tables = { 'عضو هيئة تدريس': document.querySelector('#lecturers-table tbody'), 'مشرف': document.querySelector('#supervisors-table tbody'), 'عامل نظافة': document.querySelector('#cleaners-table tbody') };
             const studentDataByDept = {};
             departments.forEach(d => studentDataByDept[d] = []);
@@ -410,7 +418,9 @@
                 const tbody = container.querySelector('table tbody');
                 tbody.innerHTML = '';
                 scheduleDataByDept[deptName].forEach(s => {
-                    tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.lecturer}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td>${(s.groups||[]).join(', ')}</td><td><button class="btn btn-warning" onclick="editItem('Schedules','${s.id}','schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules','${s.id}','الجدول')">حذف</button></td></tr>`;
+                    // ## تعديل: عرض اسم المحاضر بناءً على الـ ID
+                    const lecturerName = allUsersData[s.lecturerId] || 'محاضر محذوف';
+                    tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${lecturerName}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td>${(s.groups||[]).join(', ')}</td><td><button class="btn btn-warning" onclick="editItem('Schedules','${s.id}','schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules','${s.id}','الجدول')">حذف</button></td></tr>`;
                 });
             });
             syncToRtdb();
@@ -492,7 +502,9 @@
 
             let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
             if (currentSchedule) {
-                detailsHtml = `<div class="details"><p>${currentSchedule.lecturer}</p><p>${currentSchedule.courseName}</p></div>`;
+                // ## تعديل: عرض اسم المحاضر بناءً على الـ ID
+                const lecturerName = allUsersData[currentSchedule.lecturerId] || 'غير محدد';
+                detailsHtml = `<div class="details"><p>${lecturerName}</p><p>${currentSchedule.courseName}</p></div>`;
             }
 
             card.innerHTML = `<div><h4>${roomData.name}</h4><p>${statusText}</p>${detailsHtml}</div><button class="btn btn-warning" onclick="toggleRoomStatus('${docId}', '${status}')">تغيير الحالة</button>`;
@@ -507,10 +519,9 @@
             set(ref(rtdb, 'locks/Room' + roomName), { status: newStatus, last_user_uid: adminUid });
         };
 
-        // ## التعديل: دالة التحديث التلقائي كل دقيقة ##
         setInterval(() => {
             Object.keys(roomDataStore).forEach(docId => updateDashboardCard(docId));
-        }, 60000); // 60000ms = 1 minute
+        }, 60000);
 
         // --- دوال مساعدة (تعديل، حذف، طباعة، تحميل) ---
         window.editItem = async (collectionName, id, type) => {
@@ -538,7 +549,7 @@
                 document.getElementById('scheduleDepartment').value = data.department;
                 document.getElementById('courseCode').value = data.courseCode;
                 document.getElementById('courseName').value = data.courseName;
-                document.getElementById('lecturer').value = data.lecturer;
+                document.getElementById('lecturer').value = data.lecturerId; // ## تعديل: تحديد المحاضر بالـ ID
                 document.getElementById('scheduleRoom').value = data.room;
                 document.getElementById('day').value = data.day;
                 const [startTime, endTime] = data.time.split('-');
@@ -606,6 +617,7 @@
 
         function generateQRCode(text) { if (!text) return ''; const qr = qrcode(4, 'L'); qr.addData(text); qr.make(); return qr.createDataURL(4); }
         
+        // ## تعديل: دالة تعبئة القوائم المنسدلة
         async function populateSelects() { 
             const usersSnap = await getDocs(query(collection(db, "Users"), where("role", "==", "عضو هيئة تدريس")));
             const roomsSnap = await getDocs(collection(db, "Rooms"));
@@ -614,7 +626,8 @@
             lecturerSelect.innerHTML = '<option value="">اختر محاضر</option>';
             roomSelect.innerHTML = '<option value="">اختر قاعة</option>';
             usersSnap.forEach(d => {
-                lecturerSelect.innerHTML += `<option value="${d.data().displayName}">${d.data().displayName}</option>`;
+                // ## تعديل: حفظ الـ ID في الـ value وعرض الاسم
+                lecturerSelect.innerHTML += `<option value="${d.id}">${d.data().displayName}</option>`;
             });
             roomsSnap.forEach(d => {
                 roomSelect.innerHTML += `<option value="${d.data().name}">${d.data().name}</option>`;
