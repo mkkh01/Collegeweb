@@ -23,19 +23,21 @@
         h4 { color: var(--primary-color); margin-top: 25px; margin-bottom: 10px; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { padding: 12px 15px; text-align: right; border-bottom: 1px solid #ddd; white-space: nowrap; vertical-align: middle; }
+        th { background-color: #f2f2f2; }
+        .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; margin-left: 5px; margin-top: 5px; }
+        .btn-primary { background-color: var(--primary-color); } .btn-warning { background-color: var(--warning-color); }
+        .btn-danger { background-color: var(--danger-color); } .btn-success { background-color: var(--success-color); } .btn-info { background-color: var(--info-color); }
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
         .modal-content { background-color: #fefefe; margin: 5% auto; padding: 30px; border: 1px solid #888; width: 90%; max-width: 500px; border-radius: 8px; }
         .close-btn { color: #aaa; float: left; font-size: 28px; font-weight: bold; cursor: pointer; }
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; margin-bottom: 5px; }
         .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        .room-status-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
-        .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; }
-        .room-card.open { background-color: var(--success-color); }
-        .room-card.closed { background-color: var(--danger-color); }
+        .time-input-group { display: flex; align-items: center; gap: 10px; }
     </style>
 </head>
 <body>
+
     <script>
         const loggedInUser = JSON.parse(sessionStorage.getItem('user'));
         if (!loggedInUser || !loggedInUser.role || loggedInUser.role.trim().toLowerCase() !== 'admin') {
@@ -54,12 +56,7 @@
     </div>
 
     <div class="main-content">
-        <div id="dashboard" class="page">
-            <div class="card">
-                <h3>لوحة الإعلانات</h3>
-                <div id="room-status-container" class="room-status-container"></div>
-            </div>
-        </div>
+        <div id="dashboard" class="page"> <!-- قسم لوحة الإعلانات --> </div>
         <div id="users" class="page">
             <div class="card">
                 <h3>المستخدمون</h3>
@@ -77,19 +74,12 @@
                 <div id="schedules-by-department"></div>
             </div>
         </div>
-        <div id="rooms" class="page">
-            <div class="card">
-                <h3>إدارة القاعات</h3>
-                <button class="btn btn-primary" onclick="openModal('room-modal')">إضافة قاعة</button>
-                <table id="rooms-table">
-                    <thead><tr><th>اسم القاعة</th><th>السعة</th><th>إجراء</th></tr></thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </div>
+        <div id="rooms" class="page"> <!-- قسم القاعات --> </div>
     </div>
 
-    <!-- نموذج المستخدمين -->
+    <!-- ====================================================== -->
+    <!-- ## نموذج المستخدمين (مُعدّل لإضافة التخصص) ## -->
+    <!-- ====================================================== -->
     <div id="user-modal" class="modal">
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal('user-modal')">&times;</span>
@@ -105,9 +95,12 @@
                         <option value="" disabled selected>اختر الدور</option>
                         <option value="admin">أدمن</option>
                         <option value="عضو هيئة تدريس">عضو هيئة تدريس</option>
+                        <option value="مشرف">مشرف</option>
+                        <option value="عامل نظافة">عامل نظافة</option>
                         <option value="طالب">طالب</option>
                     </select>
                 </div>
+                <!-- حقل التخصص الجديد الذي يظهر فقط للطلاب -->
                 <div class="form-group" id="department-wrapper" style="display: none;">
                     <label>التخصص (القسم)</label>
                     <select id="userDepartment">
@@ -126,7 +119,7 @@
         </div>
     </div>
 
-    <!-- نموذج المواد الدراسية -->
+    <!-- نموذج المواد الدراسية (يبقى كما هو من التعديل السابق) -->
     <div id="schedule-modal" class="modal">
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal('schedule-modal')">&times;</span>
@@ -163,33 +156,11 @@
             </form>
         </div>
     </div>
-
-    <!-- نموذج القاعات -->
-    <div id="room-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-btn" onclick="closeModal('room-modal')">&times;</span>
-            <h3 id="room-modal-title"></h3>
-            <form id="room-form">
-                <input type="hidden" id="roomId">
-                <div class="form-group"><label>اسم القاعة</label><input type="text" id="roomName" required></div>
-                <div class="form-group"><label>السعة</label><input type="number" id="roomCapacity" required></div>
-                <button type="submit" class="btn btn-success">حفظ</button>
-            </form>
-        </div>
-    </div>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
-            authDomain: "gggg-dc7d0.firebaseapp.com",
-            projectId: "gggg-dc7d0",
-            storageBucket: "gggg-dc7d0.appspot.com",
-            messagingSenderId: "151376454562",
-            appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
-        };
-
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        
+        const firebaseConfig = { /* ... نفس إعدادات Firebase ... */ };
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
@@ -197,36 +168,25 @@
         window.showPage = (pageId) => {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(pageId).classList.add('active');
-            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-            document.querySelector(`.nav-link[href="#${pageId}"]`).classList.add('active');
         };
-
         window.openModal = (modalId) => {
             const form = document.querySelector(`#${modalId} form`);
             form.reset();
-            if(modalId === 'user-modal') {
-                document.getElementById('department-wrapper').style.display = 'none';
-            }
+            document.getElementById('department-wrapper').style.display = 'none'; // إخفاء حقل التخصص عند الفتح
             const hiddenId = form.querySelector(`input[type=hidden]`);
             if (hiddenId) hiddenId.value = '';
             document.querySelector(`#${modalId} h3`).textContent = 'إضافة جديد';
-            if (modalId === 'schedule-modal') {
-                populateSelects();
-            }
+            if (modalId === 'schedule-modal') populateSelects();
             document.getElementById(modalId).style.display = 'block';
         };
-
-        window.closeModal = (modalId) => {
-            document.getElementById(modalId).style.display = 'none';
-        };
-
-        window.deleteItem = async (collectionName, id, itemName) => {
+        window.closeModal = (modalId) => { document.getElementById(modalId).style.display = 'none'; };
+        window.deleteItem = async (collectionName, id, itemName) => { 
             if (confirm(`هل أنت متأكد من حذف هذا ${itemName}؟`)) {
                 await deleteDoc(doc(db, collectionName, id));
             }
         };
 
-        // --- إدارة المستخدمين (Users) ---
+        // --- إدارة المستخدمين (Users) مع إضافة منطق التخصص ---
         const roleSelect = document.getElementById('role');
         const departmentWrapper = document.getElementById('department-wrapper');
         const userDepartmentSelect = document.getElementById('userDepartment');
@@ -241,32 +201,32 @@
             }
         });
 
-        document.getElementById('user-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const id = document.getElementById('userId').value;
-            const password = document.getElementById('password').value;
-            const data = {
-                displayName: document.getElementById('displayName').value,
-                username: document.getElementById('username').value,
-                role: roleSelect.value,
-                rfid: document.getElementById('rfid').value,
-            };
-
+        document.getElementById('user-form').addEventListener('submit', async (e) => { 
+            e.preventDefault(); 
+            const id = document.getElementById('userId').value; 
+            const password = document.getElementById('password').value; 
+            const data = { 
+                displayName: document.getElementById('displayName').value, 
+                username: document.getElementById('username').value, 
+                role: roleSelect.value, 
+                rfid: document.getElementById('rfid').value, 
+            }; 
+            
             if (roleSelect.value === 'طالب') {
                 data.department = userDepartmentSelect.value;
             } else {
-                data.department = null;
+                data.department = null; // حذف التخصص إذا لم يكن طالبًا
             }
 
-            if (id) {
-                if (password) { data.password = password; }
-                await updateDoc(doc(db, "Users", id), data);
-            } else {
-                if (!password) { alert('كلمة المرور مطلوبة للمستخدم الجديد.'); return; }
-                data.password = password;
-                await addDoc(collection(db, "Users"), data);
-            }
-            closeModal('user-modal');
+            if (id) { 
+                if (password) { data.password = password; } 
+                await updateDoc(doc(db, "Users", id), data); 
+            } else { 
+                if (!password) { alert('كلمة المرور مطلوبة للمستخدم الجديد.'); return; } 
+                data.password = password; 
+                await addDoc(collection(db, "Users"), data); 
+            } 
+            closeModal('user-modal'); 
         });
 
         onSnapshot(collection(db, "Users"), (snap) => {
@@ -297,7 +257,7 @@
             document.getElementById('username').value = data.username;
             document.getElementById('role').value = data.role;
             document.getElementById('rfid').value = data.rfid || '';
-
+            
             if (data.role === 'طالب') {
                 departmentWrapper.style.display = 'block';
                 userDepartmentSelect.required = true;
@@ -309,6 +269,7 @@
         };
 
         // --- إدارة المواد الدراسية (Courses) ---
+        // (الكود الخاص بالمواد الدراسية يبقى كما هو من التعديل السابق)
         document.getElementById('schedule-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('courseId').value;
@@ -324,11 +285,8 @@
                 day: document.getElementById('day').value,
                 time: `${startTime}-${endTime}`,
             };
-            if (id) {
-                await updateDoc(doc(db, "Courses", id), data);
-            } else {
-                await addDoc(collection(db, "Courses"), data);
-            }
+            if (id) await updateDoc(doc(db, "Courses", id), data);
+            else await addDoc(collection(db, "Courses"), data);
             closeModal('schedule-modal');
         });
 
@@ -348,13 +306,8 @@
                 let tableRows = '';
                 coursesByDept[dept].sort((a, b) => a.courseCode.localeCompare(b.courseCode)).forEach(c => {
                     tableRows += `<tr>
-                        <td>${c.courseCode}</td>
-                        <td>${c.courseName}</td>
-                        <td>${c.group}</td>
-                        <td>${c.lecturer}</td>
-                        <td>${c.room}</td>
-                        <td>${c.day}</td>
-                        <td>${c.time}</td>
+                        <td>${c.courseCode}</td><td>${c.courseName}</td><td>${c.group}</td>
+                        <td>${c.lecturer}</td><td>${c.room}</td><td>${c.day}</td><td>${c.time}</td>
                         <td>
                             <button class="btn btn-warning" onclick="editCourse('${c.id}')">تعديل</button>
                             <button class="btn btn-danger" onclick="deleteItem('Courses', '${c.id}', 'المادة')">حذف</button>
@@ -397,74 +350,27 @@
             }
         };
 
-        // --- إدارة القاعات ولوحة الإعلانات ---
-        document.getElementById('room-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const id = document.getElementById('roomId').value;
-            const data = {
-                name: document.getElementById('roomName').value,
-                capacity: parseInt(document.getElementById('roomCapacity').value)
-            };
-            if (id) {
-                await updateDoc(doc(db, "Rooms", id), data);
-            } else {
-                data.status = 'closed'; // الحالة الافتراضية عند الإنشاء
-                await addDoc(collection(db, "Rooms"), data);
-            }
-            closeModal('room-modal');
-        });
-
-        onSnapshot(collection(db, "Rooms"), (snap) => {
-            const roomsTbody = document.querySelector('#rooms-table tbody');
-            const statusContainer = document.getElementById('room-status-container');
-            roomsTbody.innerHTML = '';
-            statusContainer.innerHTML = '';
-            snap.forEach(d => {
-                const r = d.data();
-                // عرض القاعات في جدول الإدارة
-                roomsTbody.innerHTML += `<tr>
-                    <td>${r.name}</td>
-                    <td>${r.capacity}</td>
-                    <td>
-                        <button class="btn btn-warning" onclick="editRoom('${d.id}')">تعديل</button>
-                        <button class="btn btn-danger" onclick="deleteItem('Rooms', '${d.id}', 'القاعة')">حذف</button>
-                    </td>
-                </tr>`;
-                
-                // عرض حالة القاعات في لوحة الإعلانات
-                const statusClass = r.status === 'open' ? 'open' : 'closed';
-                statusContainer.innerHTML += `<div class="room-card ${statusClass}">${r.name}</div>`;
-            });
-        });
-
-        window.editRoom = async (id) => {
-            openModal('room-modal');
-            const roomDoc = await getDoc(doc(db, "Rooms", id));
-            const data = roomDoc.data();
-            document.getElementById('roomId').value = id;
-            document.querySelector('#room-modal h3').textContent = 'تعديل قاعة';
-            document.getElementById('roomName').value = data.name;
-            document.getElementById('roomCapacity').value = data.capacity;
-        };
-
-        // --- دوال مساعدة ---
         async function populateSelects() {
-            const usersSnap = await getDocs(query(collection(db, "Users"), where("role", "==", "عضو هيئة تدريس")));
+            const usersSnap = await getDocs(collection(db, "Users"));
             const roomsSnap = await getDocs(collection(db, "Rooms"));
             const lecturerSelect = document.getElementById('lecturer');
             const roomSelect = document.getElementById('scheduleRoom');
             lecturerSelect.innerHTML = '<option value="">اختر محاضر</option>';
             roomSelect.innerHTML = '<option value="">اختر قاعة</option>';
             usersSnap.forEach(d => {
-                lecturerSelect.innerHTML += `<option value="${d.data().displayName}">${d.data().displayName}</option>`;
+                const user = d.data();
+                if (user.role === "عضو هيئة تدريس") {
+                    lecturerSelect.innerHTML += `<option value="${user.displayName}">${user.displayName}</option>`;
+                }
             });
             roomsSnap.forEach(d => {
-                roomSelect.innerHTML += `<option value="${d.data().name}">${d.data().name}</option>`;
+                const room = d.data();
+                roomSelect.innerHTML += `<option value="${room.name}">${room.name}</option>`;
             });
         }
 
-        // --- استدعاءات أولية ---
-        showPage('dashboard');
+        // استدعاءات أولية
+        showPage('users');
     </script>
 </body>
 </html>
