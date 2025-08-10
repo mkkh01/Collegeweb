@@ -10,11 +10,15 @@
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
         .header h1 { color: #343a40; }
         .logout-btn { padding: 10px 20px; background-color: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; }
-        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h3 { color: #0056b3; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h3 { color: #0056b3; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 0; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { padding: 12px; text-align: right; border-bottom: 1px solid #ddd; }
         th { background-color: #f2f2f2; }
+        .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; }
+        .btn-primary { background-color: #007bff; }
+        .attendance-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .attendance-controls input[type="date"] { padding: 8px; border: 1px solid #ccc; border-radius: 5px; }
     </style>
 </head>
 <body>
@@ -22,14 +26,14 @@
         const loggedInUser = JSON.parse(sessionStorage.getItem('user'));
         if (!loggedInUser) {
             alert('يجب تسجيل الدخول أولاً.');
-            window.location.href = 'login.html';
+            window.location.href = 'index.html'; // أو login.html
         }
     </script>
 
     <div class="container">
         <div class="header">
             <h1 id="welcome-message">أهلاً بك</h1>
-            <a href="login.html" class="logout-btn" onclick="sessionStorage.clear()">تسجيل الخروج</a>
+            <a href="index.html" class="logout-btn" onclick="sessionStorage.clear()">تسجيل الخروج</a>
         </div>
         <div class="card">
             <h3>جدولك الدراسي</h3>
@@ -38,38 +42,53 @@
                 <tbody><tr><td colspan="5">جاري التحميل...</td></tr></tbody>
             </table>
         </div>
+
+        <!-- ====================================================== -->
+        <!-- ## القسم الجديد: سجلات الحضور ## -->
+        <!-- ====================================================== -->
+        <div class="card">
+            <h3>سجلات الحضور</h3>
+            <div class="attendance-controls">
+                <label for="attendance-date">اختر تاريخًا لعرض الحضور:</label>
+                <input type="date" id="attendance-date">
+                <button class="btn btn-primary" onclick="window.fetchAttendance()">بحث</button>
+            </div>
+            <table id="attendance-table">
+                <thead><tr><th>اسم الطالب</th><th>القاعة</th><th>المادة</th><th>وقت الحضور</th></tr></thead>
+                <tbody><tr><td colspan="4">اختر تاريخًا لعرض سجلات الحضور.</td></tr></tbody>
+            </table>
+            <button class="btn btn-primary" style="margin-top: 20px;" onclick="window.printAttendance()">طباعة الكشف</button>
+        </div>
+        <!-- ====================================================== -->
+
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, query, where, onSnapshot, getDocs, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-        const db = getFirestore(initializeApp({
+        const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
             authDomain: "gggg-dc7d0.firebaseapp.com",
             projectId: "gggg-dc7d0",
             storageBucket: "gggg-dc7d0.appspot.com",
             messagingSenderId: "151376454562",
             appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
-        }));
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
 
         const user = JSON.parse(sessionStorage.getItem('user'));
-        
-        // ===============================================================
-        // ==== هذا هو السطر الذي تم تصحيحه لضمان عمله بشكل صحيح ====
-        // ===============================================================
-        const userDisplayName = user.displayName; // استخدام حقل الاسم الكامل دائمًا
-        // ===============================================================
-
+        const userDisplayName = user.displayName;
         document.getElementById('welcome-message').textContent = `أهلاً بك، ${userDisplayName}`;
 
+        // عرض الجدول الدراسي (الكود الأصلي)
         const schedulesTableBody = document.querySelector('#my-schedules-table tbody');
         const schedulesRef = collection(db, "Schedules");
-        
-        // البحث عن الجداول باستخدام الاسم الكامل للمستخدم
-        const q = query(schedulesRef, where("lecturer", "==", userDisplayName));
+        const qSchedules = query(schedulesRef, where("lecturer", "==", userDisplayName));
 
-        onSnapshot(q, (snapshot) => {
+        onSnapshot(qSchedules, (snapshot) => {
             schedulesTableBody.innerHTML = '';
             if (snapshot.empty) {
                 schedulesTableBody.innerHTML = '<tr><td colspan="5">لا توجد محاضرات مجدولة لك.</td></tr>';
@@ -80,6 +99,78 @@
                 schedulesTableBody.innerHTML += `<tr><td>${s.day}</td><td>${s.time}</td><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.room}</td></tr>`;
             });
         });
+
+        // ======================================================
+        // ## الكود الجديد: جلب وطباعة الحضور ##
+        // ======================================================
+        const attendanceTableBody = document.querySelector('#attendance-table tbody');
+        const attendanceRef = collection(db, "Attendance");
+
+        window.fetchAttendance = async () => {
+            const selectedDateStr = document.getElementById('attendance-date').value;
+            if (!selectedDateStr) {
+                alert('يرجى اختيار تاريخ أولاً.');
+                return;
+            }
+
+            const selectedDate = new Date(selectedDateStr);
+            const startOfDay = Timestamp.fromDate(new Date(selectedDate.setHours(0, 0, 0, 0)));
+            const endOfDay = Timestamp.fromDate(new Date(selectedDate.setHours(23, 59, 59, 999)));
+
+            attendanceTableBody.innerHTML = '<tr><td colspan="4">جاري البحث...</td></tr>';
+
+            const qAttendance = query(attendanceRef, 
+                where("lecturerName", "==", userDisplayName),
+                where("timestamp", ">=", startOfDay),
+                where("timestamp", "<=", endOfDay)
+            );
+
+            try {
+                const snapshot = await getDocs(qAttendance);
+                attendanceTableBody.innerHTML = '';
+                if (snapshot.empty) {
+                    attendanceTableBody.innerHTML = '<tr><td colspan="4">لا توجد سجلات حضور في هذا اليوم.</td></tr>';
+                    return;
+                }
+                snapshot.forEach(doc => {
+                    const a = doc.data();
+                    const attendanceTime = a.timestamp.toDate().toLocaleTimeString('ar-EG');
+                    attendanceTableBody.innerHTML += `
+                        <tr>
+                            <td>${a.studentName}</td>
+                            <td>${a.roomName}</td>
+                            <td>${a.courseName}</td>
+                            <td>${attendanceTime}</td>
+                        </tr>`;
+                });
+            } catch (error) {
+                console.error("Error fetching attendance: ", error);
+                attendanceTableBody.innerHTML = '<tr><td colspan="4">حدث خطأ أثناء جلب البيانات.</td></tr>';
+            }
+        };
+
+        window.printAttendance = () => {
+            const tableToPrint = document.getElementById('attendance-table');
+            const selectedDate = document.getElementById('attendance-date').value;
+            
+            if (tableToPrint.querySelector('tbody tr td[colspan="4"]')) {
+                alert("يرجى البحث عن سجلات الحضور أولاً قبل الطباعة.");
+                return;
+            }
+
+            const printWindow = window.open('', '', 'height=600,width=800');
+            printWindow.document.write('<html lang="ar" dir="rtl"><head><title>كشف حضور الطلاب</title>');
+            printWindow.document.write('<style>body{font-family: "Segoe UI", sans-serif; padding: 20px;} table{width: 100%; border-collapse: collapse;} th, td{border: 1px solid #333; padding: 10px; text-align: right;} h2, h3 {text-align: center;}</style>');
+            printWindow.document.write('</head><body>');
+            printWindow.document.write(`<h2>كشف حضور ليوم: ${selectedDate || 'غير محدد'}</h2>`);
+            printWindow.document.write(`<h3>المحاضر: ${userDisplayName}</h3>`);
+            printWindow.document.write(tableToPrint.outerHTML);
+            printWindow.document.write('</body></html>');
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
+        };
+        // ======================================================
     </script>
 </body>
 </html>
