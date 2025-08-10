@@ -26,7 +26,7 @@
         const loggedInUser = JSON.parse(sessionStorage.getItem('user'));
         if (!loggedInUser) {
             alert('يجب تسجيل الدخول أولاً.');
-            window.location.href = 'index.html'; // أو login.html
+            window.location.href = 'index.html';
         }
     </script>
 
@@ -38,13 +38,13 @@
         <div class="card">
             <h3>جدولك الدراسي</h3>
             <table id="my-schedules-table">
-                <thead><tr><th>اليوم</th><th>الوقت</th><th>رمز المادة</th><th>اسم المادة</th><th>القاعة</th></tr></thead>
-                <tbody><tr><td colspan="5">جاري التحميل...</td></tr></tbody>
+                <thead><tr><th>اليوم</th><th>الوقت</th><th>رمز المادة</th><th>اسم المادة</th><th>القاعة</th><th>المجموعات</th></tr></thead>
+                <tbody><tr><td colspan="6">جاري التحميل...</td></tr></tbody>
             </table>
         </div>
 
         <!-- ====================================================== -->
-        <!-- ## القسم الجديد: سجلات الحضور ## -->
+        <!-- ## تعديل 4: قسم سجلات الحضور والطباعة ## -->
         <!-- ====================================================== -->
         <div class="card">
             <h3>سجلات الحضور</h3>
@@ -83,7 +83,7 @@
         const userDisplayName = user.displayName;
         document.getElementById('welcome-message').textContent = `أهلاً بك، ${userDisplayName}`;
 
-        // عرض الجدول الدراسي (الكود الأصلي)
+        // عرض الجدول الدراسي (مع إضافة المجموعات)
         const schedulesTableBody = document.querySelector('#my-schedules-table tbody');
         const schedulesRef = collection(db, "Schedules");
         const qSchedules = query(schedulesRef, where("lecturer", "==", userDisplayName));
@@ -91,12 +91,19 @@
         onSnapshot(qSchedules, (snapshot) => {
             schedulesTableBody.innerHTML = '';
             if (snapshot.empty) {
-                schedulesTableBody.innerHTML = '<tr><td colspan="5">لا توجد محاضرات مجدولة لك.</td></tr>';
+                schedulesTableBody.innerHTML = '<tr><td colspan="6">لا توجد محاضرات مجدولة لك.</td></tr>';
                 return;
             }
             snapshot.forEach(doc => {
                 const s = doc.data();
-                schedulesTableBody.innerHTML += `<tr><td>${s.day}</td><td>${s.time}</td><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.room}</td></tr>`;
+                schedulesTableBody.innerHTML += `<tr>
+                    <td>${s.day}</td>
+                    <td>${s.time}</td>
+                    <td>${s.courseCode}</td>
+                    <td>${s.courseName}</td>
+                    <td>${s.room}</td>
+                    <td>${(s.groups || []).join(', ')}</td>
+                </tr>`;
             });
         });
 
@@ -119,6 +126,7 @@
 
             attendanceTableBody.innerHTML = '<tr><td colspan="4">جاري البحث...</td></tr>';
 
+            // البحث عن سجلات الحضور التي تطابق اسم المحاضر وتقع ضمن اليوم المحدد
             const qAttendance = query(attendanceRef, 
                 where("lecturerName", "==", userDisplayName),
                 where("timestamp", ">=", startOfDay),
