@@ -69,9 +69,6 @@
         }
     </script>
 
-    <!-- ====================================================== -->
-    <!-- ## تعديل 1: تبسيط القائمة الجانبية ## -->
-    <!-- ====================================================== -->
     <div class="sidebar">
         <h2>لوحة التحكم</h2>
         <a href="#dashboard" class="nav-link" onclick="showPage('dashboard')">لوحة الإعلانات</a>
@@ -82,9 +79,6 @@
         <a href="index.html" style="color: var(--warning-color); margin-top: 30px;" onclick="sessionStorage.clear()">تسجيل الخروج</a>
     </div>
 
-    <!-- ====================================================== -->
-    <!-- ## تعديل 2: حذف صفحة الشعب ## -->
-    <!-- ====================================================== -->
     <div class="main-content">
         <div id="dashboard" class="page"><div class="card"><h3>لوحة الإعلانات</h3><div id="room-status-container" class="room-status-container"></div></div></div>
         <div id="users" class="page"><div class="card"><h3>المستخدمون</h3><button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم</button><table id="users-table"><thead><tr><th>الاسم الكامل</th><th>الدور</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
@@ -97,9 +91,6 @@
 
     <div id="pdf-prepare-area" class="pdf-prepare-area"></div>
 
-    <!-- ====================================================== -->
-    <!-- ## تعديل 3: تحديث النماذج المنبثقة ## -->
-    <!-- ====================================================== -->
     <div id="user-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('user-modal')">&times;</span><h3 id="user-modal-title"></h3><form id="user-form"><input type="hidden" id="userId"><div class="form-group"><label>الاسم الكامل</label><input type="text" id="displayName" required></div><div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div><div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم التغيير</small></div><div class="form-group"><label>الدور</label><select id="role" required><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option><option value="طالب">طالب</option></select></div><div class="form-group"><label>رمز الباركود (رقم)</label><input type="text" id="barcodeId"></div><div class="form-group"><label>رمز RFID (اختياري)</label><input type="text" id="rfid"></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
     <div id="room-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('room-modal')">&times;</span><h3 id="room-modal-title"></h3><form id="room-form"><input type="hidden" id="roomId"><div class="form-group"><label>اسم القاعة</label><input type="text" id="roomName" required></div><div class="form-group"><label>السعة</label><input type="number" id="roomCapacity" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
     
@@ -179,13 +170,9 @@
         let allCourses = [];
         let allSchedules = [];
 
-        // ======================================================================
-        // ## تعديل 4: تحديث دالة المزامنة للهيكل المبسط ##
-        // ======================================================================
         async function syncToRtdb() {
             console.log("Starting Full Sync to Realtime DB...");
             
-            // 1. مزامنة المستخدمين (مع أدوارهم)
             const usersRef = collection(db, "Users");
             const usersSnapshot = await getDocs(usersRef);
             const allowedRfids = {};
@@ -203,7 +190,6 @@
             await set(ref(rtdb, 'allowed_rfids'), allowedRfids);
             console.log("Successfully synced RFID users to Realtime DB.");
 
-            // 2. مزامنة الجداول الدراسية بالهيكل الجديد
             const schedulesByRoom = {};
             for (const schedule of allSchedules) {
                 const course = allCourses.find(c => c.id === schedule.courseId);
@@ -222,7 +208,6 @@
             await set(ref(rtdb, 'schedules_by_room'), schedulesByRoom);
             console.log("Successfully synced schedules to Realtime DB.");
             
-            // 3. مزامنة بيانات تسجيل الطلاب (Enrollments)
             const enrollmentsSnap = await getDocs(collection(db, "Enrollments"));
             const enrollmentsByStudent = {};
             enrollmentsSnap.forEach(doc => {
@@ -230,7 +215,6 @@
                 if (!enrollmentsByStudent[enrollment.studentId]) {
                     enrollmentsByStudent[enrollment.studentId] = {};
                 }
-                // تخزين الشعبة المسجل بها الطالب
                 enrollmentsByStudent[enrollment.studentId][enrollment.courseId] = enrollment.section;
             });
             await set(ref(rtdb, 'enrollments_by_student'), enrollmentsByStudent);
@@ -260,7 +244,6 @@
             
             if (modalId === 'schedule-modal') populateScheduleFormSelects();
             if (modalId === 'course-modal') {
-                // مسح مربعات الاختيار عند فتح نافذة المادة
                 document.querySelectorAll('#course-form input[name="sections"]').forEach(cb => cb.checked = false);
             }
 
@@ -269,9 +252,6 @@
         window.closeModal = (modalId) => { document.getElementById(modalId).style.display = 'none'; };
         const confirmDelete = (item) => confirm(`هل أنت متأكد من حذف هذا ${item}؟`);
 
-        // ======================================================================
-        // ## تعديل 5: تحديث دوال الحفظ للهيكل المبسط ##
-        // ======================================================================
         document.getElementById('user-form').addEventListener('submit', async (e) => { e.preventDefault(); const id = document.getElementById('userId').value; const password = document.getElementById('password').value; const data = { displayName: document.getElementById('displayName').value, username: document.getElementById('username').value, role: document.getElementById('role').value, barcodeId: document.getElementById('barcodeId').value, rfid: document.getElementById('rfid').value, }; if (id) { if (password) { data.password = password; } await updateDoc(doc(db, "Users", id), data); } else { if (!password) { alert('كلمة المرور مطلوبة للمستخدم الجديد.'); return; } data.password = password; await addDoc(collection(db, "Users"), data); } closeModal('user-modal'); });
         document.getElementById('room-form').addEventListener('submit', async (e) => { e.preventDefault(); const id = document.getElementById('roomId').value; const roomName = document.getElementById('roomName').value; const data = { name: roomName, capacity: parseInt(document.getElementById('roomCapacity').value), qrUrl: `${SITE_URL}/open.html?room=${encodeURIComponent(roomName)}` }; if (id) { await updateDoc(doc(db, "Rooms", id), data); } else { data.status = 'closed'; await addDoc(collection(db, "Rooms"), data); updateRealtimeDBStatus(roomName, 'closed', 'none'); } closeModal('room-modal'); });
         
@@ -305,9 +285,6 @@
             closeModal('schedule-modal');
         });
 
-        // ======================================================================
-        // ## تعديل 6: تحديث دوال العرض والاستماع ##
-        // ======================================================================
         onSnapshot(collection(db, "Courses"), (snap) => {
             const tbody = document.querySelector('#courses-table tbody');
             tbody.innerHTML = '';
@@ -330,11 +307,37 @@
             syncToRtdb();
         });
 
+        // ======================================================================
+        // ## الكود المصحح هنا ##
+        // ======================================================================
         onSnapshot(collection(db, "Rooms"), (snapshot) => {
             const roomsTableTbody = document.querySelector('#rooms-table tbody');
-            roomsTableTbody.innerHTML = '';
-            snapshot.docChanges().forEach((change) => { const docId = change.doc.id; const roomData = change.doc.data(); if (change.type === "added") { roomDataStore[docId] = roomData; createDashboardCard(docId); } if (change.type === "modified") { roomDataStore[docId] = { ...roomDataStore[docId], ...roomData }; updateDashboardCard(docId); } if (change.type === "removed") { delete roomDataStore[docId]; const card = document.getElementById(docId); if (card) card.remove(); } });
-            snapshot.forEach(d => { const r = d.data(); const qrCodeDataUrl = generateQRCode(r.qrUrl || ''); roomsTableTbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td><div class="qr-code-container">${r.qrUrl ? `<img src="${qrCodeDataUrl}" alt="QR Code">` : 'لا يوجد'}</div></td><td><button class="btn btn-warning" onclick="editItem('Rooms', '${d.id}', 'room')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms', '${d.id}', 'القاعة')">حذف</button><button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}', '${r.qrUrl}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadQRCodeAsPNG('${r.name}', '${r.qrUrl}')">تحميل صورة الرمز</button></td></tr>`; });
+            roomsTableTbody.innerHTML = ''; // مسح الجدول قبل إعادة بنائه
+
+            snapshot.docChanges().forEach((change) => {
+                const docId = change.doc.id;
+                const roomData = change.doc.data();
+                if (change.type === "added") {
+                    roomDataStore[docId] = roomData;
+                    createDashboardCard(docId);
+                }
+                if (change.type === "modified") {
+                    roomDataStore[docId] = { ...roomDataStore[docId], ...roomData };
+                    updateDashboardCard(docId);
+                }
+                if (change.type === "removed") {
+                    delete roomDataStore[docId];
+                    const card = document.getElementById(docId);
+                    if (card) card.remove();
+                }
+            });
+
+            // إعادة بناء جدول إدارة القاعات بالكامل بعد كل تغيير
+            snapshot.forEach(d => {
+                const r = d.data();
+                const qrCodeDataUrl = generateQRCode(r.qrUrl || '');
+                roomsTableTbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td><div class="qr-code-container">${r.qrUrl ? `<img src="${qrCodeDataUrl}" alt="QR Code">` : 'لا يوجد'}</div></td><td><button class="btn btn-warning" onclick="editItem('Rooms', '${d.id}', 'room')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms', '${d.id}', 'القاعة')">حذف</button><button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}', '${r.qrUrl}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadQRCodeAsPNG('${r.name}', '${r.qrUrl}')">تحميل صورة الرمز</button></td></tr>`;
+            });
         });
 
         const locksRef = ref(rtdb, 'locks');
@@ -380,9 +383,6 @@
             syncToRtdb();
         });
 
-        // ======================================================================
-        // ## تعديل 7: تحديث دوال تعبئة القوائم المنسدلة ##
-        // ======================================================================
         async function populateScheduleFormSelects() {
             const courseSelect = document.getElementById('scheduleCourse');
             const sectionSelect = document.getElementById('scheduleSection');
@@ -441,7 +441,6 @@
                 await populateScheduleFormSelects(); 
                 document.getElementById('scheduleCourse').value = data.courseId;
                 
-                // تفعيل قائمة الشعب وتعبئتها
                 const selectedCourse = allCourses.find(c => c.id === data.courseId);
                 const sectionSelect = document.getElementById('scheduleSection');
                 sectionSelect.innerHTML = '<option value="">اختر شعبة</option>';
