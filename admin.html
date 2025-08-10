@@ -41,7 +41,6 @@
         .room-card p { margin: 4px 0; font-size: 1rem; color: white; }
         .room-card .details { margin: 10px 0; min-height: 50px; }
         .room-card .details p { font-size: 0.9rem; font-weight: normal; }
-        .room-card .details strong { font-weight: bold; }
         .qr-code-container img { max-width: 80px; height: auto; }
         .barcode-container svg { height: 50px; width: auto; }
         .pdf-prepare-area { position: absolute; left: -9999px; opacity: 0; }
@@ -493,7 +492,7 @@
 
             let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
             if (currentSchedule) {
-                detailsHtml = `<div class="details"><p><strong>المحاضر:</strong> ${currentSchedule.lecturer}</p><p><strong>المادة:</strong> ${currentSchedule.courseName}</p></div>`;
+                detailsHtml = `<div class="details"><p>${currentSchedule.lecturer}</p><p>${currentSchedule.courseName}</p></div>`;
             }
 
             card.innerHTML = `<div><h4>${roomData.name}</h4><p>${statusText}</p>${detailsHtml}</div><button class="btn btn-warning" onclick="toggleRoomStatus('${docId}', '${status}')">تغيير الحالة</button>`;
@@ -508,9 +507,10 @@
             set(ref(rtdb, 'locks/Room' + roomName), { status: newStatus, last_user_uid: adminUid });
         };
 
+        // ## التعديل: دالة التحديث التلقائي كل دقيقة ##
         setInterval(() => {
             Object.keys(roomDataStore).forEach(docId => updateDashboardCard(docId));
-        }, 60000);
+        }, 60000); // 60000ms = 1 minute
 
         // --- دوال مساعدة (تعديل، حذف، طباعة، تحميل) ---
         window.editItem = async (collectionName, id, type) => {
