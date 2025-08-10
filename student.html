@@ -19,12 +19,13 @@
         .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; }
         .btn-primary { background-color: var(--primary-color); }
         .btn-danger { background-color: var(--danger-color); }
-        .room-status-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
-        .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; display: flex; flex-direction: column; justify-content: center; min-height: 120px; }
+        .room-status-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; display: flex; flex-direction: column; justify-content: center; min-height: 160px; }
         .room-card.open { background-color: var(--success-color); }
         .room-card.closed { background-color: var(--danger-color); }
-        .room-card h4 { margin-top: 0; font-size: 1.5rem; }
+        .room-card h4 { margin-top: 0; font-size: 1.8rem; }
         .room-card p { margin: 4px 0; }
+        .room-card .details { margin-top: 10px; min-height: 40px; font-weight: normal; font-size: 0.9rem; }
         #student-schedule-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
         #student-schedule-form select { padding: 10px; border: 1px solid #ccc; border-radius: 5px; flex: 1; min-width: 200px; }
         #student-schedule-form button { flex-basis: 100%; padding: 12px; }
@@ -53,9 +54,6 @@
             <div id="room-status-container" class="room-status-container"></div>
         </div>
 
-        <!-- ====================================================== -->
-        <!-- ## تعديل 3: نموذج تسجيل المواد بالقوائم المنسدلة ## -->
-        <!-- ====================================================== -->
         <div class="card">
             <h3>تسجيل المواد الدراسية</h3>
             <form id="student-schedule-form">
@@ -105,20 +103,79 @@
         // --- 1. عرض لوحة الإعلانات (للقراءة فقط) ---
         const statusContainer = document.getElementById('room-status-container');
         const locksRef = ref(rtdb, 'locks');
+        let allSchedulesData = [];
+        let roomDataStore = {};
+
+        // جلب بيانات الجداول الدراسية مرة واحدة وتخزينها
+        getDocs(collection(db, "Schedules")).then(snap => {
+            allSchedulesData = snap.docs.map(doc => doc.data());
+        });
+
+        // جلب بيانات القاعات والاستماع لتحديثات الحالة
+        onSnapshot(collection(db, "Rooms"), (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                const docId = change.doc.id;
+                const roomData = change.doc.data();
+                if (change.type === "added") {
+                    roomDataStore[docId] = roomData;
+                }
+                if (change.type === "modified") {
+                    roomDataStore[docId] = { ...roomDataStore[docId], ...roomData };
+                }
+                if (change.type === "removed") {
+                    delete roomDataStore[docId];
+                }
+            });
+            updateAllDashboardCards(); // تحديث العرض الأولي
+        });
+
         onValue(locksRef, (snapshot) => {
             const allLocksStatus = snapshot.val() || {};
-            statusContainer.innerHTML = '';
-            getDocs(collection(db, "Rooms")).then(roomSnapshot => {
-                roomSnapshot.forEach(doc => {
-                    const room = doc.data();
-                    const lockName = "Room" + room.name;
-                    const lockStatus = allLocksStatus[lockName] ? allLocksStatus[lockName].status : 'closed';
-                    const statusClass = lockStatus === 'open' ? 'open' : 'closed';
-                    const statusText = lockStatus === 'open' ? 'مفتوحة' : 'مغلقة';
-                    statusContainer.innerHTML += `<div class="room-card ${statusClass}"><h4>${room.name}</h4><p>${statusText}</p></div>`;
-                });
-            });
+            for (const docId in roomDataStore) {
+                const roomName = roomDataStore[docId].name;
+                const lockName = "Room" + roomName;
+                if (allLocksStatus[lockName]) {
+                    const newStatus = allLocksStatus[lockName].status;
+                    if (roomDataStore[docId].status !== newStatus) {
+                        roomDataStore[docId].status = newStatus;
+                    }
+                }
+            }
+            updateAllDashboardCards(); // تحديث العرض عند تغيير الحالة
         });
+
+        function updateAllDashboardCards() {
+            statusContainer.innerHTML = '';
+            Object.values(roomDataStore).forEach(roomData => {
+                const now = new Date();
+                const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+                const currentDay = days[now.getDay()];
+                const currentTime = now.getHours() * 60 + now.getMinutes();
+
+                const currentSchedule = allSchedulesData.find(schedule => {
+                    if (schedule.room !== roomData.name || schedule.day !== currentDay) return false;
+                    const timeParts = schedule.time.split('-');
+                    const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
+                    const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]);
+                    return currentTime >= startTime && currentTime < endTime;
+                });
+
+                const status = roomData.status || 'closed';
+                const statusText = status === 'open' ? 'مفتوحة' : 'مغلقة';
+                const statusClass = status === 'open' ? 'open' : 'closed';
+
+                let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
+                if (currentSchedule) {
+                    detailsHtml = `<div class="details"><p>${currentSchedule.lecturer}</p><p>${currentSchedule.courseName}</p></div>`;
+                }
+
+                statusContainer.innerHTML += `<div class="room-card ${statusClass}"><h4>${roomData.name}</h4><p>${statusText}</p>${detailsHtml}</div>`;
+            });
+        }
+        
+        // تحديث لوحة الإعلانات كل دقيقة للتحقق من تغير الوقت
+        setInterval(updateAllDashboardCards, 60000);
+
 
         // --- 2. إدارة الجدول الدراسي للطالب ---
         const scheduleForm = document.getElementById('student-schedule-form');
@@ -128,7 +185,6 @@
         const studentSchedulesRef = collection(db, "StudentSchedules");
         const studentQuery = query(studentSchedulesRef, where("studentId", "==", user.id));
 
-        // جلب المواد المتاحة للطالب (مواد قسمه + المواد العامة)
         async function populateAvailableCourses() {
             const schedulesRef = collection(db, "Schedules");
             const q = query(schedulesRef, or(
@@ -140,12 +196,10 @@
             availableCoursesSelect.innerHTML = '<option value="" disabled selected>اختر المادة...</option>';
             querySnapshot.forEach(doc => {
                 const schedule = doc.data();
-                // استخدام doc.id كقيمة فريدة للمادة
                 availableCoursesSelect.innerHTML += `<option value="${doc.id}">${schedule.courseName} (${schedule.courseCode})</option>`;
             });
         }
 
-        // عرض جدول الطالب الحالي
         onSnapshot(studentQuery, (snapshot) => {
             scheduleTableBody.innerHTML = '';
             if (snapshot.empty) {
@@ -166,7 +220,6 @@
             });
         });
 
-        // إضافة مادة جديدة لجدول الطالب
         scheduleForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const scheduleId = availableCoursesSelect.value;
@@ -177,15 +230,15 @@
                 return;
             }
 
-            // جلب تفاصيل المادة من جدولها الأصلي
-            const scheduleDoc = await getDocs(query(collection(db, "Schedules"), where("__name__", "==", scheduleId)));
-            if (scheduleDoc.empty) {
+            const scheduleDocRef = doc(db, "Schedules", scheduleId);
+            const scheduleDoc = await getDoc(scheduleDocRef);
+
+            if (!scheduleDoc.exists()) {
                 alert("حدث خطأ، المادة غير موجودة.");
                 return;
             }
-            const scheduleData = scheduleDoc.docs[0].data();
+            const scheduleData = scheduleDoc.data();
 
-            // التحقق من أن المجموعة التي اختارها الطالب متاحة لهذه المادة
             if (!scheduleData.groups || !scheduleData.groups.includes(selectedGroup)) {
                 alert(`المجموعة ${selectedGroup} غير متاحة لهذه المادة. المجموعات المتاحة هي: ${scheduleData.groups.join(', ')}`);
                 return;
@@ -195,17 +248,16 @@
                 studentId: user.id,
                 displayName: user.displayName,
                 department: studentDepartment,
-                scheduleId: scheduleId, // ID المادة الأصلي
+                scheduleId: scheduleId,
                 courseName: scheduleData.courseName,
                 room: scheduleData.room,
                 day: scheduleData.day,
                 time: scheduleData.time,
-                group: selectedGroup, // المجموعة التي سجل بها الطالب
+                group: selectedGroup,
             });
             scheduleForm.reset();
         });
 
-        // جعل دالة الحذف متاحة بشكل عام
         window.deleteSchedule = async (id) => {
             if (confirm('هل أنت متأكد من حذف هذه المادة من جدولك؟')) {
                 await deleteDoc(doc(db, "StudentSchedules", id));
