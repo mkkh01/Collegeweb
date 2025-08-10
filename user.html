@@ -3,31 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>بوابة الطالب</title>
+    <title>لوحة المستخدم</title>
     <style>
-        :root { --primary-color: #007bff; --secondary-color: #6c757d; --success-color: #28a745; --danger-color: #dc3545; --warning-color: #ffc107; --light-color: #f8f9fa; --dark-color: #343a40; --info-color: #17a2b8; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; padding: 30px; }
-        .container { max-width: 900px; margin: auto; display: flex; flex-direction: column; gap: 30px; }
-        .header { display: flex; justify-content: space-between; align-items: center; }
-        .header h1 { color: #343a40; margin: 0; }
-        .logout-btn { padding: 10px 20px; background-color: var(--danger-color); color: white; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; }
+        .container { max-width: 900px; margin: auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .header h1 { color: #343a40; }
+        .logout-btn { padding: 10px 20px; background-color: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; }
         .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h3 { color: #0056b3; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 0; }
+        h3 { color: #0056b3; border-bottom: 2px solid #eee; padding-bottom: 10px; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 12px; text-align: right; border-bottom: 1px solid #ddd; vertical-align: middle; }
+        th, td { padding: 12px; text-align: right; border-bottom: 1px solid #ddd; }
         th { background-color: #f2f2f2; }
-        .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; }
-        .btn-success { background-color: var(--success-color); }
-        .btn-danger { background-color: var(--danger-color); }
-        .room-status-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
-        .room-card { padding: 15px; border-radius: 8px; text-align: center; color: white; font-weight: bold; }
-        .room-card.open { background-color: var(--success-color); }
-        .room-card.closed { background-color: var(--danger-color); }
-        .room-card h4 { margin: 0 0 5px 0; font-size: 1.2rem; }
-        .room-card p { margin: 2px 0; font-size: 0.8rem; }
-        .room-card .details { margin-top: 8px; font-size: 0.75rem; }
-        .room-card .details .lecturer { font-weight: bold; }
-        .room-card .details .course { font-style: italic; }
     </style>
 </head>
 <body>
@@ -44,236 +31,55 @@
             <h1 id="welcome-message">أهلاً بك</h1>
             <a href="login.html" class="logout-btn" onclick="sessionStorage.clear()">تسجيل الخروج</a>
         </div>
-
-        <!-- ====================================================== -->
-        <!-- ## تعديل 1: إضافة لوحة الإعلانات للطلاب (للمشاهدة فقط) ## -->
-        <!-- ====================================================== -->
         <div class="card">
-            <h3>لوحة الإعلانات</h3>
-            <div id="room-status-container" class="room-status-container">
-                <p>جاري تحميل حالة القاعات...</p>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>جدولي الدراسي</h3>
+            <h3>جدولك الدراسي</h3>
             <table id="my-schedules-table">
-                <thead><tr><th>المادة (الشعبة)</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th></tr></thead>
-                <tbody><tr><td colspan="5">لم تسجل في أي مواد بعد أو لا يوجد لها جدول.</td></tr></tbody>
-            </table>
-        </div>
-
-        <!-- ====================================================== -->
-        <!-- ## تعديل 2: تبسيط واجهة التسجيل ## -->
-        <!-- ====================================================== -->
-        <div class="card">
-            <h3>تسجيل المواد المتاحة</h3>
-            <table id="available-courses-table">
-                <thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>الشعبة</th><th>إجراء</th></tr></thead>
-                <tbody><tr><td colspan="4">جاري تحميل المواد المتاحة...</td></tr></tbody>
+                <thead><tr><th>اليوم</th><th>الوقت</th><th>رمز المادة</th><th>اسم المادة</th><th>القاعة</th></tr></thead>
+                <tbody><tr><td colspan="5">جاري التحميل...</td></tr></tbody>
             </table>
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, query, where, onSnapshot, getDocs, addDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+        import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-        const firebaseConfig = {
+        const db = getFirestore(initializeApp({
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
             authDomain: "gggg-dc7d0.firebaseapp.com",
             projectId: "gggg-dc7d0",
             storageBucket: "gggg-dc7d0.appspot.com",
             messagingSenderId: "151376454562",
             appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const rtdb = getDatabase(app);
+        }));
 
         const user = JSON.parse(sessionStorage.getItem('user'));
-        document.getElementById('welcome-message').textContent = `أهلاً بك، ${user.displayName}`;
+        
+        // ===============================================================
+        // ==== هذا هو السطر الذي تم تصحيحه لضمان عمله بشكل صحيح ====
+        // ===============================================================
+        const userDisplayName = user.displayName; // استخدام حقل الاسم الكامل دائمًا
+        // ===============================================================
 
-        let allCourses = [];
-        let allSchedules = [];
-        let myEnrollments = {}; // لتخزين تسجيلات الطالب الحالية
+        document.getElementById('welcome-message').textContent = `أهلاً بك، ${userDisplayName}`;
 
-        // ======================================================
-        // ## تعديل 3: منطق عرض لوحة الإعلانات ##
-        // ======================================================
-        const roomStatusContainer = document.getElementById('room-status-container');
-        const locksRef = ref(rtdb, 'locks');
-        const schedulesByRoomRef = ref(rtdb, 'schedules_by_room');
+        const schedulesTableBody = document.querySelector('#my-schedules-table tbody');
+        const schedulesRef = collection(db, "Schedules");
+        
+        // البحث عن الجداول باستخدام الاسم الكامل للمستخدم
+        const q = query(schedulesRef, where("lecturer", "==", userDisplayName));
 
-        let roomStatuses = {};
-        let schedulesByRoom = {};
-
-        onValue(locksRef, (snapshot) => {
-            roomStatuses = snapshot.val() || {};
-            renderDashboard();
+        onSnapshot(q, (snapshot) => {
+            schedulesTableBody.innerHTML = '';
+            if (snapshot.empty) {
+                schedulesTableBody.innerHTML = '<tr><td colspan="5">لا توجد محاضرات مجدولة لك.</td></tr>';
+                return;
+            }
+            snapshot.forEach(doc => {
+                const s = doc.data();
+                schedulesTableBody.innerHTML += `<tr><td>${s.day}</td><td>${s.time}</td><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.room}</td></tr>`;
+            });
         });
-
-        onValue(schedulesByRoomRef, (snapshot) => {
-            schedulesByRoom = snapshot.val() || {};
-            renderDashboard();
-        });
-
-        function renderDashboard() {
-            roomStatusContainer.innerHTML = '';
-            if (Object.keys(roomStatuses).length === 0) {
-                roomStatusContainer.innerHTML = '<p>لا توجد قاعات لعرض حالتها.</p>';
-                return;
-            }
-
-            const now = new Date();
-            const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-            const currentDayName = days[now.getDay()];
-            const currentTime = now.getHours() * 60 + now.getMinutes();
-
-            for (const lockName in roomStatuses) {
-                const roomName = lockName.replace('Room', '');
-                const statusData = roomStatuses[lockName];
-                const status = statusData.status || 'closed';
-
-                const card = document.createElement('div');
-                card.className = `room-card ${status}`;
-
-                let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
-                const roomSchedules = schedulesByRoom[lockName];
-                if (roomSchedules) {
-                    const currentSchedule = Object.values(roomSchedules).find(s => {
-                        if (s.day !== currentDayName) return false;
-                        const [start, end] = s.time.split('-');
-                        const startTime = parseInt(start.split(':')[0]) * 60 + parseInt(start.split(':')[1]);
-                        const endTime = parseInt(end.split(':')[0]) * 60 + parseInt(end.split(':')[1]);
-                        return currentTime >= startTime && currentTime < endTime;
-                    });
-
-                    if (currentSchedule) {
-                        detailsHtml = `<div class="details"><p class="lecturer">${currentSchedule.lecturer}</p><p class="course">${currentSchedule.courseName} (${currentSchedule.section})</p></div>`;
-                    }
-                }
-                
-                card.innerHTML = `<h4>${roomName}</h4><p>${status === 'open' ? 'مفتوحة' : 'مغلقة'}</p>${detailsHtml}`;
-                roomStatusContainer.appendChild(card);
-            }
-        }
-
-        // ======================================================
-        // ## تعديل 4: منطق عرض بيانات الطالب ##
-        // ======================================================
-        async function initializeStudentView() {
-            // جلب كل المواد والجداول مرة واحدة
-            const coursesSnap = await getDocs(collection(db, "Courses"));
-            allCourses = coursesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-            const schedulesSnap = await getDocs(collection(db, "Schedules"));
-            allSchedules = schedulesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-            // الاستماع لتسجيلات الطالب الحالية
-            const enrollmentsQuery = query(collection(db, "Enrollments"), where("studentId", "==", user.id));
-            onSnapshot(enrollmentsQuery, (snapshot) => {
-                myEnrollments = {};
-                snapshot.forEach(doc => {
-                    const enrollment = doc.data();
-                    myEnrollments[enrollment.courseId] = {
-                        section: enrollment.section,
-                        enrollmentId: doc.id
-                    };
-                });
-                renderMySchedule();
-                renderAvailableCourses();
-            });
-        }
-
-        function renderMySchedule() {
-            const tbody = document.querySelector('#my-schedules-table tbody');
-            tbody.innerHTML = '';
-            
-            const enrolledCourseIds = Object.keys(myEnrollments);
-            if (enrolledCourseIds.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5">لم تسجل في أي مواد بعد.</td></tr>';
-                return;
-            }
-
-            let hasSchedule = false;
-            enrolledCourseIds.forEach(courseId => {
-                const enrolledSection = myEnrollments[courseId].section;
-                const courseSchedules = allSchedules.filter(s => s.courseId === courseId && s.section === enrolledSection);
-                
-                courseSchedules.forEach(s => {
-                    hasSchedule = true;
-                    const course = allCourses.find(c => c.id === s.courseId);
-                    const courseIdentifier = course ? `${course.name} (${s.section})` : `مادة محذوفة (${s.section})`;
-                    tbody.innerHTML += `<tr><td>${courseIdentifier}</td><td>${s.lecturer}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td></tr>`;
-                });
-            });
-
-            if (!hasSchedule) {
-                tbody.innerHTML = '<tr><td colspan="5">المواد المسجلة ليس لها جدول دراسي بعد.</td></tr>';
-            }
-        }
-
-        function renderAvailableCourses() {
-            const tbody = document.querySelector('#available-courses-table tbody');
-            tbody.innerHTML = '';
-
-            if (allCourses.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4">لا توجد مواد متاحة للتسجيل حالياً.</td></tr>';
-                return;
-            }
-
-            allCourses.forEach(course => {
-                // لا تعرض المادة إذا كان الطالب مسجلاً فيها بالفعل
-                if (myEnrollments[course.id]) return;
-
-                const sections = course.availableSections || [];
-                if (sections.length > 0) {
-                    const selectId = `section-select-${course.id}`;
-                    const sectionsOptions = sections.map(s => `<option value="${s}">${s}</option>`).join('');
-                    
-                    tbody.innerHTML += `
-                        <tr>
-                            <td>${course.code}</td>
-                            <td>${course.name}</td>
-                            <td><select id="${selectId}">${sectionsOptions}</select></td>
-                            <td><button class="btn btn-success" onclick="enroll('${course.id}')">تسجيل</button></td>
-                        </tr>`;
-                }
-            });
-        }
-
-        window.enroll = async (courseId) => {
-            const sectionSelect = document.getElementById(`section-select-${courseId}`);
-            const selectedSection = sectionSelect.value;
-
-            if (!selectedSection) {
-                alert('يرجى اختيار شعبة أولاً.');
-                return;
-            }
-
-            try {
-                await addDoc(collection(db, "Enrollments"), {
-                    studentId: user.id,
-                    courseId: courseId,
-                    section: selectedSection
-                });
-                alert('تم التسجيل بنجاح!');
-            } catch (error) {
-                console.error("Error enrolling: ", error);
-                alert('حدث خطأ أثناء التسجيل.');
-            }
-        };
-
-        // هذه الدالة ستحل محل زر "حذف التسجيل" الذي سنضيفه لاحقًا
-        // حاليًا، الحذف غير مطبق في هذه الواجهة المبسطة
-        // window.unenroll = async (enrollmentId) => { ... }
-
-        // بدء عرض البيانات
-        initializeStudentView();
-
     </script>
 </body>
 </html>
