@@ -90,9 +90,9 @@
         let authenticatedUser = null;
         let roomStatusUnsubscribe = null;
 
-        // ## تعديل 1: تحديث دالة Realtime DB لتستخدم البنية الجديدة ##
         function updateRealtimeDBStatus(rName, newStatus, userId) {
-            const lockRef = ref(rtdb, 'locks/Room' + rName);
+            const lockName = "Room" + rName;
+            const lockRef = ref(rtdb, 'locks/' + lockName);
             set(lockRef, {
                 status: newStatus,
                 last_user_uid: userId
@@ -105,22 +105,17 @@
             messageElement.textContent = '';
         }
 
-        // ## تعديل 2: تحديث دالة setRoomStatus لتمرير UID المستخدم ##
         async function setRoomStatus(newStatus, user) {
             if (!roomDocRef || !user) return;
             actionBtn.disabled = true;
             logoutBtn.disabled = true;
             try {
-                // تحديث Firestore
                 await updateDoc(roomDocRef, { status: newStatus });
                 
-                // تحديد UID بناءً على الحالة
                 const userUid = newStatus === 'open' ? user.id : 'none';
                 
-                // تحديث Realtime Database بالمعلومات الكاملة
                 updateRealtimeDBStatus(roomName, newStatus, userUid);
                 
-                // تحديث الواجهة (لا حاجة لتمرير user.displayName لأنه موجود بالفعل)
                 updateControlUI(newStatus);
 
             } catch (error) {
@@ -132,9 +127,8 @@
             }
         }
 
-        // ## تعديل 3: تحديث واجهة التحكم ##
         function updateControlUI(status) {
-            if (!authenticatedUser) return; // التأكد من وجود مستخدم مسجل
+            if (!authenticatedUser) return;
 
             if (status === 'open') {
                 statusIndicator.textContent = `القاعة ${roomName} مفتوحة`;
@@ -143,7 +137,7 @@
                 actionBtn.textContent = 'إنهاء الجلسة وإغلاق القاعة';
                 actionBtn.className = 'btn btn-close';
                 actionBtn.onclick = () => setRoomStatus('closed', authenticatedUser);
-            } else { // closed
+            } else {
                 statusIndicator.textContent = `القاعة ${roomName} مغلقة`;
                 statusIndicator.className = 'status-display status-closed';
                 controlMessage.textContent = 'القاعة مغلقة حاليًا.';
@@ -172,9 +166,17 @@
                 const userDoc = userSnapshot.docs[0];
                 const userData = userDoc.data();
 
-                // ## تعديل 4: تخزين معلومات المستخدم كاملة بما في ذلك الـ ID ##
+                // ======================================================
+                // ## التعديل الجديد: التحقق من الدور ##
+                // ======================================================
+                const allowedRoles = ['admin', 'عضو هيئة تدريس', 'مشرف', 'عامل نظافة'];
+                if (!userData.role || !allowedRoles.includes(userData.role.trim())) {
+                    throw new Error('ليس لديك صلاحية لفتح القاعة عبر QR.');
+                }
+                // ======================================================
+
                 authenticatedUser = {
-                    id: userDoc.id, // <-- هذا هو المعرف الفريد للمستخدم
+                    id: userDoc.id,
                     username: userData.username,
                     displayName: userData.displayName || userData.username,
                     role: userData.role
@@ -191,7 +193,6 @@
                     }
                 });
 
-                // فتح القاعة تلقائيًا عند تسجيل الدخول مع تمرير معلومات المستخدم
                 await setRoomStatus('open', authenticatedUser);
 
             } catch (error) {
@@ -210,7 +211,6 @@
             showSection(authSection);
         });
 
-        // الإعداد الأولي عند تحميل الصفحة
         if (!roomName) {
             roomTitleElement.textContent = 'خطأ';
             authSection.innerHTML = '<p class="error">رابط غير صالح. يرجى مسح رمز QR صحيح.</p>';
