@@ -130,13 +130,15 @@
         const rtdb = getDatabase(app);
 
         const SITE_URL = "https://cpld.netlify.app";
+        const roomDataStore = {};
 
         // ======================================================================
-        // ## الفكرة الجديدة: مخزن بيانات موحد ##
+        // ## تعديل 1: جعل دالة المزامنة أذكى ##
         // ======================================================================
-        const roomDataStore = {}; // هذا المتغير سيحتوي على البيانات المدمجة من المصدرين
-
-        async function syncRfidsToRtdb() {
+        async function syncToRtdb() {
+            console.log("Starting Full Sync to Realtime DB...");
+            
+            // مزامنة المستخدمين (مع أدوارهم)
             const usersRef = collection(db, "Users");
             const usersSnapshot = await getDocs(usersRef);
             const allowedRfids = {};
@@ -144,12 +146,33 @@
                 const userData = doc.data();
                 if (userData.rfid && userData.rfid.trim() !== "") {
                     const normalizedRfid = userData.rfid.replace(/\s/g, '').toUpperCase();
-                    allowedRfids[normalizedRfid] = true;
+                    // تخزين كائن يحتوي على الدور والاسم بدلاً من "true" فقط
+                    allowedRfids[normalizedRfid] = {
+                        role: userData.role || 'unknown',
+                        name: userData.displayName || 'Unknown User'
+                    };
                 }
             });
-            const rtdbRef = ref(rtdb, 'allowed_rfids');
-            await set(rtdbRef, allowedRfids);
+            await set(ref(rtdb, 'allowed_rfids'), allowedRfids);
+            console.log("Successfully synced RFID users to Realtime DB.");
+
+            // مزامنة الجداول الدراسية
+            const schedulesRef = collection(db, "Schedules");
+            const schedulesSnapshot = await getDocs(schedulesRef);
+            const schedulesByRoom = {};
+            schedulesSnapshot.forEach(doc => {
+                const schedule = doc.data();
+                const roomName = "Room" + schedule.room;
+                if (!schedulesByRoom[roomName]) {
+                    schedulesByRoom[roomName] = {};
+                }
+                // استخدام معرف فريد لكل محاضرة لتجنب الكتابة فوق البيانات
+                schedulesByRoom[roomName][doc.id] = schedule;
+            });
+            await set(ref(rtdb, 'schedules_by_room'), schedulesByRoom);
+            console.log("Successfully synced schedules to Realtime DB.");
         }
+
 
         function updateRealtimeDBStatus(roomName, newStatus, userId = 'none') {
             const lockName = "Room" + roomName;
@@ -238,22 +261,19 @@
         let allSchedulesData = []; 
 
         onSnapshot(collection(db, "Schedules"), (snap) => {
-            allSchedulesData = snap.docs.map(doc => doc.data());
+            allSchedulesData = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
             Object.keys(roomDataStore).forEach(docId => {
                 updateDashboardCard(docId);
             });
 
             const tbody = document.querySelector('#schedules-table tbody');
             tbody.innerHTML = '';
-            snap.forEach(d => {
-                const s = d.data();
-                tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.lecturer}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td><button class="btn btn-warning" onclick="editItem('Schedules', '${d.id}', 'schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules', '${d.id}', 'الجدول')">حذف</button></td></tr>`;
+            allSchedulesData.forEach(s => {
+                tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.lecturer}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td><button class="btn btn-warning" onclick="editItem('Schedules', '${s.id}', 'schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules', '${s.id}', 'الجدول')">حذف</button></td></tr>`;
             });
+            syncToRtdb(); // مزامنة الجداول عند كل تغيير
         });
 
-        // ======================================================================
-        // ## الفكرة الجديدة: الاستماع للمصدر الأول (Firestore) ##
-        // ======================================================================
         onSnapshot(collection(db, "Rooms"), (snapshot) => {
             const roomsTableTbody = document.querySelector('#rooms-table tbody');
             roomsTableTbody.innerHTML = '';
@@ -263,16 +283,15 @@
                 const roomData = change.doc.data();
 
                 if (change.type === "added") {
-                    roomDataStore[docId] = roomData; // إضافة البيانات الأساسية
+                    roomDataStore[docId] = roomData;
                     createDashboardCard(docId);
                 }
                 if (change.type === "modified") {
-                    // دمج البيانات الجديدة مع القديمة
                     roomDataStore[docId] = { ...roomDataStore[docId], ...roomData };
                     updateDashboardCard(docId);
                 }
                 if (change.type === "removed") {
-                    delete roomDataStore[docId]; // حذف القاعة من المخزن
+                    delete roomDataStore[docId];
                     const card = document.getElementById(docId);
                     if (card) card.remove();
                 }
@@ -285,27 +304,20 @@
             });
         });
 
-        // ======================================================================
-        // ## الفكرة الجديدة: الاستماع للمصدر الثاني (Realtime DB) ##
-        // ======================================================================
         const locksRef = ref(rtdb, 'locks');
         onValue(locksRef, (snapshot) => {
             const allLocksStatus = snapshot.val();
             if (!allLocksStatus) return;
 
-            // المرور على كل القاعات المخزنة لدينا
             for (const docId in roomDataStore) {
                 const roomName = roomDataStore[docId].name;
                 const lockName = "Room" + roomName; 
                 
-                // التحقق مما إذا كانت هناك حالة جديدة من Realtime DB لهذه القاعة
                 if (allLocksStatus[lockName]) {
                     const newStatus = allLocksStatus[lockName].status;
-                    // تحديث الواجهة فقط إذا تغيرت الحالة
                     if (roomDataStore[docId].status !== newStatus) {
-                        console.log(`RTDB Change Detected for ${lockName}: ${newStatus}`);
-                        roomDataStore[docId].status = newStatus; // تحديث الحالة في المخزن
-                        updateDashboardCard(docId); // إعادة رسم البطاقة
+                        roomDataStore[docId].status = newStatus;
+                        updateDashboardCard(docId);
                     }
                 }
             }
@@ -365,7 +377,7 @@
                 tbody.innerHTML += `<tr><td>${u.displayName || ''}</td><td>${u.role || ''}</td><td><div class="barcode-container">${u.barcodeId ? `<svg id="barcode-${d.id}"></svg>` : 'لا يوجد'}</div></td><td>${u.rfid || 'لا يوجد'}</td><td><button class="btn btn-warning" onclick="editItem('Users', '${d.id}', 'user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users', '${d.id}', 'المستخدم')">حذف</button><button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}', '${u.role}', '${u.barcodeId}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadBarcodeAsPNG('${u.displayName}', '${u.barcodeId}')">تحميل صورة الرمز</button></td></tr>`;
                 if (u.barcodeId) { JsBarcode(`#barcode-${d.id}`, u.barcodeId, { format: "CODE128", lineColor: "#000", width: 2, height: 40, displayValue: true }); }
             });
-            syncRfidsToRtdb();
+            syncToRtdb(); // مزامنة المستخدمين عند كل تغيير
         });
 
         function generateQRCode(text) { if (!text) return ''; const typeNumber = 4; const errorCorrectionLevel = 'L'; const qr = qrcode(typeNumber, errorCorrectionLevel); qr.addData(text); qr.make(); return qr.createDataURL(4); }
@@ -472,9 +484,8 @@
 
         // استدعاء المزامنة عند بدء تشغيل الصفحة لأول مرة
         showPage('dashboard');
-        syncRfidsToRtdb();
+        syncToRtdb();
 
     </script>
 </body>
 </html>
-
