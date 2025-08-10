@@ -23,27 +23,22 @@
         h4 { color: var(--primary-color); margin-top: 25px; margin-bottom: 10px; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { padding: 12px 15px; text-align: right; border-bottom: 1px solid #ddd; white-space: nowrap; vertical-align: middle; }
-        th { background-color: #f2f2f2; }
-        .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; margin-left: 5px; margin-top: 5px; }
-        .btn-primary { background-color: var(--primary-color); } .btn-warning { background-color: var(--warning-color); }
-        .btn-danger { background-color: var(--danger-color); } .btn-success { background-color: var(--success-color); } .btn-info { background-color: var(--info-color); }
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
         .modal-content { background-color: #fefefe; margin: 5% auto; padding: 30px; border: 1px solid #888; width: 90%; max-width: 500px; border-radius: 8px; }
         .close-btn { color: #aaa; float: left; font-size: 28px; font-weight: bold; cursor: pointer; }
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; margin-bottom: 5px; }
         .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        .time-input-group { display: flex; align-items: center; gap: 10px; }
+        .room-status-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+        .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; }
+        .room-card.open { background-color: var(--success-color); }
+        .room-card.closed { background-color: var(--danger-color); }
     </style>
 </head>
 <body>
-
     <script>
         const loggedInUser = JSON.parse(sessionStorage.getItem('user'));
-        if (!loggedInUser || !loggedInUser.role || loggedInUser.role.trim().toLowerCase() !== 'admin') {
-            alert('ليس لديك صلاحية للوصول إلى هذه الصفحة.');
-            window.location.href = 'index.html';
-        }
+        if (!loggedInUser || loggedInUser.role !== 'admin') { window.location.href = 'index.html'; }
     </script>
 
     <div class="sidebar">
@@ -57,112 +52,43 @@
 
     <div class="main-content">
         <div id="dashboard" class="page">
-             <!-- هذا القسم يمكن ملؤه لاحقًا بمحتوى لوحة الإعلانات -->
-             <div class="card"><h3>لوحة الإعلانات</h3><p>سيتم عرض حالة القاعات هنا.</p></div>
+            <div class="card"><h3>لوحة الإعلانات</h3><div id="room-status-container" class="room-status-container"></div></div>
         </div>
         <div id="users" class="page">
             <div class="card">
                 <h3>المستخدمون</h3>
                 <button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم</button>
-                <table id="users-table">
-                    <thead><tr><th>الاسم الكامل</th><th>الدور</th><th>التخصص</th><th>إجراء</th></tr></thead>
-                    <tbody></tbody>
-                </table>
+                <table id="users-table"><thead><tr><th>الاسم الكامل</th><th>الدور</th><th>التخصص</th><th>إجراء</th></tr></thead><tbody></tbody></table>
             </div>
         </div>
         <div id="schedules" class="page">
             <div class="card">
                 <h3>الجداول الدراسية</h3>
-                <button class="btn btn-primary" onclick="openModal('schedule-modal')">إضافة مادة دراسية</button>
+                <button class="btn btn-primary" onclick="openModal('schedule-modal')">إضافة مادة</button>
                 <div id="schedules-by-department"></div>
             </div>
         </div>
         <div id="rooms" class="page">
-            <!-- هذا القسم يمكن ملؤه لاحقًا بمحتوى إدارة القاعات -->
-            <div class="card"><h3>إدارة القاعات</h3><p>سيتم عرض القاعات هنا.</p></div>
+            <div class="card">
+                <h3>إدارة القاعات</h3>
+                <button class="btn btn-primary" onclick="openModal('room-modal')">إضافة قاعة</button>
+                <table id="rooms-table"><thead><tr><th>اسم القاعة</th><th>السعة</th><th>إجراء</th></tr></thead><tbody></tbody></table>
+            </div>
         </div>
     </div>
 
-    <!-- نموذج المستخدمين (مُعدّل لإضافة التخصص) -->
-    <div id="user-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-btn" onclick="closeModal('user-modal')">&times;</span>
-            <h3 id="user-modal-title"></h3>
-            <form id="user-form">
-                <input type="hidden" id="userId">
-                <div class="form-group"><label>الاسم الكامل</label><input type="text" id="displayName" required></div>
-                <div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div>
-                <div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم التغيير</small></div>
-                <div class="form-group">
-                    <label>الدور</label>
-                    <select id="role" required>
-                        <option value="" disabled selected>اختر الدور</option>
-                        <option value="admin">أدمن</option>
-                        <option value="عضو هيئة تدريس">عضو هيئة تدريس</option>
-                        <option value="مشرف">مشرف</option>
-                        <option value="عامل نظافة">عامل نظافة</option>
-                        <option value="طالب">طالب</option>
-                    </select>
-                </div>
-                <div class="form-group" id="department-wrapper" style="display: none;">
-                    <label>التخصص (القسم)</label>
-                    <select id="userDepartment">
-                        <option value="" disabled selected>اختر القسم</option>
-                        <option>القسم العام</option>
-                        <option>قسم الهندسة الكهربائية والالكترونية</option>
-                        <option>قسم الهندسة الكيميائية</option>
-                        <option>قسم الهندسة المدنية</option>
-                        <option>قسم الهندسة الميكانيكية</option>
-                        <option>قسم الهندسة المعمارية</option>
-                    </select>
-                </div>
-                <div class="form-group"><label>رمز RFID (اختياري)</label><input type="text" id="rfid"></div>
-                <button type="submit" class="btn btn-success">حفظ</button>
-            </form>
-        </div>
-    </div>
+    <!-- نموذج المستخدمين -->
+    <div id="user-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('user-modal')">&times;</span><h3 id="user-modal-title"></h3><form id="user-form"><input type="hidden" id="userId"><div class="form-group"><label>الاسم الكامل</label><input type="text" id="displayName" required></div><div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div><div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم التغيير</small></div><div class="form-group"><label>الدور</label><select id="role" required><option value="" disabled selected>اختر</option><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="طالب">طالب</option></select></div><div class="form-group" id="department-wrapper" style="display: none;"><label>التخصص</label><select id="userDepartment"><option value="" disabled selected>اختر</option><option>القسم العام</option><option>قسم الهندسة الكهربائية والالكترونية</option><option>قسم الهندسة الكيميائية</option><option>قسم الهندسة المدنية</option><option>قسم الهندسة الميكانيكية</option><option>قسم الهندسة المعمارية</option></select></div><div class="form-group"><label>رمز RFID</label><input type="text" id="rfid"></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
 
-    <!-- نموذج المواد الدراسية -->
-    <div id="schedule-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-btn" onclick="closeModal('schedule-modal')">&times;</span>
-            <h3 id="schedule-modal-title">إضافة/تعديل مادة</h3>
-            <form id="schedule-form">
-                <input type="hidden" id="courseId">
-                <div class="form-group">
-                    <label>القسم</label>
-                    <select id="department" required>
-                        <option value="" disabled selected>اختر القسم</option>
-                        <option>القسم العام</option>
-                        <option>قسم الهندسة الكهربائية والالكترونية</option>
-                        <option>قسم الهندسة الكيميائية</option>
-                        <option>قسم الهندسة المدنية</option>
-                        <option>قسم الهندسة الميكانيكية</option>
-                        <option>قسم الهندسة المعمارية</option>
-                    </select>
-                </div>
-                <div class="form-group"><label>رمز المادة</label><input type="text" id="courseCode" required></div>
-                <div class="form-group"><label>اسم المادة</label><input type="text" id="courseName" required></div>
-                <div class="form-group"><label>المجموعة (Group)</label><input type="text" id="group" required></div>
-                <div class="form-group"><label>المحاضر</label><select id="lecturer" required></select></div>
-                <div class="form-group"><label>القاعة</label><select id="scheduleRoom" required></select></div>
-                <div class="form-group"><label>اليوم</label><select id="day" required><option>السبت</option><option>الأحد</option><option>الاثنين</option><option>الثلاثاء</option><option>الأربعاء</option><option>الخميس</option></select></div>
-                <div class="form-group">
-                    <label>وقت المحاضرة</label>
-                    <div class="time-input-group">
-                        <input type="time" id="startTime" required>
-                        <span>-</span>
-                        <input type="time" id="endTime" required>
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-success">حفظ</button>
-            </form>
-        </div>
-    </div>
+    <!-- نموذج المواد -->
+    <div id="schedule-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('schedule-modal')">&times;</span><h3 id="schedule-modal-title"></h3><form id="schedule-form"><input type="hidden" id="courseId"><div class="form-group"><label>القسم</label><select id="department" required><option value="" disabled selected>اختر</option><option>القسم العام</option><option>قسم الهندسة الكهربائية والالكترونية</option><option>قسم الهندسة الكيميائية</option><option>قسم الهندسة المدنية</option><option>قسم الهندسة الميكانيكية</option><option>قسم الهندسة المعمارية</option></select></div><div class="form-group"><label>رمز المادة</label><input type="text" id="courseCode" required></div><div class="form-group"><label>اسم المادة</label><input type="text" id="courseName" required></div><div class="form-group"><label>المجموعة</label><input type="text" id="group" required></div><div class="form-group"><label>المحاضر</label><select id="lecturer" required></select></div><div class="form-group"><label>القاعة</label><select id="scheduleRoom" required></select></div><div class="form-group"><label>اليوم</label><select id="day" required><option>السبت</option><option>الأحد</option><option>الاثنين</option><option>الثلاثاء</option><option>الأربعاء</option><option>الخميس</option></select></div><div class="form-group"><label>الوقت</label><div class="time-input-group"><input type="time" id="startTime" required><span>-</span><input type="time" id="endTime" required></div></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
+
+    <!-- نموذج القاعات -->
+    <div id="room-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('room-modal')">&times;</span><h3 id="room-modal-title"></h3><form id="room-form"><input type="hidden" id="roomId"><div class="form-group"><label>اسم القاعة</label><input type="text" id="roomName" required></div><div class="form-group"><label>السعة</label><input type="number" id="roomCapacity" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
         const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
             authDomain: "gggg-dc7d0.firebaseapp.com",
@@ -185,7 +111,7 @@
         window.openModal = (modalId) => {
             const form = document.querySelector(`#${modalId} form`);
             form.reset();
-            document.getElementById('department-wrapper').style.display = 'none';
+            if(modalId === 'user-modal') document.getElementById('department-wrapper').style.display = 'none';
             const hiddenId = form.querySelector(`input[type=hidden]`);
             if (hiddenId) hiddenId.value = '';
             document.querySelector(`#${modalId} h3`).textContent = 'إضافة جديد';
@@ -199,47 +125,33 @@
             }
         };
 
-        // --- إدارة المستخدمين (Users) مع إضافة منطق التخصص ---
+        // --- إدارة المستخدمين ---
         const roleSelect = document.getElementById('role');
         const departmentWrapper = document.getElementById('department-wrapper');
-        const userDepartmentSelect = document.getElementById('userDepartment');
-
         roleSelect.addEventListener('change', () => {
-            if (roleSelect.value === 'طالب') {
-                departmentWrapper.style.display = 'block';
-                userDepartmentSelect.required = true;
-            } else {
-                departmentWrapper.style.display = 'none';
-                userDepartmentSelect.required = false;
-            }
+            departmentWrapper.style.display = (roleSelect.value === 'طالب') ? 'block' : 'none';
         });
 
         document.getElementById('user-form').addEventListener('submit', async (e) => { 
-            e.preventDefault(); 
-            const id = document.getElementById('userId').value; 
-            const password = document.getElementById('password').value; 
+            e.preventDefault();
+            const id = document.getElementById('userId').value;
+            const password = document.getElementById('password').value;
             const data = { 
-                displayName: document.getElementById('displayName').value, 
-                username: document.getElementById('username').value, 
-                role: roleSelect.value, 
-                rfid: document.getElementById('rfid').value, 
-            }; 
-            
-            if (roleSelect.value === 'طالب') {
-                data.department = userDepartmentSelect.value;
+                displayName: document.getElementById('displayName').value,
+                username: document.getElementById('username').value,
+                role: roleSelect.value,
+                rfid: document.getElementById('rfid').value,
+                department: (roleSelect.value === 'طالب') ? document.getElementById('userDepartment').value : null,
+            };
+            if (id) {
+                if (password) data.password = password;
+                await updateDoc(doc(db, "Users", id), data);
             } else {
-                data.department = null;
+                if (!password) { alert('كلمة المرور مطلوبة.'); return; }
+                data.password = password;
+                await addDoc(collection(db, "Users"), data);
             }
-
-            if (id) { 
-                if (password) { data.password = password; } 
-                await updateDoc(doc(db, "Users", id), data); 
-            } else { 
-                if (!password) { alert('كلمة المرور مطلوبة للمستخدم الجديد.'); return; } 
-                data.password = password; 
-                await addDoc(collection(db, "Users"), data); 
-            } 
-            closeModal('user-modal'); 
+            closeModal('user-modal');
         });
 
         onSnapshot(collection(db, "Users"), (snap) => {
@@ -247,15 +159,7 @@
             tbody.innerHTML = '';
             snap.forEach(d => {
                 const u = d.data();
-                tbody.innerHTML += `<tr>
-                    <td>${u.displayName || ''}</td>
-                    <td>${u.role || ''}</td>
-                    <td>${u.department || 'لا ينطبق'}</td>
-                    <td>
-                        <button class="btn btn-warning" onclick="editUser('${d.id}')">تعديل</button>
-                        <button class="btn btn-danger" onclick="deleteItem('Users', '${d.id}', 'المستخدم')">حذف</button>
-                    </td>
-                </tr>`;
+                tbody.innerHTML += `<tr><td>${u.displayName}</td><td>${u.role}</td><td>${u.department || 'لا ينطبق'}</td><td><button class="btn btn-warning" onclick="editUser('${d.id}')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users', '${d.id}', 'المستخدم')">حذف</button></td></tr>`;
             });
         });
 
@@ -265,23 +169,17 @@
             const data = userDoc.data();
             document.getElementById('userId').value = id;
             document.querySelector('#user-modal h3').textContent = 'تعديل مستخدم';
-
             document.getElementById('displayName').value = data.displayName;
             document.getElementById('username').value = data.username;
-            document.getElementById('role').value = data.role;
+            roleSelect.value = data.role;
             document.getElementById('rfid').value = data.rfid || '';
-            
             if (data.role === 'طالب') {
                 departmentWrapper.style.display = 'block';
-                userDepartmentSelect.required = true;
-                userDepartmentSelect.value = data.department || '';
-            } else {
-                departmentWrapper.style.display = 'none';
-                userDepartmentSelect.required = false;
+                document.getElementById('userDepartment').value = data.department || '';
             }
         };
 
-        // --- إدارة المواد الدراسية (Courses) ---
+        // --- إدارة المواد الدراسية ---
         document.getElementById('schedule-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('courseId').value;
@@ -303,38 +201,17 @@
         });
 
         onSnapshot(collection(db, "Courses"), (snap) => {
+            const container = document.getElementById('schedules-by-department');
+            container.innerHTML = '';
             const coursesByDept = {};
             snap.forEach(doc => {
                 const course = { id: doc.id, ...doc.data() };
-                if (!coursesByDept[course.department]) {
-                    coursesByDept[course.department] = [];
-                }
+                if (!coursesByDept[course.department]) coursesByDept[course.department] = [];
                 coursesByDept[course.department].push(course);
             });
-
-            const container = document.getElementById('schedules-by-department');
-            container.innerHTML = '';
             for (const dept in coursesByDept) {
-                let tableRows = '';
-                coursesByDept[dept].sort((a, b) => a.courseCode.localeCompare(b.courseCode)).forEach(c => {
-                    tableRows += `<tr>
-                        <td>${c.courseCode}</td><td>${c.courseName}</td><td>${c.group}</td>
-                        <td>${c.lecturer}</td><td>${c.room}</td><td>${c.day}</td><td>${c.time}</td>
-                        <td>
-                            <button class="btn btn-warning" onclick="editCourse('${c.id}')">تعديل</button>
-                            <button class="btn btn-danger" onclick="deleteItem('Courses', '${c.id}', 'المادة')">حذف</button>
-                        </td>
-                    </tr>`;
-                });
-
-                container.innerHTML += `
-                    <div class="department-section">
-                        <h4>${dept}</h4>
-                        <table style="table-layout: auto; width: 100%;">
-                            <thead><tr><th>الرمز</th><th>المادة</th><th>المجموعة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>إجراء</th></tr></thead>
-                            <tbody>${tableRows}</tbody>
-                        </table>
-                    </div>`;
+                let tableRows = coursesByDept[dept].map(c => `<tr><td>${c.courseCode}</td><td>${c.courseName}</td><td>${c.group}</td><td>${c.lecturer}</td><td>${c.room}</td><td>${c.day}</td><td>${c.time}</td><td><button class="btn btn-warning" onclick="editCourse('${c.id}')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Courses', '${c.id}', 'المادة')">حذف</button></td></tr>`).join('');
+                container.innerHTML += `<h4>${dept}</h4><table><thead><tr><th>الرمز</th><th>المادة</th><th>المجموعة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>إجراء</th></tr></thead><tbody>${tableRows}</tbody></table>`;
             }
         });
 
@@ -344,9 +221,7 @@
             const data = itemDoc.data();
             document.getElementById('courseId').value = id;
             document.querySelector('#schedule-modal h3').textContent = 'تعديل مادة';
-            
             await populateSelects();
-
             document.getElementById('department').value = data.department;
             document.getElementById('courseCode').value = data.courseCode;
             document.getElementById('courseName').value = data.courseName;
@@ -354,35 +229,61 @@
             document.getElementById('lecturer').value = data.lecturer;
             document.getElementById('scheduleRoom').value = data.room;
             document.getElementById('day').value = data.day;
-            
-            if (data.time && data.time.includes('-')) {
-                const [startTime, endTime] = data.time.split('-');
-                document.getElementById('startTime').value = startTime;
-                document.getElementById('endTime').value = endTime;
-            }
+            const [startTime, endTime] = data.time.split('-');
+            document.getElementById('startTime').value = startTime;
+            document.getElementById('endTime').value = endTime;
         };
 
+        // --- إدارة القاعات ولوحة الإعلانات ---
+        onSnapshot(collection(db, "Rooms"), (snap) => {
+            const roomsTbody = document.querySelector('#rooms-table tbody');
+            const statusContainer = document.getElementById('room-status-container');
+            roomsTbody.innerHTML = '';
+            statusContainer.innerHTML = '';
+            snap.forEach(d => {
+                const r = d.data();
+                roomsTbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td><button class="btn btn-warning" onclick="editRoom('${d.id}')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms', '${d.id}', 'القاعة')">حذف</button></td></tr>`;
+                const statusClass = r.status === 'open' ? 'open' : 'closed';
+                statusContainer.innerHTML += `<div class="room-card ${statusClass}">${r.name}</div>`;
+            });
+        });
+
+        document.getElementById('room-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('roomId').value;
+            const data = { name: document.getElementById('roomName').value, capacity: parseInt(document.getElementById('roomCapacity').value) };
+            if (id) await updateDoc(doc(db, "Rooms", id), data);
+            else {
+                data.status = 'closed';
+                await addDoc(collection(db, "Rooms"), data);
+            }
+            closeModal('room-modal');
+        });
+
+        window.editRoom = async (id) => {
+            openModal('room-modal');
+            const roomDoc = await getDoc(doc(db, "Rooms", id));
+            const data = roomDoc.data();
+            document.getElementById('roomId').value = id;
+            document.querySelector('#room-modal h3').textContent = 'تعديل قاعة';
+            document.getElementById('roomName').value = data.name;
+            document.getElementById('roomCapacity').value = data.capacity;
+        };
+
+        // --- دوال مساعدة ---
         async function populateSelects() {
-            const usersSnap = await getDocs(collection(db, "Users"));
+            const usersSnap = await getDocs(query(collection(db, "Users"), where("role", "==", "عضو هيئة تدريس")));
             const roomsSnap = await getDocs(collection(db, "Rooms"));
             const lecturerSelect = document.getElementById('lecturer');
             const roomSelect = document.getElementById('scheduleRoom');
-            lecturerSelect.innerHTML = '<option value="">اختر محاضر</option>';
-            roomSelect.innerHTML = '<option value="">اختر قاعة</option>';
-            usersSnap.forEach(d => {
-                const user = d.data();
-                if (user.role === "عضو هيئة تدريس") {
-                    lecturerSelect.innerHTML += `<option value="${user.displayName}">${user.displayName}</option>`;
-                }
-            });
-            roomsSnap.forEach(d => {
-                const room = d.data();
-                roomSelect.innerHTML += `<option value="${room.name}">${room.name}</option>`;
-            });
+            lecturerSelect.innerHTML = '<option value="">اختر</option>';
+            roomSelect.innerHTML = '<option value="">اختر</option>';
+            usersSnap.forEach(d => lecturerSelect.innerHTML += `<option value="${d.data().displayName}">${d.data().displayName}</option>`);
+            roomsSnap.forEach(d => roomSelect.innerHTML += `<option value="${d.data().name}">${d.data().name}</option>`);
         }
 
-        // استدعاءات أولية
-        showPage('users'); // <-- هذا هو السطر الذي تم إصلاحه
+        // --- استدعاءات أولية ---
+        showPage('dashboard');
     </script>
 </body>
 </html>
