@@ -96,9 +96,11 @@
         const studentDepartment = user.department;
         document.getElementById('welcome-message').textContent = `أهلاً بك، ${user.displayName} (قسم ${studentDepartment || 'غير محدد'})`;
 
-        let allAvailableSchedules = []; // لتخزين بيانات كل المحاضرات المتاحة
+        let allAvailableSchedules = [];
+        let registeredCourseIdentifiers = []; // ## تعديل: لتخزين المواد المسجلة
 
         // --- 1. عرض لوحة الإعلانات (للقراءة فقط) ---
+        // ... (هذا الجزء يبقى كما هو بدون تغيير)
         const statusContainer = document.getElementById('room-status-container');
         const locksRef = ref(rtdb, 'locks');
         let allSchedulesData = [];
@@ -162,6 +164,7 @@
         
         setInterval(updateAllDashboardCards, 60000);
 
+
         // --- 2. إدارة الجدول الدراسي للطالب ---
         const scheduleForm = document.getElementById('student-schedule-form');
         const scheduleTableBody = document.querySelector('#my-schedules-table tbody');
@@ -171,6 +174,7 @@
         const studentSchedulesRef = collection(db, "StudentSchedules");
         const studentQuery = query(studentSchedulesRef, where("studentId", "==", user.id));
 
+        // ## تعديل: دالة تعبئة المواد المتاحة مع الفلترة
         async function populateAvailableCourses() {
             const schedulesRef = collection(db, "Schedules");
             const q = query(schedulesRef, or(
@@ -179,7 +183,7 @@
             ));
             
             const querySnapshot = await getDocs(q);
-            allAvailableSchedules = querySnapshot.docs.map(doc => doc.data());
+            allAvailableSchedules = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
             const uniqueCourses = {};
             allAvailableSchedules.forEach(schedule => {
@@ -192,7 +196,10 @@
 
             availableCoursesSelect.innerHTML = '<option value="" disabled selected>1. اختر المادة...</option>';
             for (const courseIdentifier in uniqueCourses) {
-                availableCoursesSelect.innerHTML += `<option value="${courseIdentifier}">${courseIdentifier}</option>`;
+                // ## تعديل: التحقق من أن المادة ليست مسجلة بالفعل
+                if (!registeredCourseIdentifiers.includes(courseIdentifier)) {
+                    availableCoursesSelect.innerHTML += `<option value="${courseIdentifier}">${courseIdentifier}</option>`;
+                }
             }
         }
 
@@ -216,24 +223,33 @@
             }
         };
 
+        // ## تعديل: onSnapshot يقوم الآن بتحديث قائمة المواد المسجلة ثم يعيد تعبئة القائمة المتاحة
         onSnapshot(studentQuery, (snapshot) => {
             scheduleTableBody.innerHTML = '';
+            registeredCourseIdentifiers = []; // تفريغ القائمة قبل إعادة بنائها
+
             if (snapshot.empty) {
                 scheduleTableBody.innerHTML = '<tr><td colspan="6">جدولك فارغ. قم بإضافة موادك الدراسية من القائمة أعلاه.</td></tr>';
-                return;
+            } else {
+                snapshot.forEach(doc => {
+                    const s = doc.data();
+                    const courseIdentifier = `${s.courseName} (${s.courseCode})`;
+                    registeredCourseIdentifiers.push(courseIdentifier); // إضافة المادة المسجلة إلى القائمة
+
+                    scheduleTableBody.innerHTML += `
+                        <tr>
+                            <td>${s.courseName} (${s.courseCode})</td>
+                            <td>${s.room}</td>
+                            <td>${s.day}</td>
+                            <td>${s.time}</td>
+                            <td>${s.group}</td>
+                            <td><button class="btn btn-danger" onclick="window.deleteSchedule('${doc.id}')">حذف</button></td>
+                        </tr>`;
+                });
             }
-            snapshot.forEach(doc => {
-                const s = doc.data();
-                scheduleTableBody.innerHTML += `
-                    <tr>
-                        <td>${s.courseName}</td>
-                        <td>${s.room}</td>
-                        <td>${s.day}</td>
-                        <td>${s.time}</td>
-                        <td>${s.group}</td>
-                        <td><button class="btn btn-danger" onclick="window.deleteSchedule('${doc.id}')">حذف</button></td>
-                    </tr>`;
-            });
+            
+            // بعد تحديث قائمة المواد المسجلة، قم بإعادة بناء قائمة المواد المتاحة
+            populateAvailableCourses();
         });
 
         scheduleForm.addEventListener('submit', async (e) => {
@@ -245,9 +261,12 @@
                 alert("يرجى اختيار المادة والمجموعة.");
                 return;
             }
+            
+            const [courseName, courseCodeWithParens] = selectedCourseIdentifier.split(' (');
+            const courseCode = courseCodeWithParens.slice(0, -1);
 
             const targetSchedule = allAvailableSchedules.find(s => 
-                `${s.courseName} (${s.courseCode})` === selectedCourseIdentifier &&
+                s.courseCode === courseCode &&
                 (s.groups || []).includes(selectedGroup)
             );
 
@@ -255,36 +274,20 @@
                 alert("حدث خطأ، لا توجد محاضرة لهذه المادة في المجموعة المختارة.");
                 return;
             }
-            
-            // استخراج ID المحاضرة الأصلية لإضافته
-            const schedulesRef = collection(db, "Schedules");
-            const q = query(schedulesRef, 
-                where("courseCode", "==", targetSchedule.courseCode),
-                where("day", "==", targetSchedule.day),
-                where("time", "==", targetSchedule.time),
-                where("room", "==", targetSchedule.room)
-            );
-            const scheduleDocSnapshot = await getDocs(q);
-            if (scheduleDocSnapshot.empty) {
-                 alert("خطأ في العثور على معرف المحاضرة.");
-                 return;
-            }
-            const scheduleId = scheduleDocSnapshot.docs[0].id;
-
 
             await addDoc(studentSchedulesRef, {
                 studentId: user.id,
                 displayName: user.displayName,
                 department: studentDepartment,
-                scheduleId: scheduleId,
+                scheduleId: targetSchedule.id,
                 courseName: targetSchedule.courseName,
+                courseCode: targetSchedule.courseCode,
                 room: targetSchedule.room,
                 day: targetSchedule.day,
                 time: targetSchedule.time,
                 group: selectedGroup,
             });
             
-            // إعادة تعيين النموذج
             scheduleForm.reset();
             studentGroupSelect.style.display = 'none';
         });
@@ -294,9 +297,6 @@
                 await deleteDoc(doc(db, "StudentSchedules", id));
             }
         };
-
-        // --- 3. تشغيل الوظائف عند تحميل الصفحة ---
-        populateAvailableCourses();
 
     </script>
 </body>
