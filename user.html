@@ -3,18 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لوحة المستخدم</title>
+    <title>البوابة الأكاديمية</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
+        :root { --primary-color: #007bff; --secondary-color: #6c757d; --success-color: #28a745; --danger-color: #dc3545; --warning-color: #ffc107; --light-color: #f8f9fa; --dark-color: #343a40; --info-color: #17a2b8; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; padding: 30px; }
-        .container { max-width: 900px; margin: auto; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
-        .header h1 { color: #343a40; }
-        .logout-btn { padding: 10px 20px; background-color: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; }
+        .container { max-width: 1000px; margin: auto; display: flex; flex-direction: column; gap: 30px; }
+        .header { display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { color: var(--dark-color); }
+        .logout-btn { padding: 10px 20px; background-color: var(--danger-color); color: white; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; font-size: 16px; }
         .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h3 { color: #0056b3; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        h3 { color: var(--primary-color); border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 0; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { padding: 12px; text-align: right; border-bottom: 1px solid #ddd; }
         th { background-color: #f2f2f2; }
+        .btn { padding: 6px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; }
+        .btn-success { background-color: var(--success-color); }
+        .btn-danger { background-color: var(--danger-color); }
+        .btn-info { background-color: var(--info-color); }
+        .btn:disabled { background-color: #ccc; cursor: not-allowed; }
+        .hidden { display: none; }
+        .attendance-list { list-style-type: decimal; padding-right: 20px; }
+        .pdf-prepare-area { position: absolute; left: -9999px; opacity: 0; }
+        .pdf-table { width: 100%; border: 1px solid black; border-collapse: collapse; }
+        .pdf-table th, .pdf-table td { border: 1px solid black; padding: 8px; text-align: right; }
     </style>
 </head>
 <body>
@@ -31,18 +43,40 @@
             <h1 id="welcome-message">أهلاً بك</h1>
             <a href="login.html" class="logout-btn" onclick="sessionStorage.clear()">تسجيل الخروج</a>
         </div>
+
+        <!-- قسم مشترك للجميع -->
         <div class="card">
-            <h3>جدولك الدراسي</h3>
+            <h3>جدولي الدراسي</h3>
             <table id="my-schedules-table">
-                <thead><tr><th>اليوم</th><th>الوقت</th><th>رمز المادة</th><th>اسم المادة</th><th>القاعة</th></tr></thead>
-                <tbody><tr><td colspan="5">جاري التحميل...</td></tr></tbody>
+                <thead><tr><th>المادة (الشعبة)</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th id="attendance-header" class="hidden">الحضور</th></tr></thead>
+                <tbody><tr><td colspan="6">جاري التحميل...</td></tr></tbody>
             </table>
+        </div>
+
+        <!-- أقسام خاصة بالطلاب -->
+        <div id="student-sections" class="hidden" style="display: flex; flex-direction: column; gap: 30px;">
+            <div class="card">
+                <h3>المواد المسجلة</h3>
+                <table id="enrolled-courses-table">
+                    <thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>الشعبة</th><th>إجراء</th></tr></thead>
+                    <tbody><tr><td colspan="4">لم تسجل أي مواد بعد.</td></tr></tbody>
+                </table>
+            </div>
+            <div class="card">
+                <h3>تسجيل المواد</h3>
+                <table id="available-courses-table">
+                    <thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>الشعبة</th><th>إجراء</th></tr></thead>
+                    <tbody><tr><td colspan="4">جاري تحميل المواد المتاحة...</td></tr></tbody>
+                </table>
+            </div>
         </div>
     </div>
 
+    <div id="pdf-prepare-area" class="pdf-prepare-area"></div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, query, where, onSnapshot, getDocs, addDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         const db = getFirestore(initializeApp({
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
@@ -54,32 +88,227 @@
         }));
 
         const user = JSON.parse(sessionStorage.getItem('user'));
-        
-        // ===============================================================
-        // ==== هذا هو السطر الذي تم تصحيحه لضمان عمله بشكل صحيح ====
-        // ===============================================================
-        const userDisplayName = user.displayName; // استخدام حقل الاسم الكامل دائمًا
-        // ===============================================================
+        document.getElementById('welcome-message').textContent = `أهلاً بك، ${user.displayName}`;
 
-        document.getElementById('welcome-message').textContent = `أهلاً بك، ${userDisplayName}`;
+        let allCourses = [];
+        let allSections = [];
+        let allSchedules = [];
+        let allUsers = [];
 
-        const schedulesTableBody = document.querySelector('#my-schedules-table tbody');
-        const schedulesRef = collection(db, "Schedules");
-        
-        // البحث عن الجداول باستخدام الاسم الكامل للمستخدم
-        const q = query(schedulesRef, where("lecturer", "==", userDisplayName));
+        async function main() {
+            // جلب البيانات الأساسية أولاً
+            const coursesSnap = await getDocs(collection(db, "Courses"));
+            allCourses = coursesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        onSnapshot(q, (snapshot) => {
-            schedulesTableBody.innerHTML = '';
-            if (snapshot.empty) {
-                schedulesTableBody.innerHTML = '<tr><td colspan="5">لا توجد محاضرات مجدولة لك.</td></tr>';
+            const sectionsSnap = await getDocs(collection(db, "Sections"));
+            allSections = sectionsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            const schedulesSnap = await getDocs(collection(db, "Schedules"));
+            allSchedules = schedulesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            
+            const usersSnap = await getDocs(collection(db, "Users"));
+            allUsers = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            // تحديد الدور وتفعيل الواجهات المناسبة
+            if (user.role === 'طالب') {
+                document.getElementById('student-sections').classList.remove('hidden');
+                listenForStudentData();
+            } else if (user.role === 'عضو هيئة تدريس') {
+                document.getElementById('attendance-header').classList.remove('hidden');
+                listenForLecturerData();
+            }
+        }
+
+        // ======================================================
+        // منطق الطالب
+        // ======================================================
+        function listenForStudentData() {
+            const enrollmentsQuery = query(collection(db, "Enrollments"), where("studentId", "==", user.id));
+            onSnapshot(enrollmentsQuery, (snapshot) => {
+                const enrolledSectionIds = snapshot.docs.map(d => d.data().sectionId);
+                const enrolledDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                
+                renderMySchedule(enrolledSectionIds);
+                renderEnrolledCourses(enrolledDocs);
+                renderAvailableCourses(enrolledSectionIds);
+            });
+        }
+
+        function renderMySchedule(enrolledSectionIds) {
+            const mySchedules = allSchedules.filter(s => enrolledSectionIds.includes(s.sectionId));
+            const tbody = document.querySelector('#my-schedules-table tbody');
+            tbody.innerHTML = '';
+
+            if (mySchedules.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5">لم تسجل في أي مواد بعد أو لا يوجد لها جدول.</td></tr>';
                 return;
             }
-            snapshot.forEach(doc => {
-                const s = doc.data();
-                schedulesTableBody.innerHTML += `<tr><td>${s.day}</td><td>${s.time}</td><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.room}</td></tr>`;
+
+            mySchedules.forEach(schedule => {
+                const section = allSections.find(sec => sec.id === schedule.sectionId);
+                const course = section ? allCourses.find(c => c.id === section.courseId) : null;
+                const courseIdentifier = course ? `${course.name} (${section.name})` : 'مادة غير معروفة';
+                
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${courseIdentifier}</td>
+                        <td>${schedule.lecturer}</td>
+                        <td>${schedule.room}</td>
+                        <td>${schedule.day}</td>
+                        <td>${schedule.time}</td>
+                    </tr>`;
             });
-        });
+        }
+
+        function renderEnrolledCourses(enrolledDocs) {
+            const tbody = document.querySelector('#enrolled-courses-table tbody');
+            tbody.innerHTML = '';
+
+            if (enrolledDocs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4">لم تسجل أي مواد بعد.</td></tr>';
+                return;
+            }
+
+            enrolledDocs.forEach(enrollment => {
+                const section = allSections.find(sec => sec.id === enrollment.sectionId);
+                const course = section ? allCourses.find(c => c.id === section.courseId) : null;
+                if (course) {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${course.code}</td>
+                            <td>${course.name}</td>
+                            <td>${section.name}</td>
+                            <td><button class="btn btn-danger" onclick="window.unenroll('${enrollment.id}')">حذف التسجيل</button></td>
+                        </tr>`;
+                }
+            });
+        }
+
+        function renderAvailableCourses(enrolledSectionIds) {
+            const tbody = document.querySelector('#available-courses-table tbody');
+            tbody.innerHTML = '';
+            
+            const availableSections = allSections.filter(sec => !enrolledSectionIds.includes(sec.id));
+
+            if (availableSections.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4">لا توجد مواد متاحة للتسجيل حاليًا.</td></tr>';
+                return;
+            }
+
+            availableSections.forEach(section => {
+                const course = allCourses.find(c => c.id === section.courseId);
+                if (course) {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${course.code}</td>
+                            <td>${course.name}</td>
+                            <td>${section.name}</td>
+                            <td><button class="btn btn-success" onclick="window.enroll('${section.id}')">تسجيل</button></td>
+                        </tr>`;
+                }
+            });
+        }
+
+        window.enroll = async (sectionId) => {
+            event.target.disabled = true;
+            event.target.textContent = 'جاري...';
+            await addDoc(collection(db, "Enrollments"), {
+                studentId: user.id,
+                sectionId: sectionId
+            });
+        };
+
+        window.unenroll = async (enrollmentId) => {
+            if (confirm('هل أنت متأكد من رغبتك في حذف تسجيلك في هذه المادة؟')) {
+                await deleteDoc(doc(db, "Enrollments", enrollmentId));
+            }
+        };
+
+        // ======================================================
+        // منطق المحاضر
+        // ======================================================
+        function listenForLecturerData() {
+            const schedulesQuery = query(collection(db, "Schedules"), where("lecturer", "==", user.displayName));
+            onSnapshot(schedulesQuery, (snapshot) => {
+                const lecturerSchedules = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                renderLecturerSchedule(lecturerSchedules);
+            });
+        }
+
+        async function renderLecturerSchedule(lecturerSchedules) {
+            const tbody = document.querySelector('#my-schedules-table tbody');
+            tbody.innerHTML = '';
+
+            if (lecturerSchedules.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6">لا توجد محاضرات مجدولة لك.</td></tr>';
+                return;
+            }
+
+            for (const schedule of lecturerSchedules) {
+                const section = allSections.find(sec => sec.id === schedule.sectionId);
+                const course = section ? allCourses.find(c => c.id === section.courseId) : null;
+                const courseIdentifier = course ? `${course.name} (${section.name})` : 'مادة غير معروفة';
+
+                // جلب سجلات الحضور لهذه المحاضرة
+                const attendanceQuery = query(collection(db, "AttendanceRecords"), where("scheduleId", "==", schedule.id));
+                const attendanceSnap = await getDocs(attendanceQuery);
+                const attendees = attendanceSnap.docs.map(d => {
+                    const student = allUsers.find(u => u.id === d.data().studentId);
+                    return student ? student.displayName : 'طالب غير معروف';
+                });
+
+                let attendanceHtml = 'لا يوجد حضور';
+                if (attendees.length > 0) {
+                    attendanceHtml = `
+                        <ol class="attendance-list">
+                            ${attendees.map(name => `<li>${name}</li>`).join('')}
+                        </ol>
+                        <button class="btn btn-info" onclick="window.exportAttendance('${schedule.id}', '${courseIdentifier.replace(/'/g, "\\'")}')">تصدير PDF</button>
+                    `;
+                }
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${courseIdentifier}</td>
+                        <td>${schedule.lecturer}</td>
+                        <td>${schedule.room}</td>
+                        <td>${schedule.day}</td>
+                        <td>${schedule.time}</td>
+                        <td>${attendanceHtml}</td>
+                    </tr>`;
+            }
+        }
+        
+        window.exportAttendance = async (scheduleId, courseIdentifier) => {
+            const attendanceQuery = query(collection(db, "AttendanceRecords"), where("scheduleId", "==", scheduleId));
+            const attendanceSnap = await getDocs(attendanceQuery);
+            const attendees = attendanceSnap.docs.map(d => {
+                const student = allUsers.find(u => u.id === d.data().studentId);
+                return student ? student.displayName : 'طالب غير معروف';
+            });
+
+            const today = new Date().toLocaleDateString('ar-EG');
+            const prepareArea = document.getElementById('pdf-prepare-area');
+            const content = `
+                <div style="text-align: right; font-family: 'Segoe UI', Tahoma; padding: 20px;">
+                    <h2>تقرير الحضور</h2>
+                    <p><strong>المادة:</strong> ${courseIdentifier}</p>
+                    <p><strong>التاريخ:</strong> ${today}</p>
+                    <table class="pdf-table">
+                        <thead><tr><th>#</th><th>اسم الطالب</th></tr></thead>
+                        <tbody>
+                            ${attendees.map((name, index) => `<tr><td>${index + 1}</td><td>${name}</td></tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            prepareArea.innerHTML = content;
+            html2pdf().from(prepareArea).set({ filename: `حضور-${courseIdentifier}-${today}.pdf` }).save();
+        };
+
+        // بدء تشغيل الواجهة
+        main();
+
     </script>
 </body>
 </html>
