@@ -56,7 +56,10 @@
     </div>
 
     <div class="main-content">
-        <div id="dashboard" class="page"> <!-- قسم لوحة الإعلانات --> </div>
+        <div id="dashboard" class="page">
+             <!-- هذا القسم يمكن ملؤه لاحقًا بمحتوى لوحة الإعلانات -->
+             <div class="card"><h3>لوحة الإعلانات</h3><p>سيتم عرض حالة القاعات هنا.</p></div>
+        </div>
         <div id="users" class="page">
             <div class="card">
                 <h3>المستخدمون</h3>
@@ -74,12 +77,13 @@
                 <div id="schedules-by-department"></div>
             </div>
         </div>
-        <div id="rooms" class="page"> <!-- قسم القاعات --> </div>
+        <div id="rooms" class="page">
+            <!-- هذا القسم يمكن ملؤه لاحقًا بمحتوى إدارة القاعات -->
+            <div class="card"><h3>إدارة القاعات</h3><p>سيتم عرض القاعات هنا.</p></div>
+        </div>
     </div>
 
-    <!-- ====================================================== -->
-    <!-- ## نموذج المستخدمين (مُعدّل لإضافة التخصص) ## -->
-    <!-- ====================================================== -->
+    <!-- نموذج المستخدمين (مُعدّل لإضافة التخصص) -->
     <div id="user-modal" class="modal">
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal('user-modal')">&times;</span>
@@ -100,7 +104,6 @@
                         <option value="طالب">طالب</option>
                     </select>
                 </div>
-                <!-- حقل التخصص الجديد الذي يظهر فقط للطلاب -->
                 <div class="form-group" id="department-wrapper" style="display: none;">
                     <label>التخصص (القسم)</label>
                     <select id="userDepartment">
@@ -119,7 +122,7 @@
         </div>
     </div>
 
-    <!-- نموذج المواد الدراسية (يبقى كما هو من التعديل السابق) -->
+    <!-- نموذج المواد الدراسية -->
     <div id="schedule-modal" class="modal">
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal('schedule-modal')">&times;</span>
@@ -160,7 +163,15 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         
-        const firebaseConfig = { /* ... نفس إعدادات Firebase ... */ };
+        const firebaseConfig = {
+            apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
+            authDomain: "gggg-dc7d0.firebaseapp.com",
+            projectId: "gggg-dc7d0",
+            storageBucket: "gggg-dc7d0.appspot.com",
+            messagingSenderId: "151376454562",
+            appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
+        };
+
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
@@ -168,11 +179,13 @@
         window.showPage = (pageId) => {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(pageId).classList.add('active');
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            document.querySelector(`.nav-link[href="#${pageId}"]`).classList.add('active');
         };
         window.openModal = (modalId) => {
             const form = document.querySelector(`#${modalId} form`);
             form.reset();
-            document.getElementById('department-wrapper').style.display = 'none'; // إخفاء حقل التخصص عند الفتح
+            document.getElementById('department-wrapper').style.display = 'none';
             const hiddenId = form.querySelector(`input[type=hidden]`);
             if (hiddenId) hiddenId.value = '';
             document.querySelector(`#${modalId} h3`).textContent = 'إضافة جديد';
@@ -215,7 +228,7 @@
             if (roleSelect.value === 'طالب') {
                 data.department = userDepartmentSelect.value;
             } else {
-                data.department = null; // حذف التخصص إذا لم يكن طالبًا
+                data.department = null;
             }
 
             if (id) { 
@@ -269,7 +282,6 @@
         };
 
         // --- إدارة المواد الدراسية (Courses) ---
-        // (الكود الخاص بالمواد الدراسية يبقى كما هو من التعديل السابق)
         document.getElementById('schedule-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('courseId').value;
@@ -370,7 +382,7 @@
         }
 
         // استدعاءات أولية
-        showPage('users');
+        showPage('users'); // <-- هذا هو السطر الذي تم إصلاحه
     </script>
 </body>
 </html>
