@@ -13,7 +13,7 @@
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; }
         .sidebar { width: 250px; background-color: var(--dark-color); color: white; position: fixed; height: 100%; padding-top: 20px; z-index: 100; }
         .sidebar h2 { text-align: center; color: white; margin-bottom: 30px; }
-        .sidebar a { display: block; color: white; padding: 15px 20px; text-decoration: none; transition: background-color: 0.3s; }
+        .sidebar a { display: block; color: white; padding: 15px 20px; text-decoration: none; transition: background-color 0.3s; }
         .sidebar a:hover, .sidebar a.active { background-color: #495057; }
         .main-content { margin-right: 250px; padding: 30px; }
         .page { display: none; }
@@ -33,13 +33,18 @@
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; margin-bottom: 5px; }
         .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        .room-status-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
-        .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; display: flex; flex-direction: column; justify-content: space-between; min-height: 180px; transition: background-color 0.5s ease; }
+        .room-status-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        
+        /* تعديلات لوحة الإعلانات */
+        .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; display: flex; flex-direction: column; justify-content: space-between; min-height: 190px; transition: background-color 0.5s ease; }
         .room-card.open { background-color: var(--success-color); }
         .room-card.closed { background-color: var(--danger-color); }
-        .room-card h4 { margin-top: 0; font-size: 1.5rem; }
-        .room-card p { margin: 4px 0; font-size: 0.9rem; }
-        .room-card .details { margin: 10px 0; }
+        .room-card h4 { margin-top: 0; font-size: 1.8rem; color: white; }
+        .room-card p { margin: 4px 0; font-size: 1rem; color: white; }
+        .room-card .details { margin: 10px 0; min-height: 50px; }
+        .room-card .details p { font-size: 0.9rem; font-weight: normal; }
+        .room-card .details strong { font-weight: bold; }
+
         .qr-code-container img { max-width: 80px; height: auto; }
         .barcode-container svg { height: 50px; width: auto; }
         .pdf-prepare-area { position: absolute; left: -9999px; opacity: 0; }
@@ -80,9 +85,6 @@
     <div class="main-content">
         <div id="dashboard" class="page"><div class="card"><h3>لوحة الإعلانات</h3><div id="room-status-container" class="room-status-container"></div></div></div>
         
-        <!-- ====================================================== -->
-        <!-- ## تعديل 1: هيكل صفحة إدارة المستخدمين المقسمة ## -->
-        <!-- ====================================================== -->
         <div id="users" class="page">
             <div class="card">
                 <h3>المستخدمون</h3>
@@ -103,9 +105,6 @@
             </div>
         </div>
 
-        <!-- ====================================================== -->
-        <!-- ## تعديل 2: هيكل صفحة الجداول الدراسية المقسمة ## -->
-        <!-- ====================================================== -->
         <div id="schedules" class="page">
             <div class="card">
                 <h3>الجداول الدراسية</h3>
@@ -120,16 +119,10 @@
 
     <div id="pdf-prepare-area" class="pdf-prepare-area"></div>
 
-    <!-- ====================================================== -->
-    <!-- ## تعديل 1.1: نموذج إضافة المستخدم مع حقل القسم ## -->
-    <!-- ====================================================== -->
     <div id="user-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('user-modal')">&times;</span><h3 id="user-modal-title"></h3><form id="user-form"><input type="hidden" id="userId"><div class="form-group"><label>الاسم الكامل</label><input type="text" id="displayName" required></div><div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div><div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم التغيير</small></div><div class="form-group"><label>الدور</label><select id="role" required onchange="toggleDepartmentSelect()"><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option><option value="طالب">طالب</option></select></div><div class="form-group" id="department-group" style="display:none;"><label>القسم</label><select id="department"></select></div><div class="form-group"><label>رمز الباركود (رقم)</label><input type="text" id="barcodeId"></div><div class="form-group"><label>رمز RFID (UID)</label><input type="text" id="rfid"></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
     
     <div id="room-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('room-modal')">&times;</span><h3 id="room-modal-title"></h3><form id="room-form"><input type="hidden" id="roomId"><div class="form-group"><label>اسم القاعة</label><input type="text" id="roomName" required></div><div class="form-group"><label>السعة</label><input type="number" id="roomCapacity" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
     
-    <!-- ====================================================== -->
-    <!-- ## تعديل 2.1: نموذج إضافة جدول مع حقل القسم والمجموعات ## -->
-    <!-- ====================================================== -->
     <div id="schedule-modal" class="modal">
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal('schedule-modal')">&times;</span>
@@ -177,6 +170,7 @@
 
         const SITE_URL = "https://cpld.netlify.app";
         const roomDataStore = {};
+        let allSchedulesData = [];
         const departments = [
             "القسم العام", "قسم الهندسة الكهربائية والالكترونية", "قسم الهندسة الكيميائية", 
             "قسم الهندسة المدنية", "قسم الهندسة الميكانيكية", "قسم الهندسة المعمارية"
@@ -236,25 +230,21 @@
             contentContainer.innerHTML = '';
 
             tabsArray.forEach((tabName, index) => {
-                // إنشاء زر التبويب
                 const tabLink = document.createElement('a');
                 tabLink.className = 'tab-link';
                 tabLink.textContent = tabName;
                 tabLink.onclick = () => openTab(event, tabName, contentContainerId);
                 tabsContainer.appendChild(tabLink);
 
-                // إنشاء محتوى التبويب
                 const tabContent = document.createElement('div');
                 tabContent.id = `${contentContainerId}-${tabName.replace(/\s/g, '-')}`;
                 tabContent.className = 'tab-content';
                 contentContainer.appendChild(tabContent);
 
-                // استدعاء الدالة المخصصة لملء محتوى التبويب
                 if (callback) {
                     callback(tabContent, tabName);
                 }
 
-                // تفعيل أول تبويب بشكل افتراضي
                 if (index === 0) {
                     tabLink.classList.add('active');
                     tabContent.classList.add('active');
@@ -264,18 +254,14 @@
 
         window.openTab = (evt, tabName, contentContainerId) => {
             const contentContainer = document.getElementById(contentContainerId);
-            // إخفاء كل محتويات التبويبات
             contentContainer.querySelectorAll('.tab-content').forEach(tc => tc.style.display = "none");
-            // إزالة كلاس 'active' من كل أزرار التبويبات
             evt.currentTarget.parentElement.querySelectorAll('.tab-link').forEach(tl => tl.classList.remove("active"));
-            // إظهار المحتوى الحالي وتفعيل الزر
             contentContainer.querySelector(`#${contentContainerId}-${tabName.replace(/\s/g, '-')}`).style.display = "block";
             evt.currentTarget.classList.add("active");
         };
 
-        // --- مزامنة البيانات مع Realtime Database (للتوافقية) ---
+        // --- مزامنة البيانات مع Realtime Database ---
         async function syncToRtdb() {
-            // ... (هذه الدالة تبقى كما هي، تقوم بمزامنة بيانات المستخدمين والجداول الضرورية)
             const usersRef = collection(db, "Users");
             const usersSnapshot = await getDocs(usersRef);
             const allowedRfids = {};
@@ -365,18 +351,10 @@
         });
 
         // --- عرض البيانات في الجداول والتبويبات ---
-
-        // 1. عرض المستخدمين
         onSnapshot(collection(db, "Users"), (snap) => {
-            const tables = {
-                'عضو هيئة تدريس': document.querySelector('#lecturers-table tbody'),
-                'مشرف': document.querySelector('#supervisors-table tbody'),
-                'عامل نظافة': document.querySelector('#cleaners-table tbody'),
-            };
+            const tables = { 'عضو هيئة تدريس': document.querySelector('#lecturers-table tbody'), 'مشرف': document.querySelector('#supervisors-table tbody'), 'عامل نظافة': document.querySelector('#cleaners-table tbody') };
             const studentDataByDept = {};
             departments.forEach(d => studentDataByDept[d] = []);
-
-            // تفريغ الجداول قبل الملء
             Object.values(tables).forEach(tbody => tbody.innerHTML = '');
 
             snap.forEach(d => {
@@ -388,53 +366,30 @@
                     }
                 } else if (tables[u.role]) {
                     const tbody = tables[u.role];
-                    const row = `<tr>
-                        <td>${u.displayName || ''}</td>
-                        <td><div class="barcode-container">${u.barcodeId ? `<svg id="barcode-${id}"></svg>` : 'لا يوجد'}</div></td>
-                        <td>${u.rfid || 'لا يوجد'}</td>
-                        <td>
-                            <button class="btn btn-warning" onclick="editItem('Users', '${id}', 'user')">تعديل</button>
-                            <button class="btn btn-danger" onclick="deleteItem('Users', '${id}', 'المستخدم')">حذف</button>
-                            <button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}', '${u.role}', '${u.barcodeId}')">تحميل بطاقة (PDF)</button>
-                        </td>
-                    </tr>`;
-                    tbody.innerHTML += row;
+                    tbody.innerHTML += `<tr><td>${u.displayName||''}</td><td><div class="barcode-container">${u.barcodeId?`<svg id="barcode-${id}"></svg>`:'لا يوجد'}</div></td><td>${u.rfid||'لا يوجد'}</td><td><button class="btn btn-warning" onclick="editItem('Users','${id}','user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users','${id}','المستخدم')">حذف</button><button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}','${u.role}','${u.barcodeId}')">تحميل بطاقة (PDF)</button></td></tr>`;
                     if (u.barcodeId) JsBarcode(`#barcode-${id}`, u.barcodeId);
                 }
             });
 
-            // عرض الطلاب في التبويبات
             departments.forEach(deptName => {
                 const container = document.querySelector(`#student-tabs-content-${deptName.replace(/\s/g, '-')}`);
                 if (!container) return;
-                const table = container.querySelector('table');
-                const tbody = table.querySelector('tbody');
+                const tbody = container.querySelector('table tbody');
                 tbody.innerHTML = '';
                 studentDataByDept[deptName].forEach(u => {
-                    const row = `<tr>
-                        <td>${u.displayName || ''}</td>
-                        <td><div class="barcode-container">${u.barcodeId ? `<svg id="barcode-${u.id}"></svg>` : 'لا يوجد'}</div></td>
-                        <td>${u.rfid || 'لا يوجد'}</td>
-                        <td>
-                            <button class="btn btn-warning" onclick="editItem('Users', '${u.id}', 'user')">تعديل</button>
-                            <button class="btn btn-danger" onclick="deleteItem('Users', '${u.id}', 'الطالب')">حذف</button>
-                            <button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}', '${u.role}', '${u.barcodeId}')">تحميل بطاقة (PDF)</button>
-                        </td>
-                    </tr>`;
-                    tbody.innerHTML += row;
+                    tbody.innerHTML += `<tr><td>${u.displayName||''}</td><td><div class="barcode-container">${u.barcodeId?`<svg id="barcode-${u.id}"></svg>`:'لا يوجد'}</div></td><td>${u.rfid||'لا يوجد'}</td><td><button class="btn btn-warning" onclick="editItem('Users','${u.id}','user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users','${u.id}','الطالب')">حذف</button><button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}','${u.role}','${u.barcodeId}')">تحميل بطاقة (PDF)</button></td></tr>`;
                     if (u.barcodeId) JsBarcode(`#barcode-${u.id}`, u.barcodeId);
                 });
             });
             syncToRtdb();
         });
 
-        // 2. عرض الجداول الدراسية
         onSnapshot(collection(db, "Schedules"), (snap) => {
+            allSchedulesData = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
             const scheduleDataByDept = {};
             departments.forEach(d => scheduleDataByDept[d] = []);
 
-            snap.forEach(doc => {
-                const s = { id: doc.id, ...doc.data() };
+            allSchedulesData.forEach(s => {
                 if (s.department && scheduleDataByDept[s.department]) {
                     scheduleDataByDept[s.department].push(s);
                 }
@@ -446,39 +401,18 @@
                 const tbody = container.querySelector('table tbody');
                 tbody.innerHTML = '';
                 scheduleDataByDept[deptName].forEach(s => {
-                    const row = `<tr>
-                        <td>${s.courseCode}</td>
-                        <td>${s.courseName}</td>
-                        <td>${s.lecturer}</td>
-                        <td>${s.room}</td>
-                        <td>${s.day}</td>
-                        <td>${s.time}</td>
-                        <td>${(s.groups || []).join(', ')}</td>
-                        <td>
-                            <button class="btn btn-warning" onclick="editItem('Schedules', '${s.id}', 'schedule')">تعديل</button>
-                            <button class="btn btn-danger" onclick="deleteItem('Schedules', '${s.id}', 'الجدول')">حذف</button>
-                        </td>
-                    </tr>`;
-                    tbody.innerHTML += row;
+                    tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.lecturer}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td>${(s.groups||[]).join(', ')}</td><td><button class="btn btn-warning" onclick="editItem('Schedules','${s.id}','schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules','${s.id}','الجدول')">حذف</button></td></tr>`;
                 });
             });
             syncToRtdb();
         });
 
-        // 3. عرض القاعات ولوحة الإعلانات (Dashboard)
-        let allSchedulesData = [];
-        onSnapshot(collection(db, "Schedules"), (snap) => {
-            allSchedulesData = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
-        });
-
         onSnapshot(collection(db, "Rooms"), (snapshot) => {
             const roomsTableTbody = document.querySelector('#rooms-table tbody');
             roomsTableTbody.innerHTML = '';
-
             snapshot.docChanges().forEach((change) => {
                 const docId = change.doc.id;
                 const roomData = change.doc.data();
-
                 if (change.type === "added") {
                     roomDataStore[docId] = roomData;
                     createDashboardCard(docId);
@@ -493,11 +427,10 @@
                     if (card) card.remove();
                 }
             });
-
             snapshot.forEach(d => {
                 const r = d.data();
                 const qrCodeDataUrl = generateQRCode(r.qrUrl || '');
-                roomsTableTbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td><div class="qr-code-container">${r.qrUrl ? `<img src="${qrCodeDataUrl}" alt="QR Code">` : 'لا يوجد'}</div></td><td><button class="btn btn-warning" onclick="editItem('Rooms', '${d.id}', 'room')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms', '${d.id}', 'القاعة')">حذف</button><button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}', '${r.qrUrl}')">تحميل بطاقة (PDF)</button></td></tr>`;
+                roomsTableTbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td><div class="qr-code-container">${r.qrUrl?`<img src="${qrCodeDataUrl}" alt="QR Code">`:'لا يوجد'}</div></td><td><button class="btn btn-warning" onclick="editItem('Rooms','${d.id}','room')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms','${d.id}','القاعة')">حذف</button><button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}','${r.qrUrl}')">تحميل بطاقة (PDF)</button></td></tr>`;
             });
         });
 
@@ -505,11 +438,9 @@
         onValue(locksRef, (snapshot) => {
             const allLocksStatus = snapshot.val();
             if (!allLocksStatus) return;
-
             for (const docId in roomDataStore) {
                 const roomName = roomDataStore[docId].name;
                 const lockName = "Room" + roomName; 
-                
                 if (allLocksStatus[lockName]) {
                     const newStatus = allLocksStatus[lockName].status;
                     if (roomDataStore[docId].status !== newStatus) {
@@ -548,11 +479,28 @@
 
             const status = roomData.status || 'closed';
             const statusText = status === 'open' ? 'مفتوحة' : 'مغلقة';
-            
             card.className = `room-card ${status === 'open' ? 'open' : 'closed'}`;
-            card.innerHTML = `<h4>${roomData.name}</h4><p>${statusText}</p>`;
+
+            let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
+            if (currentSchedule) {
+                detailsHtml = `<div class="details"><p><strong>المحاضر:</strong> ${currentSchedule.lecturer}</p><p><strong>المادة:</strong> ${currentSchedule.courseName}</p></div>`;
+            }
+
+            card.innerHTML = `<div><h4>${roomData.name}</h4><p>${statusText}</p>${detailsHtml}</div><button class="btn btn-warning" onclick="toggleRoomStatus('${docId}', '${status}')">تغيير الحالة</button>`;
         }
 
+        window.toggleRoomStatus = async (id, currentStatus) => {
+            const newStatus = currentStatus === 'open' ? 'closed' : 'open';
+            const roomName = roomDataStore[id].name;
+            await updateDoc(doc(db, "Rooms", id), { status: newStatus });
+            const adminUser = JSON.parse(sessionStorage.getItem('user'));
+            const adminUid = newStatus === 'open' ? adminUser.id : 'none';
+            set(ref(rtdb, 'locks/Room' + roomName), { status: newStatus, last_user_uid: adminUid });
+        };
+
+        setInterval(() => {
+            Object.keys(roomDataStore).forEach(docId => updateDashboardCard(docId));
+        }, 60000);
 
         // --- دوال مساعدة (تعديل، حذف، طباعة) ---
         window.editItem = async (collectionName, id, type) => {
@@ -568,7 +516,7 @@
                 document.getElementById('role').value = data.role;
                 document.getElementById('rfid').value = data.rfid || '';
                 document.getElementById('barcodeId').value = data.barcodeId || '';
-                toggleDepartmentSelect(); // لتحديث عرض حقل القسم
+                toggleDepartmentSelect();
                 if (data.role === 'طالب') {
                     document.getElementById('department').value = data.department;
                 }
@@ -586,7 +534,6 @@
                 const [startTime, endTime] = data.time.split('-');
                 document.getElementById('startTime').value = startTime;
                 document.getElementById('endTime').value = endTime;
-                // تحديد المجموعات
                 document.querySelectorAll('#groups-checkboxes input').forEach(cb => {
                     cb.checked = (data.groups || []).includes(cb.value);
                 });
@@ -648,23 +595,14 @@
         // --- التشغيل الأولي ---
         showPage('dashboard');
         
-        // إنشاء تبويبات الطلاب
         setupTabs('student-tabs', 'student-tabs-content', departments, (tabContent, deptName) => {
-            tabContent.innerHTML = `<table id="students-table-${deptName.replace(/\s/g, '-')}">
-                <thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead>
-                <tbody></tbody>
-            </table>`;
+            tabContent.innerHTML = `<table id="students-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
         });
 
-        // إنشاء تبويبات الجداول
         setupTabs('schedule-tabs', 'schedule-tabs-content', departments, (tabContent, deptName) => {
-            tabContent.innerHTML = `<table id="schedules-table-${deptName.replace(/\s/g, '-')}">
-                <thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>المجموعات</th><th>إجراء</th></tr></thead>
-                <tbody></tbody>
-            </table>`;
+            tabContent.innerHTML = `<table id="schedules-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>المجموعات</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
         });
 
-        // استدعاء المزامنة عند بدء التشغيل
         syncToRtdb();
 
     </script>
