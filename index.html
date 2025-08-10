@@ -91,11 +91,17 @@
                         
                         sessionStorage.setItem('user', JSON.stringify({ id: doc.id, ...userData }));
 
+                        // ======================================================
+                        // ## التعديل الجديد: توجيه المستخدم حسب دوره ##
+                        // ======================================================
                         if (userData.role && userData.role.trim().toLowerCase() === 'admin') {
                             setTimeout(() => { window.location.href = 'admin.html'; }, 1000);
+                        } else if (userData.role && userData.role.trim() === 'طالب') { // <-- هذا هو الشرط الجديد
+                            setTimeout(() => { window.location.href = 'student.html'; }, 1000);
                         } else {
                             setTimeout(() => { window.location.href = 'user.html'; }, 1000);
                         }
+                        // ======================================================
                     }
                 });
 
