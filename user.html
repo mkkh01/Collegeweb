@@ -18,7 +18,7 @@
         .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; }
         .btn-primary { background-color: #007bff; }
         .attendance-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .attendance-controls input[type="date"] { padding: 8px; border: 1px solid #ccc; border-radius: 5px; }
+        .attendance-controls input, .attendance-controls select { padding: 8px; border: 1px solid #ccc; border-radius: 5px; }
     </style>
 </head>
 <body>
@@ -44,23 +44,27 @@
         </div>
 
         <!-- ====================================================== -->
-        <!-- ## تعديل 4: قسم سجلات الحضور والطباعة ## -->
+        <!-- ## تعديل: قسم سجلات الحضور مع فلتر المادة ## -->
         <!-- ====================================================== -->
         <div class="card">
             <h3>سجلات الحضور</h3>
             <div class="attendance-controls">
-                <label for="attendance-date">اختر تاريخًا لعرض الحضور:</label>
+                <label for="attendance-date">اختر تاريخًا:</label>
                 <input type="date" id="attendance-date">
+                
+                <label for="course-filter">اختر المادة:</label>
+                <select id="course-filter">
+                    <option value="">كل المواد</option>
+                </select>
+
                 <button class="btn btn-primary" onclick="window.fetchAttendance()">بحث</button>
             </div>
             <table id="attendance-table">
                 <thead><tr><th>اسم الطالب</th><th>القاعة</th><th>المادة</th><th>وقت الحضور</th></tr></thead>
-                <tbody><tr><td colspan="4">اختر تاريخًا لعرض سجلات الحضور.</td></tr></tbody>
+                <tbody><tr><td colspan="4">اختر تاريخًا ومادة لعرض سجلات الحضور.</td></tr></tbody>
             </table>
             <button class="btn btn-primary" style="margin-top: 20px;" onclick="window.printAttendance()">طباعة الكشف</button>
         </div>
-        <!-- ====================================================== -->
-
     </div>
 
     <script type="module">
@@ -83,38 +87,41 @@
         const userDisplayName = user.displayName;
         document.getElementById('welcome-message').textContent = `أهلاً بك، ${userDisplayName}`;
 
-        // عرض الجدول الدراسي (مع إضافة المجموعات)
+        // --- عرض الجدول الدراسي وتعبئة فلتر المواد ---
         const schedulesTableBody = document.querySelector('#my-schedules-table tbody');
+        const courseFilterSelect = document.getElementById('course-filter');
         const schedulesRef = collection(db, "Schedules");
         const qSchedules = query(schedulesRef, where("lecturer", "==", userDisplayName));
 
         onSnapshot(qSchedules, (snapshot) => {
             schedulesTableBody.innerHTML = '';
+            const lecturerCourses = new Set(); // Set لمنع تكرار أسماء المواد
+
             if (snapshot.empty) {
                 schedulesTableBody.innerHTML = '<tr><td colspan="6">لا توجد محاضرات مجدولة لك.</td></tr>';
                 return;
             }
             snapshot.forEach(doc => {
                 const s = doc.data();
-                schedulesTableBody.innerHTML += `<tr>
-                    <td>${s.day}</td>
-                    <td>${s.time}</td>
-                    <td>${s.courseCode}</td>
-                    <td>${s.courseName}</td>
-                    <td>${s.room}</td>
-                    <td>${(s.groups || []).join(', ')}</td>
-                </tr>`;
+                schedulesTableBody.innerHTML += `<tr><td>${s.day}</td><td>${s.time}</td><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.room}</td><td>${(s.groups || []).join(', ')}</td></tr>`;
+                lecturerCourses.add(s.courseName); // إضافة اسم المادة إلى Set
+            });
+
+            // تعبئة قائمة المواد في الفلتر
+            courseFilterSelect.innerHTML = '<option value="">كل المواد</option>';
+            lecturerCourses.forEach(course => {
+                courseFilterSelect.innerHTML += `<option value="${course}">${course}</option>`;
             });
         });
 
-        // ======================================================
-        // ## الكود الجديد: جلب وطباعة الحضور ##
-        // ======================================================
+        // --- جلب وطباعة الحضور ---
         const attendanceTableBody = document.querySelector('#attendance-table tbody');
         const attendanceRef = collection(db, "Attendance");
 
         window.fetchAttendance = async () => {
             const selectedDateStr = document.getElementById('attendance-date').value;
+            const selectedCourse = document.getElementById('course-filter').value;
+
             if (!selectedDateStr) {
                 alert('يرجى اختيار تاريخ أولاً.');
                 return;
@@ -126,18 +133,25 @@
 
             attendanceTableBody.innerHTML = '<tr><td colspan="4">جاري البحث...</td></tr>';
 
-            // البحث عن سجلات الحضور التي تطابق اسم المحاضر وتقع ضمن اليوم المحدد
-            const qAttendance = query(attendanceRef, 
+            // بناء الاستعلام بناءً على الفلاتر
+            const queryConstraints = [
                 where("lecturerName", "==", userDisplayName),
                 where("timestamp", ">=", startOfDay),
                 where("timestamp", "<=", endOfDay)
-            );
+            ];
+
+            // إضافة فلتر المادة إذا تم اختيارها
+            if (selectedCourse) {
+                queryConstraints.push(where("courseName", "==", selectedCourse));
+            }
+
+            const qAttendance = query(attendanceRef, ...queryConstraints);
 
             try {
                 const snapshot = await getDocs(qAttendance);
                 attendanceTableBody.innerHTML = '';
                 if (snapshot.empty) {
-                    attendanceTableBody.innerHTML = '<tr><td colspan="4">لا توجد سجلات حضور في هذا اليوم.</td></tr>';
+                    attendanceTableBody.innerHTML = '<tr><td colspan="4">لا توجد سجلات حضور تطابق هذا البحث.</td></tr>';
                     return;
                 }
                 snapshot.forEach(doc => {
@@ -160,6 +174,7 @@
         window.printAttendance = () => {
             const tableToPrint = document.getElementById('attendance-table');
             const selectedDate = document.getElementById('attendance-date').value;
+            const selectedCourse = document.getElementById('course-filter').value;
             
             if (tableToPrint.querySelector('tbody tr td[colspan="4"]')) {
                 alert("يرجى البحث عن سجلات الحضور أولاً قبل الطباعة.");
@@ -171,6 +186,9 @@
             printWindow.document.write('<style>body{font-family: "Segoe UI", sans-serif; padding: 20px;} table{width: 100%; border-collapse: collapse;} th, td{border: 1px solid #333; padding: 10px; text-align: right;} h2, h3 {text-align: center;}</style>');
             printWindow.document.write('</head><body>');
             printWindow.document.write(`<h2>كشف حضور ليوم: ${selectedDate || 'غير محدد'}</h2>`);
+            if (selectedCourse) {
+                printWindow.document.write(`<h3>المادة: ${selectedCourse}</h3>`);
+            }
             printWindow.document.write(`<h3>المحاضر: ${userDisplayName}</h3>`);
             printWindow.document.write(tableToPrint.outerHTML);
             printWindow.document.write('</body></html>');
@@ -178,7 +196,6 @@
             printWindow.focus();
             printWindow.print();
         };
-        // ======================================================
     </script>
 </body>
 </html>
