@@ -26,7 +26,7 @@
         .room-card h4 { margin-top: 0; font-size: 1.5rem; }
         .room-card p { margin: 4px 0; }
         #student-schedule-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
-        #student-schedule-form input, #student-schedule-form select { padding: 10px; border: 1px solid #ccc; border-radius: 5px; flex: 1; min-width: 150px; }
+        #student-schedule-form select { padding: 10px; border: 1px solid #ccc; border-radius: 5px; flex: 1; min-width: 200px; }
         #student-schedule-form button { flex-basis: 100%; padding: 12px; }
         @media (min-width: 768px) {
             #student-schedule-form button { flex-basis: auto; }
@@ -34,12 +34,11 @@
     </style>
 </head>
 <body>
-    <!-- هذا السكريبت يتحقق من وجود جلسة مسجلة، ويمنع الوصول المباشر للصفحة -->
     <script>
         const loggedInUser = JSON.parse(sessionStorage.getItem('user'));
-        if (!loggedInUser) {
-            alert('يجب تسجيل الدخول أولاً.');
-            window.location.href = 'index.html'; // أو login.html
+        if (!loggedInUser || loggedInUser.role !== 'طالب') {
+            alert('يجب تسجيل الدخول كطالب أولاً.');
+            window.location.href = 'index.html';
         }
     </script>
 
@@ -49,36 +48,41 @@
             <a href="index.html" class="logout-btn" onclick="sessionStorage.clear()">تسجيل الخروج</a>
         </div>
 
-        <!-- القسم الأول: لوحة إعلانات القاعات (للعرض فقط) -->
         <div class="card">
             <h3>لوحة إعلانات القاعات</h3>
             <div id="room-status-container" class="room-status-container"></div>
         </div>
 
-        <!-- القسم الثاني: الجدول الدراسي الخاص بالطالب -->
+        <!-- ====================================================== -->
+        <!-- ## تعديل 3: نموذج تسجيل المواد بالقوائم المنسدلة ## -->
+        <!-- ====================================================== -->
         <div class="card">
-            <h3>جدولي الدراسي</h3>
+            <h3>تسجيل المواد الدراسية</h3>
             <form id="student-schedule-form">
-                <input type="text" id="courseName" placeholder="اسم المادة" required>
-                <input type="text" id="room" placeholder="القاعة" required>
-                <select id="day" required>
-                    <option value="" disabled selected>اختر اليوم</option>
-                    <option>السبت</option><option>الأحد</option><option>الاثنين</option>
-                    <option>الثلاثاء</option><option>الأربعاء</option><option>الخميس</option>
+                <select id="available-courses" required>
+                    <option value="" disabled selected>اختر المادة...</option>
                 </select>
-                <input type="time" id="time" required>
+                <select id="student-group" required>
+                    <option value="" disabled selected>اختر مجموعتك...</option>
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="D">D</option>
+                </select>
                 <button type="submit" class="btn btn-primary">إضافة للجدول</button>
             </form>
+            
+            <h3>جدولي الدراسي</h3>
             <table id="my-schedules-table">
-                <thead><tr><th>المادة</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>إجراء</th></tr></thead>
-                <tbody><!-- سيتم تعبئة الجدول هنا من خلال JavaScript --></tbody>
+                <thead><tr><th>المادة</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>المجموعة</th><th>إجراء</th></tr></thead>
+                <tbody><!-- سيتم تعبئة الجدول هنا --></tbody>
             </table>
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, query, where, onSnapshot, addDoc, deleteDoc, doc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, query, where, onSnapshot, addDoc, deleteDoc, doc, getDocs, or } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
@@ -95,53 +99,57 @@
         const rtdb = getDatabase(app);
 
         const user = JSON.parse(sessionStorage.getItem('user'));
-        document.getElementById('welcome-message').textContent = `أهلاً بك، ${user.displayName}`;
+        const studentDepartment = user.department;
+        document.getElementById('welcome-message').textContent = `أهلاً بك، ${user.displayName} (قسم ${studentDepartment || 'غير محدد'})`;
 
         // --- 1. عرض لوحة الإعلانات (للقراءة فقط) ---
         const statusContainer = document.getElementById('room-status-container');
         const locksRef = ref(rtdb, 'locks');
-
-        // جلب بيانات القاعات من Firestore مرة واحدة
-        const roomsCollection = collection(db, "Rooms");
-        getDocs(roomsCollection).then(roomSnapshot => {
-            const rooms = {};
-            roomSnapshot.forEach(doc => {
-                rooms[doc.data().name] = doc.data();
-            });
-
-            // الاستماع لتحديثات الحالة من Realtime Database
-            onValue(locksRef, (snapshot) => {
-                const allLocksStatus = snapshot.val() || {};
-                statusContainer.innerHTML = ''; // مسح المحتوى قبل إعادة البناء
-
-                Object.keys(rooms).forEach(roomName => {
-                    const lockName = "Room" + roomName;
+        onValue(locksRef, (snapshot) => {
+            const allLocksStatus = snapshot.val() || {};
+            statusContainer.innerHTML = '';
+            getDocs(collection(db, "Rooms")).then(roomSnapshot => {
+                roomSnapshot.forEach(doc => {
+                    const room = doc.data();
+                    const lockName = "Room" + room.name;
                     const lockStatus = allLocksStatus[lockName] ? allLocksStatus[lockName].status : 'closed';
                     const statusClass = lockStatus === 'open' ? 'open' : 'closed';
                     const statusText = lockStatus === 'open' ? 'مفتوحة' : 'مغلقة';
-                    
-                    statusContainer.innerHTML += `
-                        <div class="room-card ${statusClass}">
-                            <h4>${roomName}</h4>
-                            <p>${statusText}</p>
-                        </div>
-                    `;
+                    statusContainer.innerHTML += `<div class="room-card ${statusClass}"><h4>${room.name}</h4><p>${statusText}</p></div>`;
                 });
             });
         });
 
-
         // --- 2. إدارة الجدول الدراسي للطالب ---
         const scheduleForm = document.getElementById('student-schedule-form');
         const scheduleTableBody = document.querySelector('#my-schedules-table tbody');
-        const schedulesRef = collection(db, "StudentSchedules");
-        const q = query(schedulesRef, where("studentId", "==", user.id));
+        const availableCoursesSelect = document.getElementById('available-courses');
+        
+        const studentSchedulesRef = collection(db, "StudentSchedules");
+        const studentQuery = query(studentSchedulesRef, where("studentId", "==", user.id));
 
-        // عرض جدول الطالب
-        onSnapshot(q, (snapshot) => {
+        // جلب المواد المتاحة للطالب (مواد قسمه + المواد العامة)
+        async function populateAvailableCourses() {
+            const schedulesRef = collection(db, "Schedules");
+            const q = query(schedulesRef, or(
+                where("department", "==", studentDepartment),
+                where("department", "==", "القسم العام")
+            ));
+            
+            const querySnapshot = await getDocs(q);
+            availableCoursesSelect.innerHTML = '<option value="" disabled selected>اختر المادة...</option>';
+            querySnapshot.forEach(doc => {
+                const schedule = doc.data();
+                // استخدام doc.id كقيمة فريدة للمادة
+                availableCoursesSelect.innerHTML += `<option value="${doc.id}">${schedule.courseName} (${schedule.courseCode})</option>`;
+            });
+        }
+
+        // عرض جدول الطالب الحالي
+        onSnapshot(studentQuery, (snapshot) => {
             scheduleTableBody.innerHTML = '';
             if (snapshot.empty) {
-                scheduleTableBody.innerHTML = '<tr><td colspan="5">جدولك فارغ. قم بإضافة موادك الدراسية.</td></tr>';
+                scheduleTableBody.innerHTML = '<tr><td colspan="6">جدولك فارغ. قم بإضافة موادك الدراسية من القائمة أعلاه.</td></tr>';
                 return;
             }
             snapshot.forEach(doc => {
@@ -152,31 +160,61 @@
                         <td>${s.room}</td>
                         <td>${s.day}</td>
                         <td>${s.time}</td>
+                        <td>${s.group}</td>
                         <td><button class="btn btn-danger" onclick="window.deleteSchedule('${doc.id}')">حذف</button></td>
                     </tr>`;
             });
         });
 
-        // إضافة مادة جديدة للجدول
+        // إضافة مادة جديدة لجدول الطالب
         scheduleForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            await addDoc(schedulesRef, {
+            const scheduleId = availableCoursesSelect.value;
+            const selectedGroup = document.getElementById('student-group').value;
+
+            if (!scheduleId || !selectedGroup) {
+                alert("يرجى اختيار المادة والمجموعة.");
+                return;
+            }
+
+            // جلب تفاصيل المادة من جدولها الأصلي
+            const scheduleDoc = await getDocs(query(collection(db, "Schedules"), where("__name__", "==", scheduleId)));
+            if (scheduleDoc.empty) {
+                alert("حدث خطأ، المادة غير موجودة.");
+                return;
+            }
+            const scheduleData = scheduleDoc.docs[0].data();
+
+            // التحقق من أن المجموعة التي اختارها الطالب متاحة لهذه المادة
+            if (!scheduleData.groups || !scheduleData.groups.includes(selectedGroup)) {
+                alert(`المجموعة ${selectedGroup} غير متاحة لهذه المادة. المجموعات المتاحة هي: ${scheduleData.groups.join(', ')}`);
+                return;
+            }
+
+            await addDoc(studentSchedulesRef, {
                 studentId: user.id,
-                displayName: user.displayName, // حفظ اسم الطالب لسهولة الاستعلام لاحقًا
-                courseName: document.getElementById('courseName').value,
-                room: document.getElementById('room').value,
-                day: document.getElementById('day').value,
-                time: document.getElementById('time').value,
+                displayName: user.displayName,
+                department: studentDepartment,
+                scheduleId: scheduleId, // ID المادة الأصلي
+                courseName: scheduleData.courseName,
+                room: scheduleData.room,
+                day: scheduleData.day,
+                time: scheduleData.time,
+                group: selectedGroup, // المجموعة التي سجل بها الطالب
             });
             scheduleForm.reset();
         });
 
-        // جعل الدالة متاحة بشكل عام لحذف مادة من الجدول
+        // جعل دالة الحذف متاحة بشكل عام
         window.deleteSchedule = async (id) => {
             if (confirm('هل أنت متأكد من حذف هذه المادة من جدولك؟')) {
                 await deleteDoc(doc(db, "StudentSchedules", id));
             }
         };
+
+        // --- 3. تشغيل الوظائف عند تحميل الصفحة ---
+        populateAvailableCourses();
+
     </script>
 </body>
 </html>
