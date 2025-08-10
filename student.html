@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة تحكم الطالب</title>
+    <style>
+        :root { --primary-color: #007bff; --success-color: #28a745; --danger-color: #dc3545; --secondary-color: #6c757d; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; padding: 30px; }
+        .container { max-width: 1200px; margin: auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .header h1 { color: #343a40; }
+        .logout-btn { padding: 10px 20px; background-color: var(--danger-color); color: white; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; }
+        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h3 { color: #0056b3; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; text-align: right; border-bottom: 1px solid #ddd; }
+        th { background-color: #f2f2f2; }
+        .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; }
+        .btn-primary { background-color: var(--primary-color); }
+        .btn-danger { background-color: var(--danger-color); }
+        .room-status-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+        .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; display: flex; flex-direction: column; justify-content: center; min-height: 120px; }
+        .room-card.open { background-color: var(--success-color); }
+        .room-card.closed { background-color: var(--danger-color); }
+        .room-card h4 { margin-top: 0; font-size: 1.5rem; }
+        .room-card p { margin: 4px 0; }
+        #student-schedule-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
+        #student-schedule-form input, #student-schedule-form select { padding: 10px; border: 1px solid #ccc; border-radius: 5px; flex: 1; min-width: 150px; }
+        #student-schedule-form button { flex-basis: 100%; padding: 12px; }
+        @media (min-width: 768px) {
+            #student-schedule-form button { flex-basis: auto; }
+        }
+    </style>
+</head>
+<body>
+    <!-- هذا السكريبت يتحقق من وجود جلسة مسجلة، ويمنع الوصول المباشر للصفحة -->
+    <script>
+        const loggedInUser = JSON.parse(sessionStorage.getItem('user'));
+        if (!loggedInUser) {
+            alert('يجب تسجيل الدخول أولاً.');
+            window.location.href = 'index.html'; // أو login.html
+        }
+    </script>
+
+    <div class="container">
+        <div class="header">
+            <h1 id="welcome-message">أهلاً بك</h1>
+            <a href="index.html" class="logout-btn" onclick="sessionStorage.clear()">تسجيل الخروج</a>
+        </div>
+
+        <!-- القسم الأول: لوحة إعلانات القاعات (للعرض فقط) -->
+        <div class="card">
+            <h3>لوحة إعلانات القاعات</h3>
+            <div id="room-status-container" class="room-status-container"></div>
+        </div>
+
+        <!-- القسم الثاني: الجدول الدراسي الخاص بالطالب -->
+        <div class="card">
+            <h3>جدولي الدراسي</h3>
+            <form id="student-schedule-form">
+                <input type="text" id="courseName" placeholder="اسم المادة" required>
+                <input type="text" id="room" placeholder="القاعة" required>
+                <select id="day" required>
+                    <option value="" disabled selected>اختر اليوم</option>
+                    <option>السبت</option><option>الأحد</option><option>الاثنين</option>
+                    <option>الثلاثاء</option><option>الأربعاء</option><option>الخميس</option>
+                </select>
+                <input type="time" id="time" required>
+                <button type="submit" class="btn btn-primary">إضافة للجدول</button>
+            </form>
+            <table id="my-schedules-table">
+                <thead><tr><th>المادة</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>إجراء</th></tr></thead>
+                <tbody><!-- سيتم تعبئة الجدول هنا من خلال JavaScript --></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getFirestore, collection, query, where, onSnapshot, addDoc, deleteDoc, doc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
+            authDomain: "gggg-dc7d0.firebaseapp.com",
+            projectId: "gggg-dc7d0",
+            storageBucket: "gggg-dc7d0.appspot.com",
+            messagingSenderId: "151376454562",
+            appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const rtdb = getDatabase(app);
+
+        const user = JSON.parse(sessionStorage.getItem('user'));
+        document.getElementById('welcome-message').textContent = `أهلاً بك، ${user.displayName}`;
+
+        // --- 1. عرض لوحة الإعلانات (للقراءة فقط) ---
+        const statusContainer = document.getElementById('room-status-container');
+        const locksRef = ref(rtdb, 'locks');
+
+        // جلب بيانات القاعات من Firestore مرة واحدة
+        const roomsCollection = collection(db, "Rooms");
+        getDocs(roomsCollection).then(roomSnapshot => {
+            const rooms = {};
+            roomSnapshot.forEach(doc => {
+                rooms[doc.data().name] = doc.data();
+            });
+
+            // الاستماع لتحديثات الحالة من Realtime Database
+            onValue(locksRef, (snapshot) => {
+                const allLocksStatus = snapshot.val() || {};
+                statusContainer.innerHTML = ''; // مسح المحتوى قبل إعادة البناء
+
+                Object.keys(rooms).forEach(roomName => {
+                    const lockName = "Room" + roomName;
+                    const lockStatus = allLocksStatus[lockName] ? allLocksStatus[lockName].status : 'closed';
+                    const statusClass = lockStatus === 'open' ? 'open' : 'closed';
+                    const statusText = lockStatus === 'open' ? 'مفتوحة' : 'مغلقة';
+                    
+                    statusContainer.innerHTML += `
+                        <div class="room-card ${statusClass}">
+                            <h4>${roomName}</h4>
+                            <p>${statusText}</p>
+                        </div>
+                    `;
+                });
+            });
+        });
+
+
+        // --- 2. إدارة الجدول الدراسي للطالب ---
+        const scheduleForm = document.getElementById('student-schedule-form');
+        const scheduleTableBody = document.querySelector('#my-schedules-table tbody');
+        const schedulesRef = collection(db, "StudentSchedules");
+        const q = query(schedulesRef, where("studentId", "==", user.id));
+
+        // عرض جدول الطالب
+        onSnapshot(q, (snapshot) => {
+            scheduleTableBody.innerHTML = '';
+            if (snapshot.empty) {
+                scheduleTableBody.innerHTML = '<tr><td colspan="5">جدولك فارغ. قم بإضافة موادك الدراسية.</td></tr>';
+                return;
+            }
+            snapshot.forEach(doc => {
+                const s = doc.data();
+                scheduleTableBody.innerHTML += `
+                    <tr>
+                        <td>${s.courseName}</td>
+                        <td>${s.room}</td>
+                        <td>${s.day}</td>
+                        <td>${s.time}</td>
+                        <td><button class="btn btn-danger" onclick="window.deleteSchedule('${doc.id}')">حذف</button></td>
+                    </tr>`;
+            });
+        });
+
+        // إضافة مادة جديدة للجدول
+        scheduleForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await addDoc(schedulesRef, {
+                studentId: user.id,
+                displayName: user.displayName, // حفظ اسم الطالب لسهولة الاستعلام لاحقًا
+                courseName: document.getElementById('courseName').value,
+                room: document.getElementById('room').value,
+                day: document.getElementById('day').value,
+                time: document.getElementById('time').value,
+            });
+            scheduleForm.reset();
+        });
+
+        // جعل الدالة متاحة بشكل عام لحذف مادة من الجدول
+        window.deleteSchedule = async (id) => {
+            if (confirm('هل أنت متأكد من حذف هذه المادة من جدولك؟')) {
+                await deleteDoc(doc(db, "StudentSchedules", id));
+            }
+        };
+    </script>
+</body>
+</html>
