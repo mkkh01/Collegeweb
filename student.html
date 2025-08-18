@@ -75,13 +75,26 @@
     </div>
 
     <script type="module">
+        // ======================================================================
+        // ## بداية التعديل 1: استيراد دوال Realtime Database الإضافية ##
+        // ======================================================================
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, query, where, onSnapshot, addDoc, deleteDoc, doc, getDocs, or } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+        import { getFirestore, collection, query, where, onSnapshot, getDocs, or } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getDatabase, ref, onValue, set, push, remove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+        // ======================================================================
+        // ## نهاية التعديل 1 ##
+        // ======================================================================
 
         const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
             authDomain: "gggg-dc7d0.firebaseapp.com",
+            // ======================================================================
+            // ## بداية التعديل 2: إضافة databaseURL للاتصال بـ Realtime Database ##
+            // ======================================================================
+            databaseURL: "https://gggg-dc7d0-default-rtdb.firebaseio.com",
+            // ======================================================================
+            // ## نهاية التعديل 2 ##
+            // ======================================================================
             projectId: "gggg-dc7d0",
             storageBucket: "gggg-dc7d0.appspot.com",
             messagingSenderId: "151376454562",
@@ -97,72 +110,19 @@
         document.getElementById('welcome-message').textContent = `أهلاً بك، ${user.displayName} (قسم ${studentDepartment || 'غير محدد'})`;
 
         let allAvailableSchedules = [];
-        let registeredCourseIdentifiers = []; // ## تعديل: لتخزين المواد المسجلة
+        let registeredCourseIdentifiers = [];
 
-        // --- 1. عرض لوحة الإعلانات (للقراءة فقط) ---
-        // ... (هذا الجزء يبقى كما هو بدون تغيير)
+        // --- (منطق لوحة الإعلانات يبقى كما هو بدون تغيير) ---
         const statusContainer = document.getElementById('room-status-container');
         const locksRef = ref(rtdb, 'locks');
         let allSchedulesData = [];
         let roomDataStore = {};
-
-        getDocs(collection(db, "Schedules")).then(snap => {
-            allSchedulesData = snap.docs.map(doc => doc.data());
-        });
-
-        onSnapshot(collection(db, "Rooms"), (snapshot) => {
-            snapshot.docChanges().forEach((change) => {
-                const docId = change.doc.id;
-                const roomData = change.doc.data();
-                if (change.type === "added") roomDataStore[docId] = roomData;
-                if (change.type === "modified") roomDataStore[docId] = { ...roomDataStore[docId], ...roomData };
-                if (change.type === "removed") delete roomDataStore[docId];
-            });
-            updateAllDashboardCards();
-        });
-
-        onValue(locksRef, (snapshot) => {
-            const allLocksStatus = snapshot.val() || {};
-            for (const docId in roomDataStore) {
-                const roomName = roomDataStore[docId].name;
-                const lockName = "Room" + roomName;
-                if (allLocksStatus[lockName]) {
-                    roomDataStore[docId].status = allLocksStatus[lockName].status;
-                }
-            }
-            updateAllDashboardCards();
-        });
-
-        function updateAllDashboardCards() {
-            statusContainer.innerHTML = '';
-            Object.values(roomDataStore).forEach(roomData => {
-                const now = new Date();
-                const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-                const currentDay = days[now.getDay()];
-                const currentTime = now.getHours() * 60 + now.getMinutes();
-
-                const currentSchedule = allSchedulesData.find(schedule => {
-                    if (schedule.room !== roomData.name || schedule.day !== currentDay) return false;
-                    const timeParts = schedule.time.split('-');
-                    const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
-                    const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]);
-                    return currentTime >= startTime && currentTime < endTime;
-                });
-
-                const status = roomData.status || 'closed';
-                const statusText = status === 'open' ? 'مفتوحة' : 'مغلقة';
-                const statusClass = status === 'open' ? 'open' : 'closed';
-
-                let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
-                if (currentSchedule) {
-                    detailsHtml = `<div class="details"><p>${currentSchedule.lecturer}</p><p>${currentSchedule.courseName}</p></div>`;
-                }
-
-                statusContainer.innerHTML += `<div class="room-card ${statusClass}"><h4>${roomData.name}</h4><p>${statusText}</p>${detailsHtml}</div>`;
-            });
-        }
-        
+        getDocs(collection(db, "Schedules")).then(snap => { allSchedulesData = snap.docs.map(doc => doc.data()); });
+        onSnapshot(collection(db, "Rooms"), (snapshot) => { snapshot.docChanges().forEach((change) => { const docId = change.doc.id; const roomData = change.doc.data(); if (change.type === "added") roomDataStore[docId] = roomData; if (change.type === "modified") roomDataStore[docId] = { ...roomDataStore[docId], ...roomData }; if (change.type === "removed") delete roomDataStore[docId]; }); updateAllDashboardCards(); });
+        onValue(locksRef, (snapshot) => { const allLocksStatus = snapshot.val() || {}; for (const docId in roomDataStore) { const roomName = roomDataStore[docId].name; const lockName = "Room" + roomName; if (allLocksStatus[lockName]) { roomDataStore[docId].status = allLocksStatus[lockName].status; } } updateAllDashboardCards(); });
+        function updateAllDashboardCards() { statusContainer.innerHTML = ''; Object.values(roomDataStore).forEach(roomData => { const now = new Date(); const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]; const currentDay = days[now.getDay()]; const currentTime = now.getHours() * 60 + now.getMinutes(); const currentSchedule = allSchedulesData.find(schedule => { if (schedule.room !== roomData.name || schedule.day !== currentDay) return false; const timeParts = schedule.time.split('-'); const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]); const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]); return currentTime >= startTime && currentTime < endTime; }); const status = roomData.status || 'closed'; const statusText = status === 'open' ? 'مفتوحة' : 'مغلقة'; const statusClass = status === 'open' ? 'open' : 'closed'; let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>'; if (currentSchedule) { detailsHtml = `<div class="details"><p>${currentSchedule.lecturer}</p><p>${currentSchedule.courseName}</p></div>`; } statusContainer.innerHTML += `<div class="room-card ${statusClass}"><h4>${roomData.name}</h4><p>${statusText}</p>${detailsHtml}</div>`; }); }
         setInterval(updateAllDashboardCards, 60000);
+        // --- (نهاية منطق لوحة الإعلانات) ---
 
 
         // --- 2. إدارة الجدول الدراسي للطالب ---
@@ -171,111 +131,88 @@
         const availableCoursesSelect = document.getElementById('available-courses');
         const studentGroupSelect = document.getElementById('student-group');
         
-        const studentSchedulesRef = collection(db, "StudentSchedules");
-        const studentQuery = query(studentSchedulesRef, where("studentId", "==", user.id));
+        // ======================================================================
+        // ## بداية التعديل 3: تغيير شامل لمنطق قراءة وكتابة وحذف جداول الطلاب ##
+        // ======================================================================
+        
+        // الإشارة إلى المسار الصحيح في Realtime Database
+        const studentSchedulesRef = ref(rtdb, "StudentSchedules");
 
-        // ## تعديل: دالة تعبئة المواد المتاحة مع الفلترة
+        // دالة تعبئة المواد المتاحة تبقى كما هي
         async function populateAvailableCourses() {
             const schedulesRef = collection(db, "Schedules");
-            const q = query(schedulesRef, or(
-                where("department", "==", studentDepartment),
-                where("department", "==", "القسم العام")
-            ));
-            
+            const q = query(schedulesRef, or(where("department", "==", studentDepartment), where("department", "==", "القسم العام")));
             const querySnapshot = await getDocs(q);
             allAvailableSchedules = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
             const uniqueCourses = {};
-            allAvailableSchedules.forEach(schedule => {
-                const courseIdentifier = `${schedule.courseName} (${schedule.courseCode})`;
-                if (!uniqueCourses[courseIdentifier]) {
-                    uniqueCourses[courseIdentifier] = [];
-                }
-                uniqueCourses[courseIdentifier].push(...schedule.groups);
-            });
-
+            allAvailableSchedules.forEach(schedule => { const courseIdentifier = `${schedule.courseName} (${schedule.courseCode})`; if (!uniqueCourses[courseIdentifier]) { uniqueCourses[courseIdentifier] = []; } uniqueCourses[courseIdentifier].push(...schedule.groups); });
             availableCoursesSelect.innerHTML = '<option value="" disabled selected>1. اختر المادة...</option>';
-            for (const courseIdentifier in uniqueCourses) {
-                // ## تعديل: التحقق من أن المادة ليست مسجلة بالفعل
-                if (!registeredCourseIdentifiers.includes(courseIdentifier)) {
-                    availableCoursesSelect.innerHTML += `<option value="${courseIdentifier}">${courseIdentifier}</option>`;
-                }
-            }
+            for (const courseIdentifier in uniqueCourses) { if (!registeredCourseIdentifiers.includes(courseIdentifier)) { availableCoursesSelect.innerHTML += `<option value="${courseIdentifier}">${courseIdentifier}</option>`; } }
         }
 
+        // دالة اختيار المجموعة تبقى كما هي
         window.handleCourseSelection = (selectedCourseIdentifier) => {
             studentGroupSelect.innerHTML = '<option value="" disabled selected>2. اختر مجموعتك...</option>';
             studentGroupSelect.style.display = 'none';
-
             if (!selectedCourseIdentifier) return;
-
             const courseData = allAvailableSchedules.filter(s => `${s.courseName} (${s.courseCode})` === selectedCourseIdentifier);
             const availableGroups = new Set();
-            courseData.forEach(s => {
-                (s.groups || []).forEach(g => availableGroups.add(g));
-            });
-
-            if (availableGroups.size > 0) {
-                availableGroups.forEach(group => {
-                    studentGroupSelect.innerHTML += `<option value="${group}">${group}</option>`;
-                });
-                studentGroupSelect.style.display = 'block';
-            }
+            courseData.forEach(s => { (s.groups || []).forEach(g => availableGroups.add(g)); });
+            if (availableGroups.size > 0) { availableGroups.forEach(group => { studentGroupSelect.innerHTML += `<option value="${group}">${group}</option>`; }); studentGroupSelect.style.display = 'block'; }
         };
 
-        // ## تعديل: onSnapshot يقوم الآن بتحديث قائمة المواد المسجلة ثم يعيد تعبئة القائمة المتاحة
-        onSnapshot(studentQuery, (snapshot) => {
+        // تعديل onSnapshot ليقرأ من Realtime Database
+        onValue(studentSchedulesRef, (snapshot) => {
             scheduleTableBody.innerHTML = '';
-            registeredCourseIdentifiers = []; // تفريغ القائمة قبل إعادة بنائها
-
-            if (snapshot.empty) {
-                scheduleTableBody.innerHTML = '<tr><td colspan="6">جدولك فارغ. قم بإضافة موادك الدراسية من القائمة أعلاه.</td></tr>';
-            } else {
-                snapshot.forEach(doc => {
-                    const s = doc.data();
-                    const courseIdentifier = `${s.courseName} (${s.courseCode})`;
-                    registeredCourseIdentifiers.push(courseIdentifier); // إضافة المادة المسجلة إلى القائمة
-
-                    scheduleTableBody.innerHTML += `
-                        <tr>
-                            <td>${s.courseName} (${s.courseCode})</td>
-                            <td>${s.room}</td>
-                            <td>${s.day}</td>
-                            <td>${s.time}</td>
-                            <td>${s.group}</td>
-                            <td><button class="btn btn-danger" onclick="window.deleteSchedule('${doc.id}')">حذف</button></td>
-                        </tr>`;
-                });
+            registeredCourseIdentifiers = [];
+            const data = snapshot.val();
+            let hasEntries = false;
+            if (data) {
+                for (const key in data) {
+                    const s = data[key];
+                    // فلترة السجلات لعرض سجلات الطالب الحالي فقط
+                    if (s.studentId === user.id) {
+                        hasEntries = true;
+                        const courseIdentifier = `${s.courseName} (${s.courseCode})`;
+                        registeredCourseIdentifiers.push(courseIdentifier);
+                        scheduleTableBody.innerHTML += `
+                            <tr>
+                                <td>${s.courseName} (${s.courseCode})</td>
+                                <td>${s.room}</td>
+                                <td>${s.day}</td>
+                                <td>${s.time}</td>
+                                <td>${s.group}</td>
+                                <td><button class="btn btn-danger" onclick="window.deleteSchedule('${key}')">حذف</button></td>
+                            </tr>`;
+                    }
+                }
             }
-            
-            // بعد تحديث قائمة المواد المسجلة، قم بإعادة بناء قائمة المواد المتاحة
+            if (!hasEntries) {
+                scheduleTableBody.innerHTML = '<tr><td colspan="6">جدولك فارغ. قم بإضافة موادك الدراسية من القائمة أعلاه.</td></tr>';
+            }
             populateAvailableCourses();
         });
 
+        // تعديل معالج الإرسال ليكتب في Realtime Database
         scheduleForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const selectedCourseIdentifier = availableCoursesSelect.value;
             const selectedGroup = studentGroupSelect.value;
-
             if (!selectedCourseIdentifier || !selectedGroup) {
                 alert("يرجى اختيار المادة والمجموعة.");
                 return;
             }
-            
             const [courseName, courseCodeWithParens] = selectedCourseIdentifier.split(' (');
             const courseCode = courseCodeWithParens.slice(0, -1);
-
-            const targetSchedule = allAvailableSchedules.find(s => 
-                s.courseCode === courseCode &&
-                (s.groups || []).includes(selectedGroup)
-            );
-
+            const targetSchedule = allAvailableSchedules.find(s => s.courseCode === courseCode && (s.groups || []).includes(selectedGroup));
             if (!targetSchedule) {
                 alert("حدث خطأ، لا توجد محاضرة لهذه المادة في المجموعة المختارة.");
                 return;
             }
 
-            await addDoc(studentSchedulesRef, {
+            // استخدام push و set للكتابة في Realtime Database
+            const newScheduleRef = push(studentSchedulesRef);
+            await set(newScheduleRef, {
                 studentId: user.id,
                 displayName: user.displayName,
                 department: studentDepartment,
@@ -292,12 +229,16 @@
             studentGroupSelect.style.display = 'none';
         });
 
-        window.deleteSchedule = async (id) => {
+        // تعديل دالة الحذف لتحذف من Realtime Database
+        window.deleteSchedule = async (key) => {
             if (confirm('هل أنت متأكد من حذف هذه المادة من جدولك؟')) {
-                await deleteDoc(doc(db, "StudentSchedules", id));
+                const scheduleToDeleteRef = ref(rtdb, `StudentSchedules/${key}`);
+                await remove(scheduleToDeleteRef);
             }
         };
-
+        // ======================================================================
+        // ## نهاية التعديل 3 ##
+        // ======================================================================
     </script>
 </body>
 </html>
