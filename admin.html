@@ -258,6 +258,9 @@
         };
 
         // --- مزامنة البيانات مع Realtime Database ---
+        // ======================================================================
+        // ## بداية التعديل المطلوب (تصحيح دالة المزامنة) ##
+        // ======================================================================
         async function syncToRtdb() {
             const usersRef = collection(db, "Users");
             const usersSnapshot = await getDocs(usersRef);
@@ -266,7 +269,13 @@
                 const userData = doc.data();
                 if (userData.rfid && userData.rfid.trim() !== "") {
                     const normalizedRfid = userData.rfid.replace(/\s/g, '').toUpperCase();
-                    allowedRfids[normalizedRfid] = { role: userData.role || 'unknown', name: userData.displayName || 'Unknown User', department: userData.department || 'none' };
+                    // أضفنا معرّف المستند (doc.id) إلى البيانات التي تتم مزامنتها
+                    allowedRfids[normalizedRfid] = { 
+                        id: doc.id, // <--- هذا هو السطر الذي تم إصلاحه
+                        role: userData.role || 'unknown', 
+                        name: userData.displayName || 'Unknown User', 
+                        department: userData.department || 'none' 
+                    };
                 }
             });
             await set(ref(rtdb, 'allowed_rfids'), allowedRfids);
@@ -283,6 +292,10 @@
             });
             await set(ref(rtdb, 'schedules_by_room'), schedulesByRoom);
         }
+        // ======================================================================
+        // ## نهاية التعديل المطلوب ##
+        // ======================================================================
+
 
         // --- معالجة نماذج الإضافة والتعديل ---
         document.getElementById('user-form').addEventListener('submit', async (e) => { 
@@ -476,15 +489,11 @@
             updateDashboardCard(docId); 
         }
 
-        // ======================================================================
-        // ## بداية التعديل المطلوب ##
-        // ======================================================================
         function updateDashboardCard(docId) {
             const card = document.getElementById(docId);
             const roomData = roomDataStore[docId];
             if (!card || !roomData) return; 
 
-            // --- الخطوة 1: البحث عن المحاضرة الحالية بناءً على الجدول الزمني ---
             const now = new Date();
             const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
             const currentDay = days[now.getDay()];
@@ -493,30 +502,24 @@
             const currentSchedule = allSchedulesData.find(schedule => {
                 if (schedule.room !== roomData.name || schedule.day !== currentDay) return false;
                 const timeParts = schedule.time.split('-');
-                if (timeParts.length !== 2) return false; // التأكد من أن الوقت مهيأ بشكل صحيح
+                if (timeParts.length !== 2) return false;
                 const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
                 const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]);
                 return currentTime >= startTime && currentTime < endTime;
             });
 
-            // --- الخطوة 2: تحديد حالة القفل (مفتوحة/مغلقة) من البيانات المخزنة ---
             const status = roomData.status || 'closed';
             const statusText = status === 'open' ? 'مفتوحة' : 'مغلقة';
             const statusClass = `room-card ${status === 'open' ? 'open' : 'closed'}`;
 
-            // --- الخطوة 3: تجهيز HTML الخاص بتفاصيل المحاضرة بشكل منفصل ---
             let detailsHtml;
             if (currentSchedule) {
-                // إذا وجدت محاضرة في الجدول، اعرض تفاصيلها
                 const lecturerName = allUsersData[currentSchedule.lecturerId] || 'محاضر غير محدد';
                 detailsHtml = `<div class="details"><p><strong>المحاضر:</strong> ${lecturerName}</p><p><strong>المادة:</strong> ${currentSchedule.courseName}</p></div>`;
             } else {
-                // إذا لم تكن هناك محاضرة مجدولة الآن، اعرض "القاعة فارغة"
                 detailsHtml = '<div class="details"><p>القاعة فارغة حاليًا</p></div>';
             }
 
-            // --- الخطوة 4: بناء بطاقة العرض النهائية ---
-            // يتم دمج حالة القفل (من الخطوة 2) مع تفاصيل المحاضرة (من الخطوة 3)
             card.className = statusClass;
             card.innerHTML = `
                 <div>
@@ -527,9 +530,6 @@
                 <button class="btn btn-warning" onclick="toggleRoomStatus('${docId}', '${status}')">تغيير الحالة يدويًا</button>
             `;
         }
-        // ======================================================================
-        // ## نهاية التعديل المطلوب ##
-        // ======================================================================
 
         window.toggleRoomStatus = async (id, currentStatus) => {
             const newStatus = currentStatus === 'open' ? 'closed' : 'open';
