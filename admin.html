@@ -167,7 +167,7 @@
         const SITE_URL = "https://cpld.netlify.app";
         const roomDataStore = {};
         let allSchedulesData = [];
-        let allUsersData = {}; // ## تعديل: لتخزين بيانات المستخدمين مؤقتًا
+        let allUsersData = {}; 
         const departments = [
             "القسم العام", "قسم الهندسة الكهربائية والالكترونية", "قسم الهندسة الكيميائية", 
             "قسم الهندسة المدنية", "قسم الهندسة الميكانيكية", "قسم الهندسة المعمارية"
@@ -278,7 +278,6 @@
                 const schedule = doc.data();
                 const roomName = "Room" + schedule.room;
                 if (!schedulesByRoom[roomName]) schedulesByRoom[roomName] = {};
-                // ## تعديل: إضافة اسم المحاضر للبيانات المتزامنة
                 schedule.lecturerName = allUsersData[schedule.lecturerId] || 'غير محدد';
                 schedulesByRoom[roomName][doc.id] = schedule;
             });
@@ -338,7 +337,7 @@
                 department: document.getElementById('scheduleDepartment').value,
                 courseCode: document.getElementById('courseCode').value,
                 courseName: document.getElementById('courseName').value,
-                lecturerId: document.getElementById('lecturer').value, // ## تعديل: حفظ ID المحاضر
+                lecturerId: document.getElementById('lecturer').value,
                 room: document.getElementById('scheduleRoom').value,
                 day: document.getElementById('day').value,
                 time: `${document.getElementById('startTime').value}-${document.getElementById('endTime').value}`,
@@ -351,9 +350,9 @@
 
         // --- عرض البيانات في الجداول والتبويبات ---
         onSnapshot(collection(db, "Users"), (snap) => {
-            allUsersData = {}; // تفريغ البيانات القديمة
+            allUsersData = {};
             snap.forEach(d => {
-                allUsersData[d.id] = d.data().displayName; // تخزين ID والاسم
+                allUsersData[d.id] = d.data().displayName;
             });
 
             const tables = { 'عضو هيئة تدريس': document.querySelector('#lecturers-table tbody'), 'مشرف': document.querySelector('#supervisors-table tbody'), 'عامل نظافة': document.querySelector('#cleaners-table tbody') };
@@ -418,7 +417,6 @@
                 const tbody = container.querySelector('table tbody');
                 tbody.innerHTML = '';
                 scheduleDataByDept[deptName].forEach(s => {
-                    // ## تعديل: عرض اسم المحاضر بناءً على الـ ID
                     const lecturerName = allUsersData[s.lecturerId] || 'محاضر محذوف';
                     tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${lecturerName}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td>${(s.groups||[]).join(', ')}</td><td><button class="btn btn-warning" onclick="editItem('Schedules','${s.id}','schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules','${s.id}','الجدول')">حذف</button></td></tr>`;
                 });
@@ -478,11 +476,15 @@
             updateDashboardCard(docId); 
         }
 
+        // ======================================================================
+        // ## بداية التعديل المطلوب ##
+        // ======================================================================
         function updateDashboardCard(docId) {
             const card = document.getElementById(docId);
             const roomData = roomDataStore[docId];
             if (!card || !roomData) return; 
 
+            // --- الخطوة 1: البحث عن المحاضرة الحالية بناءً على الجدول الزمني ---
             const now = new Date();
             const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
             const currentDay = days[now.getDay()];
@@ -491,24 +493,43 @@
             const currentSchedule = allSchedulesData.find(schedule => {
                 if (schedule.room !== roomData.name || schedule.day !== currentDay) return false;
                 const timeParts = schedule.time.split('-');
+                if (timeParts.length !== 2) return false; // التأكد من أن الوقت مهيأ بشكل صحيح
                 const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
                 const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]);
                 return currentTime >= startTime && currentTime < endTime;
             });
 
+            // --- الخطوة 2: تحديد حالة القفل (مفتوحة/مغلقة) من البيانات المخزنة ---
             const status = roomData.status || 'closed';
             const statusText = status === 'open' ? 'مفتوحة' : 'مغلقة';
-            card.className = `room-card ${status === 'open' ? 'open' : 'closed'}`;
+            const statusClass = `room-card ${status === 'open' ? 'open' : 'closed'}`;
 
-            let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
+            // --- الخطوة 3: تجهيز HTML الخاص بتفاصيل المحاضرة بشكل منفصل ---
+            let detailsHtml;
             if (currentSchedule) {
-                // ## تعديل: عرض اسم المحاضر بناءً على الـ ID
-                const lecturerName = allUsersData[currentSchedule.lecturerId] || 'غير محدد';
-                detailsHtml = `<div class="details"><p>${lecturerName}</p><p>${currentSchedule.courseName}</p></div>`;
+                // إذا وجدت محاضرة في الجدول، اعرض تفاصيلها
+                const lecturerName = allUsersData[currentSchedule.lecturerId] || 'محاضر غير محدد';
+                detailsHtml = `<div class="details"><p><strong>المحاضر:</strong> ${lecturerName}</p><p><strong>المادة:</strong> ${currentSchedule.courseName}</p></div>`;
+            } else {
+                // إذا لم تكن هناك محاضرة مجدولة الآن، اعرض "القاعة فارغة"
+                detailsHtml = '<div class="details"><p>القاعة فارغة حاليًا</p></div>';
             }
 
-            card.innerHTML = `<div><h4>${roomData.name}</h4><p>${statusText}</p>${detailsHtml}</div><button class="btn btn-warning" onclick="toggleRoomStatus('${docId}', '${status}')">تغيير الحالة</button>`;
+            // --- الخطوة 4: بناء بطاقة العرض النهائية ---
+            // يتم دمج حالة القفل (من الخطوة 2) مع تفاصيل المحاضرة (من الخطوة 3)
+            card.className = statusClass;
+            card.innerHTML = `
+                <div>
+                    <h4>${roomData.name}</h4>
+                    <p>الحالة: ${statusText}</p>
+                    ${detailsHtml}
+                </div>
+                <button class="btn btn-warning" onclick="toggleRoomStatus('${docId}', '${status}')">تغيير الحالة يدويًا</button>
+            `;
         }
+        // ======================================================================
+        // ## نهاية التعديل المطلوب ##
+        // ======================================================================
 
         window.toggleRoomStatus = async (id, currentStatus) => {
             const newStatus = currentStatus === 'open' ? 'closed' : 'open';
@@ -549,7 +570,7 @@
                 document.getElementById('scheduleDepartment').value = data.department;
                 document.getElementById('courseCode').value = data.courseCode;
                 document.getElementById('courseName').value = data.courseName;
-                document.getElementById('lecturer').value = data.lecturerId; // ## تعديل: تحديد المحاضر بالـ ID
+                document.getElementById('lecturer').value = data.lecturerId;
                 document.getElementById('scheduleRoom').value = data.room;
                 document.getElementById('day').value = data.day;
                 const [startTime, endTime] = data.time.split('-');
@@ -617,7 +638,6 @@
 
         function generateQRCode(text) { if (!text) return ''; const qr = qrcode(4, 'L'); qr.addData(text); qr.make(); return qr.createDataURL(4); }
         
-        // ## تعديل: دالة تعبئة القوائم المنسدلة
         async function populateSelects() { 
             const usersSnap = await getDocs(query(collection(db, "Users"), where("role", "==", "عضو هيئة تدريس")));
             const roomsSnap = await getDocs(collection(db, "Rooms"));
@@ -626,7 +646,6 @@
             lecturerSelect.innerHTML = '<option value="">اختر محاضر</option>';
             roomSelect.innerHTML = '<option value="">اختر قاعة</option>';
             usersSnap.forEach(d => {
-                // ## تعديل: حفظ الـ ID في الـ value وعرض الاسم
                 lecturerSelect.innerHTML += `<option value="${d.id}">${d.data().displayName}</option>`;
             });
             roomsSnap.forEach(d => {
