@@ -40,7 +40,7 @@
             <form id="auth-form">
                 <div class="form-group"><label for="username">اسم المستخدم</label><input type="text" id="username" required></div>
                 <div class="form-group"><label for="password">كلمة المرور</label><input type="password" id="password" required></div>
-                <button type="submit" class="btn btn-open" id="auth-btn">مصادقة وفتح</button>
+                <button type="submit" class="btn btn-open" id="auth-btn">مصادقة</button>
             </form>
         </div>
 
@@ -110,15 +110,18 @@
             actionBtn.disabled = true;
             logoutBtn.disabled = true;
             try {
-                await updateDoc(roomDocRef, { status: newStatus });
+                // لا نحدث حالة القاعة في Firestore من هنا، فقط في Realtime Database
+                // await updateDoc(roomDocRef, { status: newStatus });
                 
                 const userUid = newStatus === 'open' ? user.id : 'none';
                 
                 updateRealtimeDBStatus(roomName, newStatus, userUid);
                 
-                updateControlUI(newStatus);
+                // لا حاجة لتحديث الواجهة من هنا، لأن onSnapshot سيتكفل بذلك
+                // updateControlUI(newStatus);
 
-            } catch (error) {
+            } catch (error)
+                {
                 messageElement.textContent = 'فشلت العملية. حاول مرة أخرى.';
                 messageElement.className = 'error';
             } finally {
@@ -134,7 +137,7 @@
                 statusIndicator.textContent = `القاعة ${roomName} مفتوحة`;
                 statusIndicator.className = 'status-display status-open';
                 controlMessage.textContent = `مرحبًا ${authenticatedUser.displayName}.`;
-                actionBtn.textContent = 'إنهاء الجلسة وإغلاق القاعة';
+                actionBtn.textContent = 'إغلاق القاعة';
                 actionBtn.className = 'btn btn-close';
                 actionBtn.onclick = () => setRoomStatus('closed', authenticatedUser);
             } else {
@@ -167,12 +170,15 @@
                 const userData = userDoc.data();
 
                 // ======================================================
-                // ## التعديل الجديد: التحقق من الدور ##
+                // ## بداية التعديل: التحقق من الدور ومنع الطلاب ##
                 // ======================================================
                 const allowedRoles = ['admin', 'عضو هيئة تدريس', 'مشرف', 'عامل نظافة'];
                 if (!userData.role || !allowedRoles.includes(userData.role.trim())) {
-                    throw new Error('ليس لديك صلاحية لفتح القاعة عبر QR.');
+                    // إذا كان الدور غير موجود أو هو "طالب" أو أي دور آخر غير مسموح به
+                    throw new Error('ليس لديك صلاحية لاستخدام هذه الميزة.');
                 }
+                // ======================================================
+                // ## نهاية التعديل ##
                 // ======================================================
 
                 authenticatedUser = {
@@ -184,16 +190,9 @@
 
                 showSection(controlSection);
                 
-                if (roomStatusUnsubscribe) roomStatusUnsubscribe();
-
-                roomStatusUnsubscribe = onSnapshot(roomDocRef, (docSnap) => {
-                    if (docSnap.exists() && authenticatedUser) {
-                        const roomStatus = docSnap.data().status;
-                        updateControlUI(roomStatus);
-                    }
-                });
-
-                await setRoomStatus('open', authenticatedUser);
+                // لا تقم بفتح القاعة تلقائيًا عند المصادقة
+                // دع المستخدم يضغط على الزر بنفسه
+                // await setRoomStatus('open', authenticatedUser);
 
             } catch (error) {
                 messageElement.textContent = error.message;
@@ -204,8 +203,9 @@
         });
 
         logoutBtn.addEventListener('click', () => {
-            if (roomStatusUnsubscribe) roomStatusUnsubscribe();
-            roomStatusUnsubscribe = null;
+            // لا حاجة لإلغاء الاشتراك في onSnapshot، دعه يعمل
+            // if (roomStatusUnsubscribe) roomStatusUnsubscribe();
+            // roomStatusUnsubscribe = null;
             authenticatedUser = null;
             document.getElementById('auth-form').reset();
             showSection(authSection);
@@ -223,6 +223,17 @@
                     return;
                 }
                 roomDocRef = doc(db, "Rooms", snapshot.docs[0].id);
+                
+                // ## تعديل: الاستماع الدائم لتحديثات القاعة ##
+                // هذا يضمن أن الواجهة تعكس دائمًا الحالة الحقيقية من قاعدة البيانات
+                if (roomStatusUnsubscribe) roomStatusUnsubscribe(); // أوقف المستمع القديم إن وجد
+                roomStatusUnsubscribe = onSnapshot(roomDocRef, (docSnap) => {
+                    if (docSnap.exists() && authenticatedUser) {
+                        const roomStatus = docSnap.data().status;
+                        updateControlUI(roomStatus);
+                    }
+                });
+
             }).catch(err => {
                  authSection.innerHTML = `<p class="error">حدث خطأ في الاتصال بقاعدة البيانات.</p>`;
             });
