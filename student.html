@@ -76,9 +76,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        // Firestore لقراءة الجداول الرئيسية
-        import { getFirestore, collection, query, where, getDocs, or } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        // Realtime DB لكتابة وقراءة جداول الطلاب
+        import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getDatabase, ref, onValue, set, push, remove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
@@ -108,7 +106,7 @@
         let allSchedulesData = [];
         let roomDataStore = {};
         getDocs(collection(db, "Schedules")).then(snap => { allSchedulesData = snap.docs.map(doc => doc.data()); });
-        onSnapshot(collection(db, "Rooms"), (snapshot) => { snapshot.docChanges().forEach((change) => { const docId = change.doc.id; const roomData = change.doc.data(); if (change.type === "added") roomDataStore[docId] = roomData; if (change.type === "modified") roomDataStore[docId] = { ...roomDataStore[docId], ...roomData }; if (change.type === "removed") delete roomDataStore[docId]; }); updateAllDashboardCards(); });
+        onValue(collection(db, "Rooms"), (snapshot) => { snapshot.docChanges().forEach((change) => { const docId = change.doc.id; const roomData = change.doc.data(); if (change.type === "added") roomDataStore[docId] = roomData; if (change.type === "modified") roomDataStore[docId] = { ...roomDataStore[docId], ...roomData }; if (change.type === "removed") delete roomDataStore[docId]; }); updateAllDashboardCards(); });
         onValue(locksRef, (snapshot) => { const allLocksStatus = snapshot.val() || {}; for (const docId in roomDataStore) { const roomName = roomDataStore[docId].name; const lockName = "Room" + roomName; if (allLocksStatus[lockName]) { roomDataStore[docId].status = allLocksStatus[lockName].status; } } updateAllDashboardCards(); });
         function updateAllDashboardCards() { statusContainer.innerHTML = ''; Object.values(roomDataStore).forEach(roomData => { const now = new Date(); const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]; const currentDay = days[now.getDay()]; const currentTime = now.getHours() * 60 + now.getMinutes(); const currentSchedule = allSchedulesData.find(schedule => { if (schedule.room !== roomData.name || schedule.day !== currentDay) return false; const timeParts = schedule.time.split('-'); const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]); const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]); return currentTime >= startTime && currentTime < endTime; }); const status = roomData.status || 'closed'; const statusText = status === 'open' ? 'مفتوحة' : 'مغلقة'; const statusClass = status === 'open' ? 'open' : 'closed'; let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>'; if (currentSchedule) { detailsHtml = `<div class="details"><p>${currentSchedule.lecturerName || 'غير محدد'}</p><p>${currentSchedule.courseName}</p></div>`; } statusContainer.innerHTML += `<div class="room-card ${statusClass}"><h4>${roomData.name}</h4><p>${statusText}</p>${detailsHtml}</div>`; }); }
         setInterval(updateAllDashboardCards, 60000);
@@ -123,16 +121,53 @@
         
         const studentSchedulesRef = ref(rtdb, "StudentSchedules");
 
+        // ======================================================================
+        // ## بداية التعديل: تبسيط دالة جلب المواد المتاحة ##
+        // ======================================================================
         async function populateAvailableCourses() {
             const schedulesRef = collection(db, "Schedules");
-            const q = query(schedulesRef, or(where("department", "==", studentDepartment), where("department", "==", "القسم العام")));
-            const querySnapshot = await getDocs(q);
-            allAvailableSchedules = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            // 1. إنشاء استعلامين منفصلين
+            const departmentQuery = query(schedulesRef, where("department", "==", studentDepartment));
+            const generalQuery = query(schedulesRef, where("department", "==", "القسم العام"));
+
+            // 2. تنفيذ الاستعلامين
+            const [departmentSnapshot, generalSnapshot] = await Promise.all([
+                getDocs(departmentQuery),
+                getDocs(generalQuery)
+            ]);
+
+            // 3. دمج النتائج
+            const departmentSchedules = departmentSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const generalSchedules = generalSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            // استخدام Map لإزالة أي تكرار محتمل (على الرغم من أنه غير مرجح هنا)
+            const combinedSchedulesMap = new Map();
+            departmentSchedules.forEach(s => combinedSchedulesMap.set(s.id, s));
+            generalSchedules.forEach(s => combinedSchedulesMap.set(s.id, s));
+
+            allAvailableSchedules = Array.from(combinedSchedulesMap.values());
+
+            // 4. بناء القائمة المنسدلة (المنطق المتبقي كما هو)
             const uniqueCourses = {};
-            allAvailableSchedules.forEach(schedule => { const courseIdentifier = `${schedule.courseName} (${schedule.courseCode})`; if (!uniqueCourses[courseIdentifier]) { uniqueCourses[courseIdentifier] = []; } uniqueCourses[courseIdentifier].push(...schedule.groups); });
+            allAvailableSchedules.forEach(schedule => { 
+                const courseIdentifier = `${schedule.courseName} (${schedule.courseCode})`; 
+                if (!uniqueCourses[courseIdentifier]) { 
+                    uniqueCourses[courseIdentifier] = []; 
+                } 
+                uniqueCourses[courseIdentifier].push(...(schedule.groups || [])); 
+            });
+            
             availableCoursesSelect.innerHTML = '<option value="" disabled selected>1. اختر المادة...</option>';
-            for (const courseIdentifier in uniqueCourses) { if (!registeredCourseIdentifiers.includes(courseIdentifier)) { availableCoursesSelect.innerHTML += `<option value="${courseIdentifier}">${courseIdentifier}</option>`; } }
+            for (const courseIdentifier in uniqueCourses) { 
+                if (!registeredCourseIdentifiers.includes(courseIdentifier)) { 
+                    availableCoursesSelect.innerHTML += `<option value="${courseIdentifier}">${courseIdentifier}</option>`; 
+                } 
+            }
         }
+        // ======================================================================
+        // ## نهاية التعديل ##
+        // ======================================================================
 
         window.handleCourseSelection = (selectedCourseIdentifier) => {
             studentGroupSelect.innerHTML = '<option value="" disabled selected>2. اختر مجموعتك...</option>';
@@ -177,7 +212,7 @@
         scheduleForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const submitButton = e.target.querySelector('button[type="submit"]');
-            submitButton.disabled = true; // تعطيل الزر لمنع النقرات المزدوجة
+            submitButton.disabled = true;
             submitButton.textContent = 'جاري الإضافة...';
 
             const selectedCourseIdentifier = availableCoursesSelect.value;
