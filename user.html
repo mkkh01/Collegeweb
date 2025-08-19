@@ -230,7 +230,7 @@
 
                 attendanceTableBody.innerHTML = '<tr><td colspan="5">جاري البحث...</td></tr>';
 
-                // الخطوة 1: استعلام بسيط لا يحتاج فهرس مركب (يعتمد على الفهرس التلقائي لـ timestamp)
+                // الخطوة 1: استعلام بسيط لا يحتاج فهرس مركب
                 const qSimple = query(collection(db, "Attendance"), 
                     where("lecturerName", "==", userDisplayName),
                     where("timestamp", ">=", startOfDay),
