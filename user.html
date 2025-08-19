@@ -102,7 +102,6 @@
         let allSchedulesData = [];
         let allUsersData = {};
 
-        // ## الكود الكامل والصحيح لهذه الدالة ##
         async function initializeDashboard() {
             const schedulesSnap = await getDocs(collection(db, "Schedules"));
             allSchedulesData = schedulesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -118,7 +117,6 @@
             });
         }
 
-        // ## الكود الكامل والصحيح لهذه الدالة ##
         function renderDashboard(allLocksStatus) {
             statusContainer.innerHTML = '';
             getDocs(collection(db, "Rooms")).then(roomSnapshot => {
@@ -168,7 +166,6 @@
 
             const qSchedules = query(schedulesRef, where("lecturerId", "==", user.id));
 
-            // ## الكود الكامل والصحيح لهذه الدالة ##
             onSnapshot(qSchedules, (snapshot) => {
                 schedulesTableBody.innerHTML = '';
                 courseSelect.innerHTML = '<option value="">اختر المادة</option>';
@@ -192,7 +189,6 @@
                 });
             });
 
-            // ## الكود الكامل والصحيح لهذه الدالة ##
             window.populateGroups = () => {
                 const selectedCourse = courseSelect.value;
                 groupSelect.innerHTML = '<option value="">اختر المجموعة</option>';
@@ -210,7 +206,9 @@
                 });
             };
 
-            // ## دالة البحث التي لا تتطلب فهرسًا ##
+            // ####################################################################
+            // ##                 التعديل الجديد والمهم هنا                     ##
+            // ####################################################################
             window.fetchAttendance = async () => {
                 const selectedCourse = courseSelect.value;
                 const selectedGroup = groupSelect.value;
@@ -221,47 +219,48 @@
                     return;
                 }
 
-                const selectedDate = new Date(selectedDateStr);
-                const startOfDay = Timestamp.fromDate(new Date(selectedDate.setHours(0, 0, 0, 0)));
-                const endOfDay = Timestamp.fromDate(new Date(selectedDate.setHours(23, 59, 59, 999)));
-
                 attendanceTableBody.innerHTML = '<tr><td colspan="5">جاري البحث...</td></tr>';
 
-                const qSimple = query(collection(db, "Attendance"), 
+                // ## البحث باستخدام حقل التاريخ الجديد لضمان الدقة ##
+                const attendanceCollectionRef = collection(db, "Attendance");
+                const q = query(attendanceCollectionRef, 
                     where("lecturerName", "==", userDisplayName),
-                    where("timestamp", ">=", startOfDay),
-                    where("timestamp", "<=", endOfDay)
+                    where("courseName", "==", selectedCourse),
+                    where("group", "==", selectedGroup),
+                    where("date", "==", selectedDateStr) // البحث بالتاريخ المطابق
                 );
 
                 try {
-                    const snapshot = await getDocs(qSimple);
-                    let finalResults = [];
-
-                    snapshot.forEach(doc => {
-                        const record = doc.data();
-                        if (record.courseName === selectedCourse && record.group === selectedGroup) {
-                            finalResults.push(record);
-                        }
-                    });
-
+                    const snapshot = await getDocs(q);
                     attendanceTableBody.innerHTML = '';
-                    if (finalResults.length === 0) {
+                    if (snapshot.empty) {
                         attendanceTableBody.innerHTML = '<tr><td colspan="5">لا توجد سجلات حضور لهذه المجموعة في هذا اليوم.</td></tr>';
                         return;
                     }
                     
+                    let finalResults = [];
+                    snapshot.forEach(doc => {
+                        finalResults.push(doc.data());
+                    });
+
+                    // فرز النتائج حسب الطابع الزمني (الأحدث أولاً)
+                    finalResults.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
                     finalResults.forEach(a => {
-                        const attendanceTime = a.timestamp.toDate().toLocaleTimeString('ar-EG');
+                        // تحويل الطابع الزمني (epoch) إلى وقت مقروء
+                        const attendanceTime = a.timestamp ? new Date(a.timestamp * 1000).toLocaleTimeString('ar-EG') : 'غير محدد';
                         attendanceTableBody.innerHTML += `<tr><td>${a.studentName}</td><td>${a.roomName}</td><td>${a.courseName}</td><td>${a.group}</td><td>${attendanceTime}</td></tr>`;
                     });
 
                 } catch (error) {
                     console.error("Error fetching attendance: ", error);
-                    attendanceTableBody.innerHTML = `<tr><td colspan="5">حدث خطأ أثناء جلب البيانات. الخطأ: ${error.message}</td></tr>`;
+                    // ملاحظة: هذا النوع من البحث يتطلب إنشاء فهرس (index) في Firestore
+                    attendanceTableBody.innerHTML = `<tr><td colspan="5">حدث خطأ. قد تحتاج إلى إنشاء فهرس في Firestore. افتح الرابط في الكونسول لإنشائه.</td></tr>`;
+                    console.log("لحل هذا الخطأ، يرجى إنشاء فهرس مركب في Firestore. افتح الرابط التالي الذي قد يظهر في رسالة الخطأ في الكونسول:");
+                    console.log(error.message); 
                 }
             };
 
-            // ## الكود الكامل والصحيح لهذه الدالة ##
             window.printAttendance = () => {
                 const tableToPrint = document.getElementById('attendance-table');
                 const selectedDate = document.getElementById('attendance-date').value;
@@ -290,4 +289,3 @@
     </script>
 </body>
 </html>
-
