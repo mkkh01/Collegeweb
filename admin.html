@@ -39,10 +39,9 @@
         .room-card.closed { background-color: var(--danger-color); }
         .room-card h4 { margin-top: 0; font-size: 1.8rem; color: white; }
         .room-card p { margin: 4px 0; font-size: 1rem; color: white; }
-        /* ## تعديل: تحسين مظهر تفاصيل المحاضرة ## */
         .room-card .details { margin: 10px 0; min-height: 50px; }
         .room-card .details p { font-size: 1rem; font-weight: normal; margin: 2px 0; }
-        .room-card .details p:first-child { font-weight: bold; font-size: 1.1rem; } /* لجعل اسم المحاضر بارزًا */
+        .room-card .details p:first-child { font-weight: bold; font-size: 1.1rem; }
         .qr-code-container img { max-width: 80px; height: auto; }
         .barcode-container svg { height: 50px; width: auto; }
         .pdf-prepare-area { position: absolute; left: -9999px; opacity: 0; }
@@ -147,7 +146,6 @@
             </form>
         </div>
     </div>
-انتهي الجزء الاول
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -257,7 +255,6 @@
         };
 
         // --- مزامنة البيانات مع Realtime Database ---
-        // ## تعديل شامل: لتحسين المزامنة مع أجهزة RFID ##
         async function syncToRtdb() {
             // 1. مزامنة المستخدمين مع إضافة userId
             const usersRef = collection(db, "Users");
@@ -271,7 +268,7 @@
                         role: userData.role || 'unknown', 
                         name: userData.displayName || 'Unknown User', 
                         department: userData.department || 'none',
-                        userId: doc.id // <-- إضافة مهمة للتحقق من هوية المحاضر
+                        userId: doc.id
                     };
                 }
             });
@@ -293,7 +290,7 @@
             const now = new Date();
             const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
             const currentDay = days[now.getDay()];
-            const currentTime = now.toTimeString().slice(0, 5); // صيغة "HH:MM"
+            const currentTime = now.toTimeString().slice(0, 5);
 
             schedulesSnapshot.forEach(doc => {
                 const schedule = doc.data();
@@ -533,13 +530,13 @@
             const statusText = status === 'open' ? 'مفتوحة' : 'مغلقة';
             card.className = `room-card ${status === 'open' ? 'open' : 'closed'}`;
 
-            // ## تعديل: عرض تفاصيل المحاضرة بشكل مباشر وأنيق
             let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
             if (currentSchedule) {
                 const lecturerName = allUsersData[currentSchedule.lecturerId] || 'غير محدد';
                 detailsHtml = `<div class="details"><p>${lecturerName}</p><p>${currentSchedule.courseName}</p></div>`;
             }
 
+            // ## هذا هو التعديل المطلوب: إضافة زر التحكم للأدمن ##
             card.innerHTML = `<div><h4>${roomData.name}</h4><p>${statusText}</p>${detailsHtml}</div><button class="btn btn-warning" onclick="toggleRoomStatus('${docId}', '${status}')">تغيير الحالة</button>`;
         }
 
@@ -552,11 +549,10 @@
             set(ref(rtdb, 'locks/Room' + roomName), { status: newStatus, last_user_uid: adminUid });
         };
 
-        // ## تعديل: تحديث دوري للوحة الإعلانات والمزامنة مع RTDB
         setInterval(() => {
             Object.keys(roomDataStore).forEach(docId => updateDashboardCard(docId));
-            syncToRtdb(); // استدعاء المزامنة بشكل دوري
-        }, 60000); // كل دقيقة
+            syncToRtdb();
+        }, 60000);
 
         // --- دوال مساعدة (تعديل، حذف، طباعة، تحميل) ---
         window.editItem = async (collectionName, id, type) => {
@@ -678,7 +674,6 @@
             tabContent.innerHTML = `<table id="schedules-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>المجموعات</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
         });
 
-        // استدعاء المزامنة الأولية عند تحميل الصفحة
         syncToRtdb();
 
     </script>
