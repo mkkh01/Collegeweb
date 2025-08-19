@@ -3,81 +3,171 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لوحة المستخدم</title>
+    <title>لوحة تحكم الأدمن</title>
+    <!-- مكتبات إنشاء الرموز وتحويلها لـ PDF -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator/qrcode.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; padding: 30px; }
-        .container { max-width: 900px; margin: auto; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
-        .header h1 { color: #343a40; }
-        .logout-btn { padding: 10px 20px; background-color: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; }
-        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        h3 { color: #0056b3; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 0; }
+        :root { --primary-color: #007bff; --secondary-color: #6c757d; --success-color: #28a745; --danger-color: #dc3545; --warning-color: #ffc107; --light-color: #f8f9fa; --dark-color: #343a40; --info-color: #17a2b8; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; }
+        .sidebar { width: 250px; background-color: var(--dark-color); color: white; position: fixed; height: 100%; padding-top: 20px; z-index: 100; }
+        .sidebar h2 { text-align: center; color: white; margin-bottom: 30px; }
+        .sidebar a { display: block; color: white; padding: 15px 20px; text-decoration: none; transition: background-color 0.3s; }
+        .sidebar a:hover, .sidebar a.active { background-color: #495057; }
+        .main-content { margin-right: 250px; padding: 30px; }
+        .page { display: none; }
+        .page.active { display: block; }
+        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; overflow-x: auto; }
+        h3 { color: var(--dark-color); border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        h4 { color: var(--primary-color); margin-top: 25px; margin-bottom: 15px; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 12px; text-align: right; border-bottom: 1px solid #ddd; }
+        th, td { padding: 12px 15px; text-align: right; border-bottom: 1px solid #ddd; white-space: nowrap; vertical-align: middle; }
         th { background-color: #f2f2f2; }
-        .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; }
-        .btn-primary { background-color: #007bff; }
-        .attendance-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .attendance-controls select, .attendance-controls input[type="date"] { padding: 8px; border: 1px solid #ccc; border-radius: 5px; }
+        .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; margin-left: 5px; margin-top: 5px; }
+        .btn-primary { background-color: var(--primary-color); } .btn-warning { background-color: var(--warning-color); }
+        .btn-danger { background-color: var(--danger-color); } .btn-success { background-color: var(--success-color); } .btn-info { background-color: var(--info-color); }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: #fefefe; margin: 5% auto; padding: 30px; border: 1px solid #888; width: 90%; max-width: 500px; border-radius: 8px; }
+        .close-btn { color: #aaa; float: left; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; }
+        .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
         .room-status-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
-        .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; display: flex; flex-direction: column; justify-content: space-between; min-height: 160px; }
-        .room-card.open { background-color: #28a745; }
-        .room-card.closed { background-color: #dc3545; }
-        .room-card h4 { margin-top: 0; font-size: 1.8rem; }
-        .room-card p { margin: 4px 0; font-size: 1rem; }
-        .room-card .details { margin-top: 10px; min-height: 45px; font-weight: normal; font-size: 0.9rem; }
+        .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; display: flex; flex-direction: column; justify-content: space-between; min-height: 190px; transition: background-color 0.5s ease; }
+        .room-card.open { background-color: var(--success-color); }
+        .room-card.closed { background-color: var(--danger-color); }
+        .room-card h4 { margin-top: 0; font-size: 1.8rem; color: white; }
+        .room-card p { margin: 4px 0; font-size: 1rem; color: white; }
+        .room-card .details { margin: 10px 0; min-height: 50px; }
+        .room-card .details p { font-size: 1rem; font-weight: normal; margin: 2px 0; }
+        .room-card .details p:first-child { font-weight: bold; font-size: 1.1rem; }
+        .qr-code-container img { max-width: 80px; height: auto; }
+        .barcode-container svg { height: 50px; width: auto; }
+        .pdf-prepare-area { position: absolute; left: -9999px; opacity: 0; }
+        .id-card { border: 2px solid #343a40; padding: 20px; border-radius: 10px; width: 320px; background: white; text-align: center; }
+        .id-card h4 { margin: 0 0 10px 0; font-size: 20px; }
+        .id-card p { margin: 5px 0; font-size: 16px; }
+        .id-card svg { height: 60px; width: 100%; }
+        .id-card img { max-width: 200px; height: auto; margin-top: 10px; }
+        .time-input-group { display: flex; align-items: center; gap: 10px; }
+        .tabs { display: flex; border-bottom: 2px solid #ccc; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab-link { padding: 10px 20px; cursor: pointer; background-color: #f1f1f1; border: 1px solid #ccc; border-bottom: none; margin-left: 5px; border-radius: 5px 5px 0 0; }
+        .tab-link.active { background-color: white; border-bottom: 2px solid white; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        /* ## تعديل: تم إضافة هذا النمط لدعم تبويبات المستخدمين الرئيسية ## */
+        .user-tab-content { display: none; }
+        .user-tab-content.active { display: block; }
+        .checkbox-group { display: flex; flex-wrap: wrap; gap: 15px; }
+        .checkbox-group label { display: flex; align-items: center; gap: 5px; }
     </style>
 </head>
 <body>
+
     <script>
         const loggedInUser = JSON.parse(sessionStorage.getItem('user'));
-        if (!loggedInUser) {
-            alert('يجب تسجيل الدخول أولاً.');
+        if (!loggedInUser || !loggedInUser.role || loggedInUser.role.trim().toLowerCase() !== 'admin') {
+            alert('ليس لديك صلاحية للوصول إلى هذه الصفحة.');
             window.location.href = 'index.html';
         }
     </script>
 
-    <div class="container">
-        <div class="header">
-            <h1 id="welcome-message">أهلاً بك</h1>
-            <a href="index.html" class="logout-btn" onclick="sessionStorage.clear()">تسجيل الخروج</a>
-        </div>
+    <div class="sidebar">
+        <h2>لوحة التحكم</h2>
+        <a href="#dashboard" class="nav-link" onclick="showPage('dashboard')">لوحة الإعلانات</a>
+        <a href="#users" class="nav-link" onclick="showPage('users')">إدارة المستخدمين</a>
+        <a href="#schedules" class="nav-link" onclick="showPage('schedules')">الجدول الدراسي</a>
+        <a href="#rooms" class="nav-link" onclick="showPage('rooms')">إدارة القاعات</a>
+        <a href="index.html" style="color: var(--warning-color); margin-top: 30px;" onclick="sessionStorage.clear()">تسجيل الخروج</a>
+    </div>
 
-        <div class="card">
-            <h3>لوحة إعلانات القاعات</h3>
-            <div id="room-status-container" class="room-status-container"></div>
-        </div>
-
-        <div id="lecturer-sections" style="display: none;">
+    <div class="main-content">
+        <div id="dashboard" class="page"><div class="card"><h3>لوحة الإعلانات</h3><div id="room-status-container" class="room-status-container"></div></div></div>
+        
+        <div id="users" class="page">
             <div class="card">
-                <h3>جدولك الدراسي</h3>
-                <table id="my-schedules-table">
-                    <thead><tr><th>اليوم</th><th>الوقت</th><th>رمز المادة</th><th>اسم المادة</th><th>القاعة</th><th>المجموعات</th></tr></thead>
-                    <tbody><tr><td colspan="6">جاري التحميل...</td></tr></tbody>
-                </table>
-            </div>
-
-            <div class="card">
-                <h3>سجلات الحضور</h3>
-                <div class="attendance-controls">
-                    <select id="course-select" onchange="window.populateGroups()"><option value="">اختر المادة</option></select>
-                    <select id="group-select"><option value="">اختر المجموعة</option></select>
-                    <input type="date" id="attendance-date">
-                    <button class="btn btn-primary" onclick="window.fetchAttendance()">بحث</button>
+                <h3>المستخدمون</h3>
+                <button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم</button>
+                
+                <!-- ## التعديل: نظام التبويبات الجديد لإدارة المستخدمين ## -->
+                <div class="tabs" id="users-main-tabs">
+                    <a class="tab-link" onclick="openUserTab(event, 'lecturers')">أعضاء هيئة التدريس</a>
+                    <a class="tab-link" onclick="openUserTab(event, 'supervisors')">المشرفون</a>
+                    <a class="tab-link" onclick="openUserTab(event, 'cleaners')">عمال النظافة</a>
+                    <a class="tab-link" onclick="openUserTab(event, 'students')">الطلاب</a>
                 </div>
-                <table id="attendance-table">
-                    <thead><tr><th>اسم الطالب</th><th>القاعة</th><th>المادة</th><th>المجموعة</th><th>وقت الحضور</th></tr></thead>
-                    <tbody><tr><td colspan="5">اختر مادة وتاريخًا لعرض سجلات الحضور.</td></tr></tbody>
-                </table>
-                <button class="btn btn-primary" style="margin-top: 20px;" onclick="window.printAttendance()">طباعة الكشف</button>
+
+                <div id="lecturers" class="user-tab-content">
+                    <h4>أعضاء هيئة التدريس</h4>
+                    <table id="lecturers-table"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>
+                </div>
+                <div id="supervisors" class="user-tab-content">
+                    <h4>المشرفون</h4>
+                    <table id="supervisors-table"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>
+                </div>
+                <div id="cleaners" class="user-tab-content">
+                    <h4>عمال النظافة</h4>
+                    <table id="cleaners-table"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>
+                </div>
+                <div id="students" class="user-tab-content">
+                    <h4>الطلاب</h4>
+                    <div class="tabs" id="student-dept-tabs"></div>
+                    <div id="student-dept-content"></div>
+                </div>
+                <!-- ## نهاية التعديل ## -->
             </div>
+        </div>
+
+        <div id="schedules" class="page">
+            <div class="card">
+                <h3>الجداول الدراسية</h3>
+                <button class="btn btn-primary" onclick="openModal('schedule-modal')">إضافة جدول</button>
+                <div class="tabs" id="schedule-tabs"></div>
+                <div id="schedule-tabs-content"></div>
+            </div>
+        </div>
+
+        <div id="rooms" class="page"><div class="card"><h3>القاعات الدراسية</h3><button class="btn btn-primary" onclick="openModal('room-modal')">إضافة قاعة</button><table id="rooms-table"><thead><tr><th>اسم القاعة</th><th>السعة</th><th>رمز QR</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
+    </div>
+
+    <div id="pdf-prepare-area" class="pdf-prepare-area"></div>
+
+    <div id="user-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('user-modal')">&times;</span><h3 id="user-modal-title"></h3><form id="user-form"><input type="hidden" id="userId"><div class="form-group"><label>الاسم الكامل</label><input type="text" id="displayName" required></div><div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div><div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم التغيير</small></div><div class="form-group"><label>الدور</label><select id="role" required onchange="toggleDepartmentSelect()"><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option><option value="طالب">طالب</option></select></div><div class="form-group" id="department-group" style="display:none;"><label>القسم</label><select id="department"></select></div><div class="form-group"><label>رمز الباركود (رقم)</label><input type="text" id="barcodeId"></div><div class="form-group"><label>رمز RFID (UID)</label><input type="text" id="rfid"></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
+    
+    <div id="room-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('room-modal')">&times;</span><h3 id="room-modal-title"></h3><form id="room-form"><input type="hidden" id="roomId"><div class="form-group"><label>اسم القاعة</label><input type="text" id="roomName" required></div><div class="form-group"><label>السعة</label><input type="number" id="roomCapacity" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
+    
+    <div id="schedule-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal('schedule-modal')">&times;</span>
+            <h3 id="schedule-modal-title"></h3>
+            <form id="schedule-form">
+                <input type="hidden" id="scheduleId">
+                <div class="form-group"><label>القسم</label><select id="scheduleDepartment" required></select></div>
+                <div class="form-group"><label>رمز المادة</label><input type="text" id="courseCode" required></div>
+                <div class="form-group"><label>اسم المادة</label><input type="text" id="courseName" required></div>
+                <div class="form-group"><label>المحاضر</label><select id="lecturer" required></select></div>
+                <div class="form-group"><label>القاعة</label><select id="scheduleRoom" required></select></div>
+                <div class="form-group"><label>اليوم</label><select id="day" required><option>السبت</option><option>الأحد</option><option>الاثنين</option><option>الثلاثاء</option><option>الأربعاء</option><option>الخميس</option></select></div>
+                <div class="form-group"><label>وقت المحاضرة</label><div class="time-input-group"><input type="time" id="startTime" required><span>-</span><input type="time" id="endTime" required></div></div>
+                <div class="form-group">
+                    <label>المجموعات المستهدفة</label>
+                    <div class="checkbox-group" id="groups-checkboxes">
+                        <label><input type="checkbox" name="group" value="A"> A</label>
+                        <label><input type="checkbox" name="group" value="B"> B</label>
+                        <label><input type="checkbox" name="group" value="C"> C</label>
+                        <label><input type="checkbox" name="group" value="D"> D</label>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-success">حفظ</button>
+            </form>
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, query, where, onSnapshot, getDocs, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getDatabase, ref, set, onValue, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
@@ -92,200 +182,520 @@
         const db = getFirestore(app);
         const rtdb = getDatabase(app);
 
-        const user = JSON.parse(sessionStorage.getItem('user'));
-        const userDisplayName = user.displayName;
-        const userRole = user.role;
-        document.getElementById('welcome-message').textContent = `أهلاً بك، ${userDisplayName}`;
-
-        const statusContainer = document.getElementById('room-status-container');
-        const locksRef = ref(rtdb, 'locks');
+        const SITE_URL = "https://cpld.netlify.app";
+        const roomDataStore = {};
         let allSchedulesData = [];
-        let allUsersData = {};
+        let allUsersData = {}; 
+        const departments = [
+            "القسم العام", "قسم الهندسة الكهربائية والالكترونية", "قسم الهندسة الكيميائية", 
+            "قسم الهندسة المدنية", "قسم الهندسة الميكانيكية", "قسم الهندسة المعمارية"
+        ];
 
-        async function initializeDashboard() {
-            const schedulesSnap = await getDocs(collection(db, "Schedules"));
-            allSchedulesData = schedulesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // ======================================================================
+        // ## الشيفرة العامة وأدوات الواجهة ##
+        // ======================================================================
+        window.showPage = (pageId) => {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            document.querySelector(`.nav-link[href="#${pageId}"]`).classList.add('active');
+            if (pageId === 'users') {
+                // ## تعديل: عند فتح صفحة المستخدمين، افتح التبويب الأول تلقائيًا ##
+                document.querySelector('#users-main-tabs .tab-link').click();
+            }
+        };
 
-            const usersSnap = await getDocs(collection(db, "Users"));
-            usersSnap.forEach(doc => {
-                allUsersData[doc.id] = doc.data().displayName;
+        window.openModal = (modalId) => {
+            const form = document.querySelector(`#${modalId} form`);
+            form.reset();
+            const hiddenId = form.querySelector(`input[type=hidden]`);
+            if (hiddenId) hiddenId.value = '';
+            document.querySelector(`#${modalId} h3`).textContent = 'إضافة جديد';
+            if (modalId === 'user-modal') toggleDepartmentSelect();
+            if (modalId === 'schedule-modal') populateSelects();
+            document.getElementById(modalId).style.display = 'block';
+        };
+
+        window.closeModal = (modalId) => { document.getElementById(modalId).style.display = 'none'; };
+        const confirmDelete = (item) => confirm(`هل أنت متأكد من حذف هذا ${item}؟`);
+
+        function populateDepartmentSelect(selectId) {
+            const select = document.getElementById(selectId);
+            select.innerHTML = '';
+            departments.forEach(dep => {
+                select.innerHTML += `<option value="${dep}">${dep}</option>`;
             });
+        }
+        populateDepartmentSelect('department');
+        populateDepartmentSelect('scheduleDepartment');
 
-            onValue(locksRef, (snapshot) => {
-                const allLocksStatus = snapshot.val() || {};
-                renderDashboard(allLocksStatus);
+        window.toggleDepartmentSelect = () => {
+            const role = document.getElementById('role').value;
+            document.getElementById('department-group').style.display = (role === 'طالب') ? 'block' : 'none';
+        };
+
+        // ======================================================================
+        // ## الجزء الثاني: منطق التطبيق (عرض البيانات ومعالجتها) ##
+        // ======================================================================
+
+        // --- تهيئة التبويبات ---
+        function setupTabs(tabsContainerId, contentContainerId, tabsArray, callback) {
+            const tabsContainer = document.getElementById(tabsContainerId);
+            const contentContainer = document.getElementById(contentContainerId);
+            tabsContainer.innerHTML = '';
+            contentContainer.innerHTML = '';
+
+            tabsArray.forEach((tabName, index) => {
+                const tabId = `${contentContainerId}-${tabName.replace(/\s/g, '-')}`;
+                const tabLink = document.createElement('a');
+                tabLink.className = 'tab-link';
+                tabLink.textContent = tabName;
+                tabLink.onclick = () => openTab(event, tabId, contentContainerId);
+                tabsContainer.appendChild(tabLink);
+
+                const tabContent = document.createElement('div');
+                tabContent.id = tabId;
+                tabContent.className = 'tab-content';
+                contentContainer.appendChild(tabContent);
+
+                if (callback) {
+                    callback(tabContent, tabName);
+                }
+
+                if (index === 0) {
+                    tabLink.classList.add('active');
+                    tabContent.classList.add('active');
+                }
             });
         }
 
-        function renderDashboard(allLocksStatus) {
-            statusContainer.innerHTML = '';
-            getDocs(collection(db, "Rooms")).then(roomSnapshot => {
-                roomSnapshot.forEach(doc => {
-                    const room = doc.data();
-                    const lockName = "Room" + room.name;
-                    const lockStatus = allLocksStatus[lockName] ? allLocksStatus[lockName].status : 'closed';
-                    const statusClass = lockStatus === 'open' ? 'open' : 'closed';
-                    const statusText = lockStatus === 'open' ? 'مفتوحة' : 'مغلقة';
-
-                    const now = new Date();
-                    const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-                    const currentDay = days[now.getDay()];
-                    const currentTime = now.getHours() * 60 + now.getMinutes();
-
-                    const currentSchedule = allSchedulesData.find(schedule => {
-                        if (schedule.room !== room.name || schedule.day !== currentDay) return false;
-                        const timeParts = schedule.time.split('-');
-                        const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
-                        const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]);
-                        return currentTime >= startTime && currentTime < endTime;
-                    });
-
-                    let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
-                    if (currentSchedule) {
-                        const lecturerName = allUsersData[currentSchedule.lecturerId] || 'غير محدد';
-                        detailsHtml = `<div class="details"><p>${lecturerName}</p><p>${currentSchedule.courseName}</p></div>`;
-                    }
-
-                    statusContainer.innerHTML += `<div class="room-card ${statusClass}"><div><h4>${room.name}</h4><p>${statusText}</p></div>${detailsHtml}</div>`;
-                });
-            });
-        }
+        window.openTab = (evt, tabId, contentContainerId) => {
+            const contentContainer = document.getElementById(contentContainerId);
+            contentContainer.querySelectorAll('.tab-content').forEach(tc => tc.style.display = "none");
+            evt.currentTarget.parentElement.querySelectorAll('.tab-link').forEach(tl => tl.classList.remove("active"));
+            document.getElementById(tabId).style.display = "block";
+            evt.currentTarget.classList.add("active");
+        };
         
-        initializeDashboard();
+        // ## التعديل: دالة جديدة لتبويبات المستخدمين الرئيسية ##
+        window.openUserTab = (evt, tabName) => {
+            document.querySelectorAll('.user-tab-content').forEach(tab => tab.style.display = 'none');
+            document.querySelectorAll('#users-main-tabs .tab-link').forEach(link => link.classList.remove('active'));
+            document.getElementById(tabName).style.display = 'block';
+            evt.currentTarget.classList.add('active');
+            // إذا كان التبويب هو للطلاب، قم بتنشيط أول تبويب قسم فرعي
+            if (tabName === 'students') {
+                const firstDeptTab = document.querySelector('#student-dept-tabs .tab-link');
+                if (firstDeptTab) firstDeptTab.click();
+            }
+        };
 
-        if (userRole === 'عضو هيئة تدريس') {
-            document.getElementById('lecturer-sections').style.display = 'block';
+        async function syncActiveLectureForRoom(roomName, userId) {
+            const roomKey = "Room" + roomName;
+            if (!userId || userId === 'none') {
+                await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), "none");
+                return;
+            }
 
-            const schedulesTableBody = document.querySelector('#my-schedules-table tbody');
-            const courseSelect = document.getElementById('course-select');
-            const groupSelect = document.getElementById('group-select');
-            const attendanceTableBody = document.querySelector('#attendance-table tbody');
-            const schedulesRef = collection(db, "Schedules");
+            const now = new Date();
+            const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+            const currentDay = days[now.getDay()];
             
-            let lecturerSchedules = [];
+            const upcomingLecture = allSchedulesData.find(schedule => 
+                schedule.lecturerId === userId && 
+                schedule.room === roomName &&
+                schedule.day === currentDay
+            );
 
-            const qSchedules = query(schedulesRef, where("lecturerId", "==", user.id));
+            if (upcomingLecture) {
+                const lecturerName = allUsersData[upcomingLecture.lecturerId] || 'غير محدد';
+                const activeLectureData = {
+                    courseName: upcomingLecture.courseName,
+                    lecturerName: lecturerName,
+                    lecturerId: upcomingLecture.lecturerId,
+                    time: upcomingLecture.time,
+                    groups: upcomingLecture.groups || []
+                };
+                await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), activeLectureData);
+            } else {
+                await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), "none");
+            }
+        }
 
-            onSnapshot(qSchedules, (snapshot) => {
-                schedulesTableBody.innerHTML = '';
-                courseSelect.innerHTML = '<option value="">اختر المادة</option>';
-                lecturerSchedules = [];
-                
-                const uniqueCourses = new Map();
-
-                if (snapshot.empty) {
-                    schedulesTableBody.innerHTML = '<tr><td colspan="6">لا توجد محاضرات مجدولة لك.</td></tr>';
-                    return;
+        async function syncAllowedRfids() {
+            const usersRef = collection(db, "Users");
+            const usersSnapshot = await getDocs(usersRef);
+            const allowedRfids = {};
+            usersSnapshot.forEach(doc => {
+                const userData = doc.data();
+                if (userData.rfid && userData.rfid.trim() !== "") {
+                    const normalizedRfid = userData.rfid.replace(/\s/g, '').toUpperCase();
+                    allowedRfids[normalizedRfid] = { 
+                        role: userData.role || 'unknown', 
+                        name: userData.displayName || 'Unknown User', 
+                        department: userData.department || 'none',
+                        userId: doc.id
+                    };
                 }
-                snapshot.forEach(doc => {
-                    const s = { id: doc.id, ...doc.data() };
-                    lecturerSchedules.push(s);
-                    schedulesTableBody.innerHTML += `<tr><td>${s.day}</td><td>${s.time}</td><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.room}</td><td>${(s.groups || []).join(', ')}</td></tr>`;
-                    
-                    if (!uniqueCourses.has(s.courseName)) {
-                        uniqueCourses.set(s.courseName, s.courseName);
-                        courseSelect.innerHTML += `<option value="${s.courseName}">${s.courseName}</option>`;
-                    }
-                });
+            });
+            await set(ref(rtdb, 'allowed_rfids'), allowedRfids);
+        }
+
+        // --- معالجة نماذج الإضافة والتعديل ---
+        document.getElementById('user-form').addEventListener('submit', async (e) => { 
+            e.preventDefault(); 
+            const id = document.getElementById('userId').value; 
+            const password = document.getElementById('password').value; 
+            const role = document.getElementById('role').value;
+            const data = { 
+                displayName: document.getElementById('displayName').value, 
+                username: document.getElementById('username').value, 
+                role: role, 
+                barcodeId: document.getElementById('barcodeId').value, 
+                rfid: document.getElementById('rfid').value, 
+            }; 
+            if (role === 'طالب') {
+                data.department = document.getElementById('department').value;
+            }
+            if (id) { 
+                if (password) { data.password = password; } 
+                await updateDoc(doc(db, "Users", id), data); 
+            } else { 
+                if (!password) { alert('كلمة المرور مطلوبة للمستخدم الجديد.'); return; } 
+                data.password = password; 
+                await addDoc(collection(db, "Users"), data); 
+            } 
+            closeModal('user-modal'); 
+        });
+        
+        document.getElementById('room-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('roomId').value;
+            const roomName = document.getElementById('roomName').value;
+            const data = {
+                name: roomName,
+                capacity: parseInt(document.getElementById('roomCapacity').value),
+                qrUrl: `${SITE_URL}/open.html?room=${encodeURIComponent(roomName)}`
+            };
+            if (id) await updateDoc(doc(db, "Rooms", id), data);
+            else {
+                data.status = 'closed';
+                await addDoc(collection(db, "Rooms"), data);
+                set(ref(rtdb, 'locks/Room' + roomName), { status: 'closed', last_user_uid: 'none' });
+                set(ref(rtdb, 'schedules_by_room/Room' + roomName), { active_lecture: 'none' });
+            }
+            closeModal('room-modal');
+        });
+        
+        document.getElementById('schedule-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('scheduleId').value;
+            const selectedGroups = Array.from(document.querySelectorAll('#groups-checkboxes input:checked')).map(cb => cb.value);
+            const data = {
+                department: document.getElementById('scheduleDepartment').value,
+                courseCode: document.getElementById('courseCode').value,
+                courseName: document.getElementById('courseName').value,
+                lecturerId: document.getElementById('lecturer').value,
+                room: document.getElementById('scheduleRoom').value,
+                day: document.getElementById('day').value,
+                time: `${document.getElementById('startTime').value}-${document.getElementById('endTime').value}`,
+                groups: selectedGroups
+            };
+            if (id) await updateDoc(doc(db, "Schedules", id), data);
+            else await addDoc(collection(db, "Schedules"), data);
+            closeModal('schedule-modal');
+        });
+        // --- عرض البيانات في الجداول والتبويبات ---
+        onSnapshot(collection(db, "Users"), (snap) => {
+            allUsersData = {};
+            snap.forEach(d => {
+                allUsersData[d.id] = d.data().displayName;
             });
 
-            window.populateGroups = () => {
-                const selectedCourse = courseSelect.value;
-                groupSelect.innerHTML = '<option value="">اختر المجموعة</option>';
-                if (!selectedCourse) return;
-
-                const allGroupsForCourse = new Set();
-                lecturerSchedules
-                    .filter(s => s.courseName === selectedCourse && s.groups)
-                    .forEach(s => {
-                        s.groups.forEach(g => allGroupsForCourse.add(g));
-                    });
-                
-                allGroupsForCourse.forEach(group => {
-                    groupSelect.innerHTML += `<option value="${group}">${group}</option>`;
-                });
+            const tables = { 
+                'عضو هيئة تدريس': document.querySelector('#lecturers-table tbody'), 
+                'مشرف': document.querySelector('#supervisors-table tbody'), 
+                'عامل نظافة': document.querySelector('#cleaners-table tbody') 
             };
+            const studentDataByDept = {};
+            departments.forEach(d => studentDataByDept[d] = []);
+            Object.values(tables).forEach(tbody => tbody.innerHTML = '');
 
-            // ####################################################################
-            // ##                 التعديل الجديد والمهم هنا                     ##
-            // ####################################################################
-            window.fetchAttendance = async () => {
-                const selectedCourse = courseSelect.value;
-                const selectedGroup = groupSelect.value;
-                const selectedDateStr = document.getElementById('attendance-date').value;
+            snap.forEach(d => {
+                const u = d.data();
+                const id = d.id;
+                const actionsHtml = `
+                    <button class="btn btn-warning" onclick="editItem('Users','${id}','user')">تعديل</button>
+                    <button class="btn btn-danger" onclick="deleteItem('Users','${id}','المستخدم')">حذف</button>
+                    <button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}','${u.role}','${u.barcodeId}')">تحميل بطاقة (PDF)</button>
+                    <button class="btn btn-info" onclick="downloadBarcodeAsPNG('${u.displayName}', '${u.barcodeId}')">تحميل صورة الرمز</button>
+                `;
 
-                if (!selectedCourse || !selectedGroup || !selectedDateStr) {
-                    alert('يرجى اختيار المادة، المجموعة، والتاريخ أولاً.');
-                    return;
-                }
-
-                attendanceTableBody.innerHTML = '<tr><td colspan="5">جاري البحث...</td></tr>';
-
-                // ## البحث باستخدام حقل التاريخ الجديد لضمان الدقة ##
-                const attendanceCollectionRef = collection(db, "Attendance");
-                const q = query(attendanceCollectionRef, 
-                    where("lecturerName", "==", userDisplayName),
-                    where("courseName", "==", selectedCourse),
-                    where("group", "==", selectedGroup),
-                    where("date", "==", selectedDateStr) // البحث بالتاريخ المطابق
-                );
-
-                try {
-                    const snapshot = await getDocs(q);
-                    attendanceTableBody.innerHTML = '';
-                    if (snapshot.empty) {
-                        attendanceTableBody.innerHTML = '<tr><td colspan="5">لا توجد سجلات حضور لهذه المجموعة في هذا اليوم.</td></tr>';
-                        return;
+                if (u.role === 'طالب') {
+                    if (u.department && studentDataByDept[u.department]) {
+                        studentDataByDept[u.department].push({ id, ...u });
                     }
-                    
-                    let finalResults = [];
-                    snapshot.forEach(doc => {
-                        finalResults.push(doc.data());
-                    });
-
-                    // فرز النتائج حسب الطابع الزمني (الأحدث أولاً)
-                    finalResults.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
-                    finalResults.forEach(a => {
-                        // تحويل الطابع الزمني (epoch) إلى وقت مقروء
-                        const attendanceTime = a.timestamp ? new Date(a.timestamp * 1000).toLocaleTimeString('ar-EG') : 'غير محدد';
-                        attendanceTableBody.innerHTML += `<tr><td>${a.studentName}</td><td>${a.roomName}</td><td>${a.courseName}</td><td>${a.group}</td><td>${attendanceTime}</td></tr>`;
-                    });
-
-                } catch (error) {
-                    console.error("Error fetching attendance: ", error);
-                    // ملاحظة: هذا النوع من البحث يتطلب إنشاء فهرس (index) في Firestore
-                    attendanceTableBody.innerHTML = `<tr><td colspan="5">حدث خطأ. قد تحتاج إلى إنشاء فهرس في Firestore. افتح الرابط في الكونسول لإنشائه.</td></tr>`;
-                    console.log("لحل هذا الخطأ، يرجى إنشاء فهرس مركب في Firestore. افتح الرابط التالي الذي قد يظهر في رسالة الخطأ في الكونسول:");
-                    console.log(error.message); 
+                } else if (tables[u.role]) {
+                    const tbody = tables[u.role];
+                    tbody.innerHTML += `<tr><td>${u.displayName||''}</td><td><div class="barcode-container">${u.barcodeId?`<svg id="barcode-${id}"></svg>`:'لا يوجد'}</div></td><td>${u.rfid||'لا يوجد'}</td><td>${actionsHtml}</td></tr>`;
+                    if (u.barcodeId) JsBarcode(`#barcode-${id}`, u.barcodeId);
                 }
-            };
+            });
 
-            window.printAttendance = () => {
-                const tableToPrint = document.getElementById('attendance-table');
-                const selectedDate = document.getElementById('attendance-date').value;
-                const selectedCourse = courseSelect.value;
-                const selectedGroup = groupSelect.value;
-                
-                if (tableToPrint.querySelector('tbody tr td[colspan="5"]')) {
-                    alert("يرجى البحث عن سجلات الحضور أولاً قبل الطباعة.");
-                    return;
+            departments.forEach(deptName => {
+                const containerId = `student-dept-content-${deptName.replace(/\s/g, '-')}`;
+                const container = document.getElementById(containerId);
+                if (!container) return;
+                const tbody = container.querySelector('table tbody');
+                tbody.innerHTML = '';
+                studentDataByDept[deptName].forEach(u => {
+                    const actionsHtml = `
+                        <button class="btn btn-warning" onclick="editItem('Users','${u.id}','user')">تعديل</button>
+                        <button class="btn btn-danger" onclick="deleteItem('Users','${u.id}','الطالب')">حذف</button>
+                        <button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}','${u.role}','${u.barcodeId}')">تحميل بطاقة (PDF)</button>
+                        <button class="btn btn-info" onclick="downloadBarcodeAsPNG('${u.displayName}', '${u.barcodeId}')">تحميل صورة الرمز</button>
+                    `;
+                    tbody.innerHTML += `<tr><td>${u.displayName||''}</td><td><div class="barcode-container">${u.barcodeId?`<svg id="barcode-${u.id}"></svg>`:'لا يوجد'}</div></td><td>${u.rfid||'لا يوجد'}</td><td>${actionsHtml}</td></tr>`;
+                    if (u.barcodeId) JsBarcode(`#barcode-${u.id}`, u.barcodeId);
+                });
+            });
+            syncAllowedRfids();
+        });
+
+        onSnapshot(collection(db, "Schedules"), (snap) => {
+            allSchedulesData = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
+            const scheduleDataByDept = {};
+            departments.forEach(d => scheduleDataByDept[d] = []);
+
+            allSchedulesData.forEach(s => {
+                if (s.department && scheduleDataByDept[s.department]) {
+                    scheduleDataByDept[s.department].push(s);
                 }
+            });
 
-                const printWindow = window.open('', '', 'height=600,width=800');
-                printWindow.document.write('<html lang="ar" dir="rtl"><head><title>كشف حضور الطلاب</title>');
-                printWindow.document.write('<style>body{font-family: "Segoe UI", sans-serif; padding: 20px;} table{width: 100%; border-collapse: collapse;} th, td{border: 1px solid #333; padding: 10px; text-align: right;} h2, h3 {text-align: center;}</style>');
-                printWindow.document.write('</head><body>');
-                printWindow.document.write(`<h2>كشف حضور ليوم: ${selectedDate || 'غير محدد'}</h2>`);
-                printWindow.document.write(`<h3>المادة: ${selectedCourse} - المجموعة: ${selectedGroup}</h3>`);
-                printWindow.document.write(`<h3>المحاضر: ${userDisplayName}</h3>`);
-                printWindow.document.write(tableToPrint.outerHTML);
-                printWindow.document.write('</body></html>');
-                printWindow.document.close();
-                printWindow.focus();
-                printWindow.print();
-            };
+            departments.forEach(deptName => {
+                const containerId = `schedule-tabs-content-${deptName.replace(/\s/g, '-')}`;
+                const container = document.getElementById(containerId);
+                if (!container) return;
+                const tbody = container.querySelector('table tbody');
+                tbody.innerHTML = '';
+                scheduleDataByDept[deptName].forEach(s => {
+                    const lecturerName = allUsersData[s.lecturerId] || 'محاضر محذوف';
+                    tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${lecturerName}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td>${(s.groups||[]).join(', ')}</td><td><button class="btn btn-warning" onclick="editItem('Schedules','${s.id}','schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules','${s.id}','الجدول')">حذف</button></td></tr>`;
+                });
+            });
+        });
+
+        onSnapshot(collection(db, "Rooms"), (snapshot) => {
+            const roomsTableTbody = document.querySelector('#rooms-table tbody');
+            roomsTableTbody.innerHTML = '';
+            snapshot.docChanges().forEach((change) => {
+                const docId = change.doc.id;
+                const roomData = change.doc.data();
+                if (change.type === "added") {
+                    roomDataStore[docId] = roomData;
+                    createDashboardCard(docId);
+                }
+                if (change.type === "modified") {
+                    roomDataStore[docId] = { ...roomDataStore[docId], ...roomData };
+                }
+                if (change.type === "removed") {
+                    delete roomDataStore[docId];
+                    const card = document.getElementById(docId);
+                    if (card) card.remove();
+                }
+            });
+            snapshot.forEach(d => {
+                const r = d.data();
+                const qrCodeDataUrl = generateQRCode(r.qrUrl || '');
+                roomsTableTbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td><div class="qr-code-container">${r.qrUrl?`<img src="${qrCodeDataUrl}" alt="QR Code">`:'لا يوجد'}</div></td><td><button class="btn btn-warning" onclick="editItem('Rooms','${d.id}','room')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms','${d.id}','القاعة')">حذف</button><button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}','${r.qrUrl}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadQRCodeAsPNG('${r.name}', '${r.qrUrl}')">تحميل صورة الرمز</button></td></tr>`;
+            });
+        });
+
+        const locksRef = ref(rtdb, 'locks');
+        onValue(locksRef, (snapshot) => {
+            const allLocksStatus = snapshot.val();
+            if (!allLocksStatus) return;
+
+            for (const docId in roomDataStore) {
+                const roomName = roomDataStore[docId].name;
+                const lockName = "Room" + roomName;
+                const lockData = allLocksStatus[lockName];
+
+                if (lockData) {
+                    roomDataStore[docId].status = lockData.status;
+                    syncActiveLectureForRoom(roomName, lockData.last_user_uid);
+                } else {
+                    roomDataStore[docId].status = 'closed';
+                    syncActiveLectureForRoom(roomName, 'none');
+                }
+                updateDashboardCard(docId);
+            }
+        });
+
+        function createDashboardCard(docId) {
+            const statusContainer = document.getElementById('room-status-container');
+            const card = document.createElement('div');
+            card.id = docId; 
+            statusContainer.appendChild(card);
+            updateDashboardCard(docId); 
         }
+
+        async function updateDashboardCard(docId) {
+            const card = document.getElementById(docId);
+            const roomData = roomDataStore[docId];
+            if (!card || !roomData) return; 
+
+            const status = roomData.status || 'closed';
+            const statusText = status === 'open' ? 'مفتوحة' : 'مغلقة';
+            card.className = `room-card ${status}`;
+
+            let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
+            
+            const scheduleRef = ref(rtdb, `schedules_by_room/Room${roomData.name}/active_lecture`);
+            const scheduleSnap = await get(scheduleRef);
+            const activeLecture = scheduleSnap.val();
+
+            if (activeLecture && activeLecture !== 'none') {
+                detailsHtml = `<div class="details"><p>${activeLecture.lecturerName}</p><p>${activeLecture.courseName}</p></div>`;
+            }
+
+            card.innerHTML = `<div><h4>${roomData.name}</h4><p>${statusText}</p>${detailsHtml}</div><button class="btn btn-warning" onclick="toggleRoomStatus('${docId}', '${status}')">تغيير الحالة</button>`;
+        }
+
+        window.toggleRoomStatus = async (id, currentStatus) => {
+            const newStatus = currentStatus === 'open' ? 'closed' : 'open';
+            const roomName = roomDataStore[id].name;
+            const adminUser = JSON.parse(sessionStorage.getItem('user'));
+            const adminUid = newStatus === 'open' ? adminUser.id : 'none';
+            
+            await set(ref(rtdb, 'locks/Room' + roomName), { status: newStatus, last_user_uid: adminUid });
+        };
+
+        // --- دوال مساعدة (تعديل، حذف، طباعة، تحميل) ---
+        window.editItem = async (collectionName, id, type) => {
+            openModal(`${type}-modal`); 
+            const itemDoc = await getDoc(doc(db, collectionName, id));
+            const data = itemDoc.data();
+            document.getElementById(`${type}Id`).value = id;
+            document.querySelector(`#${type}-modal h3`).textContent = `تعديل`;
+
+            if (type === 'user') {
+                document.getElementById('displayName').value = data.displayName;
+                document.getElementById('username').value = data.username;
+                document.getElementById('role').value = data.role;
+                document.getElementById('rfid').value = data.rfid || '';
+                document.getElementById('barcodeId').value = data.barcodeId || '';
+                toggleDepartmentSelect();
+                if (data.role === 'طالب') {
+                    document.getElementById('department').value = data.department;
+                }
+            } else if (type === 'room') {
+                document.getElementById('roomName').value = data.name;
+                document.getElementById('roomCapacity').value = data.capacity;
+            } else if (type === 'schedule') {
+                await populateSelects();
+                document.getElementById('scheduleDepartment').value = data.department;
+                document.getElementById('courseCode').value = data.courseCode;
+                document.getElementById('courseName').value = data.courseName;
+                document.getElementById('lecturer').value = data.lecturerId;
+                document.getElementById('scheduleRoom').value = data.room;
+                document.getElementById('day').value = data.day;
+                const [startTime, endTime] = data.time.split('-');
+                document.getElementById('startTime').value = startTime;
+                document.getElementById('endTime').value = endTime;
+                document.querySelectorAll('#groups-checkboxes input').forEach(cb => {
+                    cb.checked = (data.groups || []).includes(cb.value);
+                });
+            }
+        };
+
+        window.deleteItem = async (collectionName, id, itemName) => { 
+            if (confirmDelete(itemName)) {
+                if (collectionName === 'Rooms') {
+                    const roomDoc = await getDoc(doc(db, "Rooms", id));
+                    if (roomDoc.exists()) {
+                        const roomName = roomDoc.data().name;
+                        await set(ref(rtdb, 'locks/Room' + roomName), null);
+                        await set(ref(rtdb, 'schedules_by_room/Room' + roomName), null);
+                    }
+                }
+                await deleteDoc(doc(db, collectionName, id));
+            }
+        };
+
+        window.downloadIdCardAsPDF = (name, role, barcodeValue) => {
+            const prepareArea = document.getElementById('pdf-prepare-area');
+            const cardElement = document.createElement('div');
+            cardElement.className = 'id-card';
+            cardElement.innerHTML = `<h4>${name}</h4><p>${role}</p><svg id="pdf-barcode"></svg>`;
+            prepareArea.innerHTML = '';
+            prepareArea.appendChild(cardElement);
+            if (barcodeValue) JsBarcode("#pdf-barcode", barcodeValue);
+            else cardElement.querySelector('svg').remove();
+            html2pdf().from(cardElement).set({ filename: `${name}_ID_Card.pdf` }).save();
+        };
+
+        window.downloadRoomCardAsPDF = (name, qrUrl) => { 
+            const prepareArea = document.getElementById('pdf-prepare-area'); 
+            const cardElement = document.createElement('div'); 
+            cardElement.className = 'id-card'; 
+            cardElement.innerHTML = `<h4>بطاقة تعريف القاعة</h4><p>${name}</p><img src="${generateQRCode(qrUrl || '')}" alt="QR Code">`; 
+            prepareArea.innerHTML = ''; 
+            prepareArea.appendChild(cardElement); 
+            html2pdf().from(cardElement).set({ filename: `${name}_QR_Card.pdf` }).save(); 
+        };
+
+        window.downloadQRCodeAsPNG = (name, qrUrl) => { 
+            if (!qrUrl) { alert('لا يوجد رمز QR لهذه القاعة.'); return; } 
+            const dataUrl = generateQRCode(qrUrl); 
+            const link = document.createElement('a'); 
+            link.download = `${name}_QR_Code.png`; 
+            link.href = dataUrl; 
+            link.click(); 
+        };
+
+        window.downloadBarcodeAsPNG = (name, barcodeValue) => { 
+            if (!barcodeValue) { alert('لا يوجد رمز باركود لهذا المستخدم.'); return; } 
+            const canvas = document.createElement('canvas'); 
+            JsBarcode(canvas, barcodeValue, { format: "CODE128" }); 
+            const link = document.createElement('a'); 
+            link.download = `${name}_Barcode.png`; 
+            link.href = canvas.toDataURL("image/png"); 
+            link.click(); 
+        };
+
+        function generateQRCode(text) { if (!text) return ''; const qr = qrcode(4, 'L'); qr.addData(text); qr.make(); return qr.createDataURL(4); }
+        
+        async function populateSelects() { 
+            const usersSnap = await getDocs(query(collection(db, "Users"), where("role", "==", "عضو هيئة تدريس")));
+            const roomsSnap = await getDocs(collection(db, "Rooms"));
+            const lecturerSelect = document.getElementById('lecturer');
+            const roomSelect = document.getElementById('scheduleRoom');
+            lecturerSelect.innerHTML = '<option value="">اختر محاضر</option>';
+            roomSelect.innerHTML = '<option value="">اختر قاعة</option>';
+            usersSnap.forEach(d => {
+                lecturerSelect.innerHTML += `<option value="${d.id}">${d.data().displayName}</option>`;
+            });
+            roomsSnap.forEach(d => {
+                roomSelect.innerHTML += `<option value="${d.data().name}">${d.data().name}</option>`;
+            });
+        }
+
+        // --- التشغيل الأولي ---
+        showPage('dashboard');
+        
+        // ## تعديل: تم تغيير أسماء الحاويات لتتوافق مع الهيكل الجديد ##
+        setupTabs('student-dept-tabs', 'student-dept-content', departments, (tabContent, deptName) => {
+            const tableId = `students-table-${deptName.replace(/\s/g, '-')}`;
+            tabContent.innerHTML = `<table id="${tableId}"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
+        });
+
+        setupTabs('schedule-tabs', 'schedule-tabs-content', departments, (tabContent, deptName) => {
+            const tableId = `schedules-table-${deptName.replace(/\s/g, '-')}`;
+            tabContent.innerHTML = `<table id="${tableId}"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>المجموعات</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
+        });
+
     </script>
 </body>
 </html>
