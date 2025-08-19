@@ -149,7 +149,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+        import { getDatabase, ref, set, onValue, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
@@ -254,9 +254,44 @@
             evt.currentTarget.classList.add("active");
         };
 
-        // --- مزامنة البيانات مع Realtime Database ---
-        async function syncToRtdb() {
-            // 1. مزامنة المستخدمين مع إضافة userId
+        // --- ### التعديل الجديد: دالة مزامنة معلومات المحاضرة النشطة ### ---
+        async function syncActiveLectureForRoom(roomName, userId) {
+            const roomKey = "Room" + roomName;
+            // إذا لم يكن هناك مستخدم (تم إغلاق القاعة)، اضبط المحاضرة على "none"
+            if (!userId || userId === 'none') {
+                await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), "none");
+                return;
+            }
+
+            const now = new Date();
+            const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+            const currentDay = days[now.getDay()];
+            
+            // ابحث عن أقرب محاضرة قادمة لهذا المستخدم في هذه القاعة في هذا اليوم
+            const upcomingLecture = allSchedulesData.find(schedule => 
+                schedule.lecturerId === userId && 
+                schedule.room === roomName &&
+                schedule.day === currentDay
+            );
+
+            if (upcomingLecture) {
+                const lecturerName = allUsersData[upcomingLecture.lecturerId] || 'غير محدد';
+                const activeLectureData = {
+                    courseName: upcomingLecture.courseName,
+                    lecturerName: lecturerName,
+                    lecturerId: upcomingLecture.lecturerId,
+                    time: upcomingLecture.time,
+                    groups: upcomingLecture.groups || []
+                };
+                await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), activeLectureData);
+            } else {
+                // إذا لم يتم العثور على محاضرة مجدولة، اضبطها على "none"
+                await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), "none");
+            }
+        }
+
+        // --- مزامنة بيانات المستخدمين (للاستخدام في أماكن أخرى) ---
+        async function syncAllowedRfids() {
             const usersRef = collection(db, "Users");
             const usersSnapshot = await getDocs(usersRef);
             const allowedRfids = {};
@@ -273,47 +308,6 @@
                 }
             });
             await set(ref(rtdb, 'allowed_rfids'), allowedRfids);
-
-            // 2. مزامنة معلومات المحاضرة النشطة لكل قاعة
-            const schedulesRef = collection(db, "Schedules");
-            const schedulesSnapshot = await getDocs(schedulesRef);
-            const schedulesByRoom = {};
-            
-            const roomsSnap = await getDocs(collection(db, "Rooms"));
-            const roomNames = roomsSnap.docs.map(doc => doc.data().name);
-
-            roomNames.forEach(name => {
-                const roomKey = "Room" + name;
-                schedulesByRoom[roomKey] = { active_lecture: "none" }; // قيمة افتراضية
-            });
-
-            const now = new Date();
-            const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-            const currentDay = days[now.getDay()];
-            const currentTime = now.toTimeString().slice(0, 5);
-
-            schedulesSnapshot.forEach(doc => {
-                const schedule = doc.data();
-                const roomKey = "Room" + schedule.room;
-
-                if (schedule.day === currentDay) {
-                    const [startTime, endTime] = schedule.time.split('-');
-                    if (currentTime >= startTime && currentTime < endTime) {
-                        const lecturerName = allUsersData[schedule.lecturerId] || 'غير محدد';
-                        schedulesByRoom[roomKey] = {
-                            active_lecture: {
-                                courseName: schedule.courseName,
-                                lecturerName: lecturerName,
-                                lecturerId: schedule.lecturerId,
-                                time: schedule.time,
-                                groups: schedule.groups || []
-                            }
-                        };
-                    }
-                }
-            });
-            
-            await set(ref(rtdb, 'schedules_by_room'), schedulesByRoom);
         }
 
         // --- معالجة نماذج الإضافة والتعديل ---
@@ -357,6 +351,7 @@
                 data.status = 'closed';
                 await addDoc(collection(db, "Rooms"), data);
                 set(ref(rtdb, 'locks/Room' + roomName), { status: 'closed', last_user_uid: 'none' });
+                set(ref(rtdb, 'schedules_by_room/Room' + roomName), { active_lecture: 'none' });
             }
             closeModal('room-modal');
         });
@@ -429,7 +424,7 @@
                     if (u.barcodeId) JsBarcode(`#barcode-${u.id}`, u.barcodeId);
                 });
             });
-            syncToRtdb();
+            syncAllowedRfids();
         });
 
         onSnapshot(collection(db, "Schedules"), (snap) => {
@@ -453,7 +448,6 @@
                     tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${lecturerName}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td>${(s.groups||[]).join(', ')}</td><td><button class="btn btn-warning" onclick="editItem('Schedules','${s.id}','schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules','${s.id}','الجدول')">حذف</button></td></tr>`;
                 });
             });
-            syncToRtdb();
         });
 
         onSnapshot(collection(db, "Rooms"), (snapshot) => {
@@ -468,7 +462,6 @@
                 }
                 if (change.type === "modified") {
                     roomDataStore[docId] = { ...roomDataStore[docId], ...roomData };
-                    updateDashboardCard(docId);
                 }
                 if (change.type === "removed") {
                     delete roomDataStore[docId];
@@ -483,20 +476,29 @@
             });
         });
 
+        // --- ### التعديل الجديد: المستمع الرئيسي لحالة الأقفال ### ---
         const locksRef = ref(rtdb, 'locks');
         onValue(locksRef, (snapshot) => {
             const allLocksStatus = snapshot.val();
             if (!allLocksStatus) return;
+
             for (const docId in roomDataStore) {
                 const roomName = roomDataStore[docId].name;
-                const lockName = "Room" + roomName; 
-                if (allLocksStatus[lockName]) {
-                    const newStatus = allLocksStatus[lockName].status;
-                    if (roomDataStore[docId].status !== newStatus) {
-                        roomDataStore[docId].status = newStatus;
-                        updateDashboardCard(docId);
-                    }
+                const lockName = "Room" + roomName;
+                const lockData = allLocksStatus[lockName];
+
+                if (lockData) {
+                    // تحديث حالة القفل (مفتوح/مغلق)
+                    roomDataStore[docId].status = lockData.status;
+                    
+                    // تحديث معلومات المحاضرة بناءً على المستخدم الذي فتح القاعة
+                    syncActiveLectureForRoom(roomName, lockData.last_user_uid);
+                } else {
+                    roomDataStore[docId].status = 'closed';
+                    syncActiveLectureForRoom(roomName, 'none');
                 }
+                // تحديث بطاقة العرض في الواجهة
+                updateDashboardCard(docId);
             }
         });
 
@@ -508,51 +510,39 @@
             updateDashboardCard(docId); 
         }
 
-        function updateDashboardCard(docId) {
+        // --- ### التعديل الجديد: تحديث بطاقة العرض بناءً على البيانات المجمعة ### ---
+        async function updateDashboardCard(docId) {
             const card = document.getElementById(docId);
             const roomData = roomDataStore[docId];
             if (!card || !roomData) return; 
 
-            const now = new Date();
-            const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-            const currentDay = days[now.getDay()];
-            const currentTime = now.getHours() * 60 + now.getMinutes();
-
-            const currentSchedule = allSchedulesData.find(schedule => {
-                if (schedule.room !== roomData.name || schedule.day !== currentDay) return false;
-                const timeParts = schedule.time.split('-');
-                const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
-                const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]);
-                return currentTime >= startTime && currentTime < endTime;
-            });
-
             const status = roomData.status || 'closed';
             const statusText = status === 'open' ? 'مفتوحة' : 'مغلقة';
-            card.className = `room-card ${status === 'open' ? 'open' : 'closed'}`;
+            card.className = `room-card ${status}`;
 
             let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
-            if (currentSchedule) {
-                const lecturerName = allUsersData[currentSchedule.lecturerId] || 'غير محدد';
-                detailsHtml = `<div class="details"><p>${lecturerName}</p><p>${currentSchedule.courseName}</p></div>`;
+            
+            // قراءة معلومات المحاضرة النشطة من Realtime Database
+            const scheduleRef = ref(rtdb, `schedules_by_room/Room${roomData.name}/active_lecture`);
+            const scheduleSnap = await get(scheduleRef);
+            const activeLecture = scheduleSnap.val();
+
+            if (activeLecture && activeLecture !== 'none') {
+                detailsHtml = `<div class="details"><p>${activeLecture.lecturerName}</p><p>${activeLecture.courseName}</p></div>`;
             }
 
-            // ## هذا هو التعديل المطلوب: إضافة زر التحكم للأدمن ##
             card.innerHTML = `<div><h4>${roomData.name}</h4><p>${statusText}</p>${detailsHtml}</div><button class="btn btn-warning" onclick="toggleRoomStatus('${docId}', '${status}')">تغيير الحالة</button>`;
         }
 
         window.toggleRoomStatus = async (id, currentStatus) => {
             const newStatus = currentStatus === 'open' ? 'closed' : 'open';
             const roomName = roomDataStore[id].name;
-            await updateDoc(doc(db, "Rooms", id), { status: newStatus });
             const adminUser = JSON.parse(sessionStorage.getItem('user'));
             const adminUid = newStatus === 'open' ? adminUser.id : 'none';
-            set(ref(rtdb, 'locks/Room' + roomName), { status: newStatus, last_user_uid: adminUid });
+            
+            // تحديث حالة القفل وهوية المستخدم في Realtime Database
+            await set(ref(rtdb, 'locks/Room' + roomName), { status: newStatus, last_user_uid: adminUid });
         };
-
-        setInterval(() => {
-            Object.keys(roomDataStore).forEach(docId => updateDashboardCard(docId));
-            syncToRtdb();
-        }, 60000);
 
         // --- دوال مساعدة (تعديل، حذف، طباعة، تحميل) ---
         window.editItem = async (collectionName, id, type) => {
@@ -599,6 +589,7 @@
                     if (roomDoc.exists()) {
                         const roomName = roomDoc.data().name;
                         await set(ref(rtdb, 'locks/Room' + roomName), null);
+                        await set(ref(rtdb, 'schedules_by_room/Room' + roomName), null);
                     }
                 }
                 await deleteDoc(doc(db, collectionName, id));
@@ -673,8 +664,6 @@
         setupTabs('schedule-tabs', 'schedule-tabs-content', departments, (tabContent, deptName) => {
             tabContent.innerHTML = `<table id="schedules-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>المجموعات</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
         });
-
-        syncToRtdb();
 
     </script>
 </body>
