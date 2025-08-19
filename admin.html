@@ -51,11 +51,14 @@
         .id-card svg { height: 60px; width: 100%; }
         .id-card img { max-width: 200px; height: auto; margin-top: 10px; }
         .time-input-group { display: flex; align-items: center; gap: 10px; }
-        .tabs { display: flex; border-bottom: 2px solid #ccc; margin-bottom: 20px; }
+        .tabs { display: flex; border-bottom: 2px solid #ccc; margin-bottom: 20px; flex-wrap: wrap; }
         .tab-link { padding: 10px 20px; cursor: pointer; background-color: #f1f1f1; border: 1px solid #ccc; border-bottom: none; margin-left: 5px; border-radius: 5px 5px 0 0; }
         .tab-link.active { background-color: white; border-bottom: 2px solid white; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+        /* ## تعديل: تم إضافة هذا النمط لدعم تبويبات المستخدمين الرئيسية ## */
+        .user-tab-content { display: none; }
+        .user-tab-content.active { display: block; }
         .checkbox-group { display: flex; flex-wrap: wrap; gap: 15px; }
         .checkbox-group label { display: flex; align-items: center; gap: 5px; }
     </style>
@@ -87,18 +90,32 @@
                 <h3>المستخدمون</h3>
                 <button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم</button>
                 
-                <h4>أعضاء هيئة التدريس</h4>
-                <table id="lecturers-table"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>
+                <!-- ## التعديل: نظام التبويبات الجديد لإدارة المستخدمين ## -->
+                <div class="tabs" id="users-main-tabs">
+                    <a class="tab-link" onclick="openUserTab(event, 'lecturers')">أعضاء هيئة التدريس</a>
+                    <a class="tab-link" onclick="openUserTab(event, 'supervisors')">المشرفون</a>
+                    <a class="tab-link" onclick="openUserTab(event, 'cleaners')">عمال النظافة</a>
+                    <a class="tab-link" onclick="openUserTab(event, 'students')">الطلاب</a>
+                </div>
 
-                <h4>المشرفون</h4>
-                <table id="supervisors-table"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>
-
-                <h4>عمال النظافة</h4>
-                <table id="cleaners-table"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>
-
-                <h4>الطلاب</h4>
-                <div class="tabs" id="student-tabs"></div>
-                <div id="student-tabs-content"></div>
+                <div id="lecturers" class="user-tab-content">
+                    <h4>أعضاء هيئة التدريس</h4>
+                    <table id="lecturers-table"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>
+                </div>
+                <div id="supervisors" class="user-tab-content">
+                    <h4>المشرفون</h4>
+                    <table id="supervisors-table"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>
+                </div>
+                <div id="cleaners" class="user-tab-content">
+                    <h4>عمال النظافة</h4>
+                    <table id="cleaners-table"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>
+                </div>
+                <div id="students" class="user-tab-content">
+                    <h4>الطلاب</h4>
+                    <div class="tabs" id="student-dept-tabs"></div>
+                    <div id="student-dept-content"></div>
+                </div>
+                <!-- ## نهاية التعديل ## -->
             </div>
         </div>
 
@@ -146,6 +163,7 @@
             </form>
         </div>
     </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -181,6 +199,10 @@
             document.getElementById(pageId).classList.add('active');
             document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
             document.querySelector(`.nav-link[href="#${pageId}"]`).classList.add('active');
+            if (pageId === 'users') {
+                // ## تعديل: عند فتح صفحة المستخدمين، افتح التبويب الأول تلقائيًا ##
+                document.querySelector('#users-main-tabs .tab-link').click();
+            }
         };
 
         window.openModal = (modalId) => {
@@ -224,14 +246,15 @@
             contentContainer.innerHTML = '';
 
             tabsArray.forEach((tabName, index) => {
+                const tabId = `${contentContainerId}-${tabName.replace(/\s/g, '-')}`;
                 const tabLink = document.createElement('a');
                 tabLink.className = 'tab-link';
                 tabLink.textContent = tabName;
-                tabLink.onclick = () => openTab(event, tabName, contentContainerId);
+                tabLink.onclick = () => openTab(event, tabId, contentContainerId);
                 tabsContainer.appendChild(tabLink);
 
                 const tabContent = document.createElement('div');
-                tabContent.id = `${contentContainerId}-${tabName.replace(/\s/g, '-')}`;
+                tabContent.id = tabId;
                 tabContent.className = 'tab-content';
                 contentContainer.appendChild(tabContent);
 
@@ -246,18 +269,29 @@
             });
         }
 
-        window.openTab = (evt, tabName, contentContainerId) => {
+        window.openTab = (evt, tabId, contentContainerId) => {
             const contentContainer = document.getElementById(contentContainerId);
             contentContainer.querySelectorAll('.tab-content').forEach(tc => tc.style.display = "none");
             evt.currentTarget.parentElement.querySelectorAll('.tab-link').forEach(tl => tl.classList.remove("active"));
-            contentContainer.querySelector(`#${contentContainerId}-${tabName.replace(/\s/g, '-')}`).style.display = "block";
+            document.getElementById(tabId).style.display = "block";
             evt.currentTarget.classList.add("active");
         };
+        
+        // ## التعديل: دالة جديدة لتبويبات المستخدمين الرئيسية ##
+        window.openUserTab = (evt, tabName) => {
+            document.querySelectorAll('.user-tab-content').forEach(tab => tab.style.display = 'none');
+            document.querySelectorAll('#users-main-tabs .tab-link').forEach(link => link.classList.remove('active'));
+            document.getElementById(tabName).style.display = 'block';
+            evt.currentTarget.classList.add('active');
+            // إذا كان التبويب هو للطلاب، قم بتنشيط أول تبويب قسم فرعي
+            if (tabName === 'students') {
+                const firstDeptTab = document.querySelector('#student-dept-tabs .tab-link');
+                if (firstDeptTab) firstDeptTab.click();
+            }
+        };
 
-        // --- ### التعديل الجديد: دالة مزامنة معلومات المحاضرة النشطة ### ---
         async function syncActiveLectureForRoom(roomName, userId) {
             const roomKey = "Room" + roomName;
-            // إذا لم يكن هناك مستخدم (تم إغلاق القاعة)، اضبط المحاضرة على "none"
             if (!userId || userId === 'none') {
                 await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), "none");
                 return;
@@ -267,7 +301,6 @@
             const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
             const currentDay = days[now.getDay()];
             
-            // ابحث عن أقرب محاضرة قادمة لهذا المستخدم في هذه القاعة في هذا اليوم
             const upcomingLecture = allSchedulesData.find(schedule => 
                 schedule.lecturerId === userId && 
                 schedule.room === roomName &&
@@ -285,12 +318,10 @@
                 };
                 await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), activeLectureData);
             } else {
-                // إذا لم يتم العثور على محاضرة مجدولة، اضبطها على "none"
                 await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), "none");
             }
         }
 
-        // --- مزامنة بيانات المستخدمين (للاستخدام في أماكن أخرى) ---
         async function syncAllowedRfids() {
             const usersRef = collection(db, "Users");
             const usersSnapshot = await getDocs(usersRef);
@@ -374,7 +405,6 @@
             else await addDoc(collection(db, "Schedules"), data);
             closeModal('schedule-modal');
         });
-
         // --- عرض البيانات في الجداول والتبويبات ---
         onSnapshot(collection(db, "Users"), (snap) => {
             allUsersData = {};
@@ -382,7 +412,11 @@
                 allUsersData[d.id] = d.data().displayName;
             });
 
-            const tables = { 'عضو هيئة تدريس': document.querySelector('#lecturers-table tbody'), 'مشرف': document.querySelector('#supervisors-table tbody'), 'عامل نظافة': document.querySelector('#cleaners-table tbody') };
+            const tables = { 
+                'عضو هيئة تدريس': document.querySelector('#lecturers-table tbody'), 
+                'مشرف': document.querySelector('#supervisors-table tbody'), 
+                'عامل نظافة': document.querySelector('#cleaners-table tbody') 
+            };
             const studentDataByDept = {};
             departments.forEach(d => studentDataByDept[d] = []);
             Object.values(tables).forEach(tbody => tbody.innerHTML = '');
@@ -409,7 +443,8 @@
             });
 
             departments.forEach(deptName => {
-                const container = document.querySelector(`#student-tabs-content-${deptName.replace(/\s/g, '-')}`);
+                const containerId = `student-dept-content-${deptName.replace(/\s/g, '-')}`;
+                const container = document.getElementById(containerId);
                 if (!container) return;
                 const tbody = container.querySelector('table tbody');
                 tbody.innerHTML = '';
@@ -439,7 +474,8 @@
             });
 
             departments.forEach(deptName => {
-                const container = document.querySelector(`#schedule-tabs-content-${deptName.replace(/\s/g, '-')}`);
+                const containerId = `schedule-tabs-content-${deptName.replace(/\s/g, '-')}`;
+                const container = document.getElementById(containerId);
                 if (!container) return;
                 const tbody = container.querySelector('table tbody');
                 tbody.innerHTML = '';
@@ -476,7 +512,6 @@
             });
         });
 
-        // --- ### التعديل الجديد: المستمع الرئيسي لحالة الأقفال ### ---
         const locksRef = ref(rtdb, 'locks');
         onValue(locksRef, (snapshot) => {
             const allLocksStatus = snapshot.val();
@@ -488,16 +523,12 @@
                 const lockData = allLocksStatus[lockName];
 
                 if (lockData) {
-                    // تحديث حالة القفل (مفتوح/مغلق)
                     roomDataStore[docId].status = lockData.status;
-                    
-                    // تحديث معلومات المحاضرة بناءً على المستخدم الذي فتح القاعة
                     syncActiveLectureForRoom(roomName, lockData.last_user_uid);
                 } else {
                     roomDataStore[docId].status = 'closed';
                     syncActiveLectureForRoom(roomName, 'none');
                 }
-                // تحديث بطاقة العرض في الواجهة
                 updateDashboardCard(docId);
             }
         });
@@ -510,7 +541,6 @@
             updateDashboardCard(docId); 
         }
 
-        // --- ### التعديل الجديد: تحديث بطاقة العرض بناءً على البيانات المجمعة ### ---
         async function updateDashboardCard(docId) {
             const card = document.getElementById(docId);
             const roomData = roomDataStore[docId];
@@ -522,7 +552,6 @@
 
             let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
             
-            // قراءة معلومات المحاضرة النشطة من Realtime Database
             const scheduleRef = ref(rtdb, `schedules_by_room/Room${roomData.name}/active_lecture`);
             const scheduleSnap = await get(scheduleRef);
             const activeLecture = scheduleSnap.val();
@@ -540,7 +569,6 @@
             const adminUser = JSON.parse(sessionStorage.getItem('user'));
             const adminUid = newStatus === 'open' ? adminUser.id : 'none';
             
-            // تحديث حالة القفل وهوية المستخدم في Realtime Database
             await set(ref(rtdb, 'locks/Room' + roomName), { status: newStatus, last_user_uid: adminUid });
         };
 
@@ -657,12 +685,15 @@
         // --- التشغيل الأولي ---
         showPage('dashboard');
         
-        setupTabs('student-tabs', 'student-tabs-content', departments, (tabContent, deptName) => {
-            tabContent.innerHTML = `<table id="students-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
+        // ## تعديل: تم تغيير أسماء الحاويات لتتوافق مع الهيكل الجديد ##
+        setupTabs('student-dept-tabs', 'student-dept-content', departments, (tabContent, deptName) => {
+            const tableId = `students-table-${deptName.replace(/\s/g, '-')}`;
+            tabContent.innerHTML = `<table id="${tableId}"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
         });
 
         setupTabs('schedule-tabs', 'schedule-tabs-content', departments, (tabContent, deptName) => {
-            tabContent.innerHTML = `<table id="schedules-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>المجموعات</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
+            const tableId = `schedules-table-${deptName.replace(/\s/g, '-')}`;
+            tabContent.innerHTML = `<table id="${tableId}"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>المجموعات</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
         });
 
     </script>
