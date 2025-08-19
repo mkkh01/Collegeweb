@@ -167,7 +167,7 @@
                 const userData = userDoc.data();
 
                 // ======================================================
-                // ## التعديل الجديد: التحقق من الدور ##
+                // ## التعديل المطلوب: التحقق من صلاحية الدور ##
                 // ======================================================
                 const allowedRoles = ['admin', 'عضو هيئة تدريس', 'مشرف', 'عامل نظافة'];
                 if (!userData.role || !allowedRoles.includes(userData.role.trim())) {
@@ -193,6 +193,7 @@
                     }
                 });
 
+                // عند المصادقة، قم بفتح القاعة مباشرة
                 await setRoomStatus('open', authenticatedUser);
 
             } catch (error) {
@@ -211,6 +212,7 @@
             showSection(authSection);
         });
 
+        // --- التهيئة الأولية للصفحة ---
         if (!roomName) {
             roomTitleElement.textContent = 'خطأ';
             authSection.innerHTML = '<p class="error">رابط غير صالح. يرجى مسح رمز QR صحيح.</p>';
