@@ -103,7 +103,6 @@
         const statusContainer = document.getElementById('room-status-container');
         const locksRef = ref(rtdb, 'locks');
         
-        // ## تعديل: جلب بيانات الجداول والمستخدمين مرة واحدة ##
         let allSchedulesData = [];
         let allUsersData = {};
 
@@ -116,7 +115,6 @@
                 allUsersData[doc.id] = doc.data().displayName;
             });
 
-            // الآن استمع لتحديثات الحالة من Realtime Database
             onValue(locksRef, (snapshot) => {
                 const allLocksStatus = snapshot.val() || {};
                 renderDashboard(allLocksStatus);
@@ -133,7 +131,6 @@
                     const statusClass = lockStatus === 'open' ? 'open' : 'closed';
                     const statusText = lockStatus === 'open' ? 'مفتوحة' : 'مغلقة';
 
-                    // ## تعديل: البحث عن المحاضرة الحالية ##
                     const now = new Date();
                     const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
                     const currentDay = days[now.getDay()];
@@ -158,9 +155,9 @@
             });
         }
         
-        initializeDashboard(); // بدء تشغيل لوحة الإعلانات
+        initializeDashboard();
 
-        // --- الكود الخاص بالمحاضرين (يبقى كما هو) ---
+        // --- الكود الخاص بالمحاضرين ---
         if (userRole === 'عضو هيئة تدريس') {
             document.getElementById('lecturer-sections').style.display = 'block';
 
@@ -214,6 +211,9 @@
                 });
             };
 
+            // =====================================================================
+            // ## التعديل هنا: دالة البحث البديلة التي لا تحتاج إلى فهرس ##
+            // =====================================================================
             window.fetchAttendance = async () => {
                 const selectedCourse = courseSelect.value;
                 const selectedGroup = groupSelect.value;
@@ -230,29 +230,42 @@
 
                 attendanceTableBody.innerHTML = '<tr><td colspan="5">جاري البحث...</td></tr>';
 
-                const qAttendance = query(collection(db, "Attendance"), 
+                // الخطوة 1: استعلام بسيط لا يحتاج فهرس مركب (يعتمد على الفهرس التلقائي لـ timestamp)
+                const qSimple = query(collection(db, "Attendance"), 
                     where("lecturerName", "==", userDisplayName),
-                    where("courseName", "==", selectedCourse),
-                    where("group", "==", selectedGroup),
                     where("timestamp", ">=", startOfDay),
                     where("timestamp", "<=", endOfDay)
                 );
 
                 try {
-                    const snapshot = await getDocs(qAttendance);
+                    const snapshot = await getDocs(qSimple);
+                    let finalResults = [];
+
+                    // الخطوة 2: فلترة النتائج برمجيًا باستخدام JavaScript
+                    snapshot.forEach(doc => {
+                        const record = doc.data();
+                        // تطبيق الشروط المتبقية (اسم المادة والمجموعة)
+                        if (record.courseName === selectedCourse && record.group === selectedGroup) {
+                            finalResults.push(record);
+                        }
+                    });
+
                     attendanceTableBody.innerHTML = '';
-                    if (snapshot.empty) {
+                    if (finalResults.length === 0) {
                         attendanceTableBody.innerHTML = '<tr><td colspan="5">لا توجد سجلات حضور لهذه المجموعة في هذا اليوم.</td></tr>';
                         return;
                     }
-                    snapshot.forEach(doc => {
-                        const a = doc.data();
+                    
+                    // عرض النتائج النهائية بعد الفلترة
+                    finalResults.forEach(a => {
                         const attendanceTime = a.timestamp.toDate().toLocaleTimeString('ar-EG');
                         attendanceTableBody.innerHTML += `<tr><td>${a.studentName}</td><td>${a.roomName}</td><td>${a.courseName}</td><td>${a.group}</td><td>${attendanceTime}</td></tr>`;
                     });
+
                 } catch (error) {
                     console.error("Error fetching attendance: ", error);
-                    attendanceTableBody.innerHTML = '<tr><td colspan="5">حدث خطأ أثناء جلب البيانات.</td></tr>';
+                    // عرض رسالة الخطأ الحقيقية للمساعدة في التشخيص
+                    attendanceTableBody.innerHTML = `<tr><td colspan="5">حدث خطأ أثناء جلب البيانات. الخطأ: ${error.message}</td></tr>`;
                 }
             };
 
