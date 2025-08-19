@@ -25,7 +25,10 @@
         .room-card.closed { background-color: var(--danger-color); }
         .room-card h4 { margin-top: 0; font-size: 1.8rem; }
         .room-card p { margin: 4px 0; }
-        .room-card .details { margin-top: 10px; min-height: 40px; font-weight: normal; font-size: 0.9rem; }
+        /* ## تعديل: تحسين مظهر تفاصيل المحاضرة ## */
+        .room-card .details { margin-top: 10px; min-height: 45px; font-weight: normal; font-size: 0.9rem; }
+        .room-card .details p { font-size: 1rem; font-weight: normal; margin: 2px 0; }
+        .room-card .details p:first-child { font-weight: bold; font-size: 1.1rem; }
         #student-schedule-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
         #student-schedule-form select { padding: 10px; border: 1px solid #ccc; border-radius: 5px; flex: 1; min-width: 200px; }
         #student-schedule-form button { flex-basis: 100%; padding: 12px; }
@@ -76,7 +79,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, query, where, onSnapshot, addDoc, deleteDoc, doc, getDocs, or } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, query, where, onSnapshot, addDoc, deleteDoc, doc, getDoc, getDocs, or } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
@@ -97,41 +100,49 @@
         document.getElementById('welcome-message').textContent = `أهلاً بك، ${user.displayName} (قسم ${studentDepartment || 'غير محدد'})`;
 
         let allAvailableSchedules = [];
-        let registeredCourseIdentifiers = []; // ## تعديل: لتخزين المواد المسجلة
+        let registeredCourseIdentifiers = [];
 
         // --- 1. عرض لوحة الإعلانات (للقراءة فقط) ---
-        // ... (هذا الجزء يبقى كما هو بدون تغيير)
         const statusContainer = document.getElementById('room-status-container');
         const locksRef = ref(rtdb, 'locks');
         let allSchedulesData = [];
+        let allUsersData = {};
         let roomDataStore = {};
 
-        getDocs(collection(db, "Schedules")).then(snap => {
-            allSchedulesData = snap.docs.map(doc => doc.data());
-        });
+        async function initializeDashboard() {
+            const schedulesSnap = await getDocs(collection(db, "Schedules"));
+            allSchedulesData = schedulesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-        onSnapshot(collection(db, "Rooms"), (snapshot) => {
-            snapshot.docChanges().forEach((change) => {
-                const docId = change.doc.id;
-                const roomData = change.doc.data();
-                if (change.type === "added") roomDataStore[docId] = roomData;
-                if (change.type === "modified") roomDataStore[docId] = { ...roomDataStore[docId], ...roomData };
-                if (change.type === "removed") delete roomDataStore[docId];
+            const usersSnap = await getDocs(collection(db, "Users"));
+            usersSnap.forEach(doc => {
+                allUsersData[doc.id] = doc.data().displayName;
             });
-            updateAllDashboardCards();
-        });
 
-        onValue(locksRef, (snapshot) => {
-            const allLocksStatus = snapshot.val() || {};
-            for (const docId in roomDataStore) {
-                const roomName = roomDataStore[docId].name;
-                const lockName = "Room" + roomName;
-                if (allLocksStatus[lockName]) {
-                    roomDataStore[docId].status = allLocksStatus[lockName].status;
+            onSnapshot(collection(db, "Rooms"), (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    const docId = change.doc.id;
+                    const roomData = change.doc.data();
+                    if (change.type === "added") roomDataStore[docId] = roomData;
+                    if (change.type === "modified") roomDataStore[docId] = { ...roomDataStore[docId], ...roomData };
+                    if (change.type === "removed") delete roomDataStore[docId];
+                });
+                updateAllDashboardCards();
+            });
+
+            onValue(locksRef, (snapshot) => {
+                const allLocksStatus = snapshot.val() || {};
+                for (const docId in roomDataStore) {
+                    const roomName = roomDataStore[docId].name;
+                    const lockName = "Room" + roomName;
+                    if (allLocksStatus[lockName]) {
+                        roomDataStore[docId].status = allLocksStatus[lockName].status;
+                    } else {
+                        roomDataStore[docId].status = 'closed';
+                    }
                 }
-            }
-            updateAllDashboardCards();
-        });
+                updateAllDashboardCards();
+            });
+        }
 
         function updateAllDashboardCards() {
             statusContainer.innerHTML = '';
@@ -155,15 +166,16 @@
 
                 let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
                 if (currentSchedule) {
-                    detailsHtml = `<div class="details"><p>${currentSchedule.lecturer}</p><p>${currentSchedule.courseName}</p></div>`;
+                    const lecturerName = allUsersData[currentSchedule.lecturerId] || 'غير محدد';
+                    detailsHtml = `<div class="details"><p>${lecturerName}</p><p>${currentSchedule.courseName}</p></div>`;
                 }
 
                 statusContainer.innerHTML += `<div class="room-card ${statusClass}"><h4>${roomData.name}</h4><p>${statusText}</p>${detailsHtml}</div>`;
             });
         }
         
+        initializeDashboard();
         setInterval(updateAllDashboardCards, 60000);
-
 
         // --- 2. إدارة الجدول الدراسي للطالب ---
         const scheduleForm = document.getElementById('student-schedule-form');
@@ -174,7 +186,6 @@
         const studentSchedulesRef = collection(db, "StudentSchedules");
         const studentQuery = query(studentSchedulesRef, where("studentId", "==", user.id));
 
-        // ## تعديل: دالة تعبئة المواد المتاحة مع الفلترة
         async function populateAvailableCourses() {
             const schedulesRef = collection(db, "Schedules");
             const q = query(schedulesRef, or(
@@ -196,7 +207,6 @@
 
             availableCoursesSelect.innerHTML = '<option value="" disabled selected>1. اختر المادة...</option>';
             for (const courseIdentifier in uniqueCourses) {
-                // ## تعديل: التحقق من أن المادة ليست مسجلة بالفعل
                 if (!registeredCourseIdentifiers.includes(courseIdentifier)) {
                     availableCoursesSelect.innerHTML += `<option value="${courseIdentifier}">${courseIdentifier}</option>`;
                 }
@@ -223,33 +233,52 @@
             }
         };
 
-        // ## تعديل: onSnapshot يقوم الآن بتحديث قائمة المواد المسجلة ثم يعيد تعبئة القائمة المتاحة
+        // ## تعديل شامل: لضمان المزامنة الفورية لبيانات الجدول ##
         onSnapshot(studentQuery, (snapshot) => {
-            scheduleTableBody.innerHTML = '';
-            registeredCourseIdentifiers = []; // تفريغ القائمة قبل إعادة بنائها
-
+            let tableRows = [];
+            registeredCourseIdentifiers = [];
+            
             if (snapshot.empty) {
                 scheduleTableBody.innerHTML = '<tr><td colspan="6">جدولك فارغ. قم بإضافة موادك الدراسية من القائمة أعلاه.</td></tr>';
-            } else {
-                snapshot.forEach(doc => {
-                    const s = doc.data();
-                    const courseIdentifier = `${s.courseName} (${s.courseCode})`;
-                    registeredCourseIdentifiers.push(courseIdentifier); // إضافة المادة المسجلة إلى القائمة
-
-                    scheduleTableBody.innerHTML += `
-                        <tr>
-                            <td>${s.courseName} (${s.courseCode})</td>
-                            <td>${s.room}</td>
-                            <td>${s.day}</td>
-                            <td>${s.time}</td>
-                            <td>${s.group}</td>
-                            <td><button class="btn btn-danger" onclick="window.deleteSchedule('${doc.id}')">حذف</button></td>
-                        </tr>`;
-                });
+                populateAvailableCourses();
+                return;
             }
-            
-            // بعد تحديث قائمة المواد المسجلة، قم بإعادة بناء قائمة المواد المتاحة
-            populateAvailableCourses();
+
+            const promises = snapshot.docs.map(studentScheduleDoc => {
+                return new Promise(async (resolve) => {
+                    const s = studentScheduleDoc.data();
+                    const originalScheduleRef = doc(db, "Schedules", s.scheduleId);
+                    const originalScheduleSnap = await getDoc(originalScheduleRef);
+
+                    if (originalScheduleSnap.exists()) {
+                        const updatedSchedule = originalScheduleSnap.data();
+                        const courseIdentifier = `${updatedSchedule.courseName} (${updatedSchedule.courseCode})`;
+                        registeredCourseIdentifiers.push(courseIdentifier);
+
+                        tableRows.push(`
+                            <tr>
+                                <td>${courseIdentifier}</td>
+                                <td>${updatedSchedule.room}</td>
+                                <td>${updatedSchedule.day}</td>
+                                <td>${updatedSchedule.time}</td>
+                                <td>${s.group}</td>
+                                <td><button class="btn btn-danger" onclick="window.deleteSchedule('${studentScheduleDoc.id}')">حذف</button></td>
+                            </tr>`);
+                    } else {
+                        tableRows.push(`
+                            <tr>
+                                <td colspan="5" style="color: red;">تم حذف هذه المادة (${s.courseName}) من قبل الإدارة.</td>
+                                <td><button class="btn btn-danger" onclick="window.deleteSchedule('${studentScheduleDoc.id}')">إزالة</button></td>
+                            </tr>`);
+                    }
+                    resolve();
+                });
+            });
+
+            Promise.all(promises).then(() => {
+                scheduleTableBody.innerHTML = tableRows.join('');
+                populateAvailableCourses();
+            });
         });
 
         scheduleForm.addEventListener('submit', async (e) => {
@@ -279,7 +308,7 @@
                 studentId: user.id,
                 displayName: user.displayName,
                 department: studentDepartment,
-                scheduleId: targetSchedule.id,
+                scheduleId: targetSchedule.id, // <-- حفظ ID الجدول الأصلي للمزامنة
                 courseName: targetSchedule.courseName,
                 courseCode: targetSchedule.courseCode,
                 room: targetSchedule.room,
