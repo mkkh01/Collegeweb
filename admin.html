@@ -251,7 +251,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         // ## تعديل: استيراد كل الدوال المطلوبة من المكتبات
         import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where, arrayUnion, arrayRemove, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { getDatabase, ref, set, onValue, get, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+        import { getDatabase, ref, set, onValue, get, update, remove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
@@ -599,10 +599,6 @@
                 }
                 updateDashboardCard(docId);
             }
-            
-            // ### --- التعديل الحاسم والنهائي هنا --- ###
-            // استدعاء دالة الجسر بعد كل تحديث لحالة القاعات
-            processPendingAttendanceEvents(); 
         });
 
         function createDashboardCard(docId, roomData) {
@@ -870,99 +866,86 @@
         };
 
         // ======================================================================
-        // ## تعديل على الكود الناجح: إضافة رقم المحاضرة، المجموعة، ومنع التكرار ##
+        // ## الحل الثالث: "التحكم المباشر" - منطق جديد ##
         // ======================================================================
-        async function processPendingAttendanceEvents() {
-            const eventsRef = ref(rtdb, 'attendance_events');
-            const eventsSnapshot = await get(eventsRef);
 
-            if (!eventsSnapshot.exists()) {
-                return; // لا يوجد شيء لفعله
+        async function executeRegistrationCommand(commandData) {
+            const { studentId, roomName } = commandData;
+
+            if (!studentId || !roomName) {
+                console.error("Invalid command data received:", commandData);
+                return;
             }
 
-            const events = eventsSnapshot.val();
-            const batch = writeBatch(db); // استخدام batch لتحسين الأداء
-            const eventsToDeleteFromRtdb = {};
+            try {
+                const activeLectureSnap = await get(ref(rtdb, `schedules_by_room/Room${roomName}/active_lecture`));
+                const activeLecture = activeLectureSnap.val();
 
-            for (const eventId in events) {
-                const eventData = events[eventId];
-                // في كود ESP8266، تأكد من أنه يرسل studentId و roomName
-                const { studentId, roomName } = eventData;
-
-                if (!studentId || !roomName) {
-                    eventsToDeleteFromRtdb[eventId] = null;
-                    continue;
+                if (!activeLecture || activeLecture === "none") {
+                    console.log(`Command ignored: No active lecture in Room${roomName}.`);
+                    return;
                 }
 
-                try {
-                    const activeLectureSnap = await get(ref(rtdb, `schedules_by_room/Room${roomName}/active_lecture`));
-                    const activeLecture = activeLectureSnap.val();
-
-                    if (!activeLecture || activeLecture === "none") {
-                        // لا تحذف الحدث، فقط تجاهله لهذه الدورة
-                        // سيتم محاولة معالجته مرة أخرى لاحقًا
-                        continue;
-                    }
-
-                    const studentDoc = await getDoc(doc(db, "Users", studentId));
-                    if (!studentDoc.exists()) {
-                        eventsToDeleteFromRtdb[eventId] = null; // حذف الحدث إذا كان الطالب غير موجود
-                        continue;
-                    }
-                    const studentData = studentDoc.data();
-
-                    const today = new Date().toISOString().slice(0, 10);
-                    const attendanceCollectionRef = collection(db, "AttendanceRecords");
-                    const q = query(attendanceCollectionRef, where("scheduleId", "==", activeLecture.scheduleId), where("lectureDate", "==", today));
-                    const querySnapshot = await getDocs(q);
-                    
-                    // هذا هو الكائن الذي سيتم إضافته إلى قائمة الحضور
-                    const newAttendee = {
-                        studentId: studentId,
-                        studentName: studentData.displayName || "اسم غير معروف",
-                        studentGroup: studentData.group || "N/A", // **تمت إضافة المجموعة هنا**
-                        timestamp: new Date() // استخدام وقت المتصفح الحالي
-                    };
-
-                    if (querySnapshot.empty) {
-                        // --- 1. حساب رقم المحاضرة ---
-                        const lectureCountQuery = query(attendanceCollectionRef, where("scheduleId", "==", activeLecture.scheduleId));
-                        const lectureCountSnapshot = await getDocs(lectureCountQuery);
-                        const newLectureNumber = lectureCountSnapshot.size + 1;
-
-                        // إنشاء سجل حضور جديد بالكامل
-                        const newAttendanceDocRef = doc(attendanceCollectionRef);
-                        batch.set(newAttendanceDocRef, {
-                            courseName: activeLecture.courseName,
-                            lecturerName: activeLecture.lecturerName,
-                            lectureDate: today,
-                            scheduleId: activeLecture.scheduleId,
-                            lectureNumber: newLectureNumber, // **تمت إضافة رقم المحاضرة هنا**
-                            attendees: [newAttendee] // إضافة أول طالب حاضر
-                        });
-
-                    } else {
-                        // --- 2. منع التكرار ---
-                        // تحديث سجل موجود باستخدام arrayUnion
-                        const attendanceDocRef = querySnapshot.docs[0].ref;
-                        batch.update(attendanceDocRef, {
-                            attendees: arrayUnion(newAttendee) // **arrayUnion يمنع التكرار تلقائيًا**
-                        });
-                    }
-                    
-                    // ضع علامة على هذا الحدث ليتم حذفه لأنه تمت معالجته بنجاح
-                    eventsToDeleteFromRtdb[eventId] = null;
-
-                } catch (error) {
-                    console.error(`Error processing event ${eventId}:`, error);
+                const studentDoc = await getDoc(doc(db, "Users", studentId));
+                if (!studentDoc.exists()) {
+                    console.log(`Command ignored: Student ${studentId} not found.`);
+                    return;
                 }
-            }
+                const studentData = studentDoc.data();
 
-            // تنفيذ جميع عمليات الكتابة والحذف دفعة واحدة
-            if (Object.keys(eventsToDeleteFromRtdb).length > 0) {
-                await batch.commit();
-                await update(ref(rtdb, 'attendance_events'), eventsToDeleteFromRtdb);
+                const today = new Date().toISOString().slice(0, 10);
+                const attendanceCollectionRef = collection(db, "AttendanceRecords");
+                const q = query(attendanceCollectionRef, where("scheduleId", "==", activeLecture.scheduleId), where("lectureDate", "==", today));
+                const querySnapshot = await getDocs(q);
+                
+                const newAttendee = {
+                    studentId: studentId,
+                    studentName: studentData.displayName || "اسم غير معروف",
+                    studentGroup: studentData.group || "N/A",
+                    timestamp: new Date()
+                };
+
+                if (querySnapshot.empty) {
+                    const lectureCountQuery = query(attendanceCollectionRef, where("scheduleId", "==", activeLecture.scheduleId));
+                    const lectureCountSnapshot = await getDocs(lectureCountQuery);
+                    const newLectureNumber = lectureCountSnapshot.size + 1;
+
+                    const newAttendanceDocRef = doc(attendanceCollectionRef);
+                    await setDoc(newAttendanceDocRef, {
+                        courseName: activeLecture.courseName,
+                        lecturerName: activeLecture.lecturerName,
+                        lectureDate: today,
+                        scheduleId: activeLecture.scheduleId,
+                        lectureNumber: newLectureNumber,
+                        attendees: [newAttendee]
+                    });
+                    console.log(`SUCCESS: New attendance record created for ${activeLecture.courseName} and student ${studentData.displayName} added.`);
+                } else {
+                    const attendanceDocRef = querySnapshot.docs[0].ref;
+                    await updateDoc(attendanceDocRef, {
+                        attendees: arrayUnion(newAttendee)
+                    });
+                    console.log(`SUCCESS: Student ${studentData.displayName} added to existing attendance record.`);
+                }
+            } catch (error) {
+                console.error("Error executing registration command:", error);
             }
+        }
+
+        function listenForAdminCommands() {
+            const commandsRef = ref(rtdb, 'commands_for_admin');
+            onValue(commandsRef, (snapshot) => {
+                if (!snapshot.exists()) {
+                    return;
+                }
+                const commands = snapshot.val();
+                for (const commandId in commands) {
+                    console.log(`New command received: ${commandId}`);
+                    executeRegistrationCommand(commands[commandId]);
+                    // حذف الأمر بعد معالجته مباشرة
+                    remove(ref(rtdb, `commands_for_admin/${commandId}`));
+                }
+            });
         }
 
 
@@ -1038,6 +1021,9 @@
         setupTabs('schedule-tabs', 'schedule-tabs-content', departments, (tabContent, deptName) => {
             tabContent.innerHTML = `<table id="schedules-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>المجموعات</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
         });
+
+        // ## الحل الثالث: تشغيل مستمع الأوامر ##
+        listenForAdminCommands();
 
     </script>
 </body>
