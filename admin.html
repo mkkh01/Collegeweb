@@ -249,8 +249,9 @@
     </div>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { getDatabase, ref, set, onValue, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+        // ## تعديل: استيراد كل الدوال المطلوبة من المكتبات
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where, arrayUnion, arrayRemove, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getDatabase, ref, set, onValue, get, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
@@ -270,7 +271,6 @@
         let allSchedulesData = [];
         let allUsersData = {}; 
         let allStudentsData = [];
-        // ## تعديل: إضافة مخزن لبيانات الحضور ##
         let allAttendanceData = []; 
         const departments = [
             "القسم العام", "قسم الهندسة الكهربائية والالكترونية", "قسم الهندسة الكيميائية", 
@@ -291,7 +291,6 @@
             document.getElementById(pageId).classList.add('active');
             document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
             document.querySelector(`.nav-link[href="#${pageId}"]`).classList.add('active');
-            // ## تعديل: تحميل بيانات الحضور عند فتح الصفحة الخاصة بها ##
             if (pageId === 'attendance') {
                 listenForAttendanceRecords();
             }
@@ -399,7 +398,9 @@
                     lecturerName: lecturerName,
                     lecturerId: upcomingLecture.lecturerId,
                     time: upcomingLecture.time,
-                    groups: upcomingLecture.groups || []
+                    groups: upcomingLecture.groups || [],
+                    // ## مهم: إضافة ID الجدول لربط سجل الحضور
+                    scheduleId: upcomingLecture.id 
                 };
                 await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), activeLectureData);
             } else {
@@ -419,6 +420,7 @@
                         role: userData.role || 'unknown', 
                         name: userData.displayName || 'Unknown User', 
                         department: userData.department || 'none',
+                        group: userData.group || 'A', // إضافة مجموعة افتراضية
                         userId: doc.id
                     };
                 }
@@ -561,7 +563,6 @@
                     tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${lecturerName}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td>${(s.groups||[]).join(', ')}</td><td><button class="btn btn-warning" onclick="editItem('Schedules','${s.id}','schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules','${s.id}','الجدول')">حذف</button>${manageStudentsBtn}</td></tr>`;
                 });
             });
-            // ## تعديل: تحديث قائمة الفلترة للمواد الدراسية ##
             populateCourseFilter();
         });
 
@@ -809,7 +810,7 @@
             if (attendees.length === 0) {
                 tableBody.innerHTML = '<tr><td colspan="3">لم يسجل أي طالب حضوره.</td></tr>';
             } else {
-                attendees.sort((a, b) => a.studentName.localeCompare(b.studentName));
+                attendees.sort((a, b) => (a.studentName || '').localeCompare(b.studentName || ''));
                 attendees.forEach(attendee => {
                     const attendanceTime = attendee.timestamp ? new Date(attendee.timestamp.seconds * 1000).toLocaleTimeString('ar-EG') : 'غير مسجل';
                     tableBody.innerHTML += `
@@ -842,7 +843,7 @@
 
             exportContent.innerHTML = `
                 <h3>تقرير الحضور</h3>
-                <h4>${record.courseName} - محاضرة رقم ${record.lectureNumber}</h4>
+                <h4>${record.courseName} - محاضرة رقم ${record.lectureNumber || ''}</h4>
                 <p><strong>المحاضر:</strong> ${record.lecturerName}</p>
                 <p><strong>التاريخ:</strong> ${record.lectureDate}</p>
                 <hr>
@@ -865,6 +866,101 @@
 
             html2pdf().from(exportContent).set(options).save();
         };
+
+        // ======================================================================
+        // ## الإضافة الجديدة: "دالة الجسر" التي تربط بين RTDB و Firestore ##
+        // ======================================================================
+        async function processPendingAttendanceEvents() {
+            console.log("Checking for pending attendance events...");
+            const eventsRef = ref(rtdb, 'attendance_events');
+            const eventsSnapshot = await get(eventsRef);
+
+            if (!eventsSnapshot.exists()) {
+                console.log("No pending events found.");
+                return; // لا يوجد شيء لفعله
+            }
+
+            const events = eventsSnapshot.val();
+            const updatesToDelete = {}; // لتجميع عمليات الحذف
+
+            for (const eventId in events) {
+                const eventData = events[eventId];
+                const { studentId, roomName } = eventData;
+
+                if (!studentId || !roomName) {
+                    updatesToDelete[eventId] = null; // حذف الحدث غير الصالح
+                    continue;
+                }
+
+                try {
+                    // 1. جلب المحاضرة النشطة من RTDB
+                    const activeLectureSnap = await get(ref(rtdb, `/schedules_by_room/${roomName}/active_lecture`));
+                    const activeLecture = activeLectureSnap.val();
+
+                    if (!activeLecture || activeLecture === "none") {
+                        console.log(`Event ${eventId}: No active lecture in ${roomName}. Skipping.`);
+                        updatesToDelete[eventId] = null; // حذف الحدث لأنه لا يمكن معالجته الآن
+                        continue;
+                    }
+
+                    // 2. جلب بيانات الطالب من Firestore
+                    const studentDoc = await getDoc(doc(db, "Users", studentId));
+                    if (!studentDoc.exists()) {
+                        console.log(`Event ${eventId}: Student ${studentId} not found. Skipping.`);
+                        updatesToDelete[eventId] = null; // حذف الحدث
+                        continue;
+                    }
+                    const studentData = studentDoc.data();
+
+                    // 3. البحث عن سجل الحضور أو إنشائه في Firestore
+                    const today = new Date().toISOString().slice(0, 10);
+                    const q = query(collection(db, "AttendanceRecords"), where("scheduleId", "==", activeLecture.scheduleId), where("lectureDate", "==", today));
+                    const querySnapshot = await getDocs(q);
+                    
+                    let attendanceDocRef;
+                    if (querySnapshot.empty) {
+                        console.log(`Event ${eventId}: Creating new attendance record for ${activeLecture.courseName}.`);
+                        attendanceDocRef = doc(collection(db, "AttendanceRecords"));
+                        await setDoc(attendanceDocRef, {
+                            courseName: activeLecture.courseName,
+                            lecturerName: activeLecture.lecturerName,
+                            lectureDate: today,
+                            scheduleId: activeLecture.scheduleId,
+                            attendees: []
+                        });
+                    } else {
+                        attendanceDocRef = querySnapshot.docs[0].ref;
+                    }
+
+                    // 4. إضافة الطالب إلى قائمة الحضور (باستخدام arrayUnion لمنع التكرار)
+                    const newAttendee = {
+                        studentId: studentId,
+                        studentName: studentData.displayName,
+                        studentGroup: studentData.group || "N/A",
+                        timestamp: new Date() // استخدام وقت المتصفح الحالي
+                    };
+                    
+                    console.log(`Event ${eventId}: Adding ${studentData.displayName} to attendance.`);
+                    await updateDoc(attendanceDocRef, {
+                        attendees: arrayUnion(newAttendee)
+                    });
+
+                    // تم النجاح، قم بوضع علامة لحذف الحدث
+                    updatesToDelete[eventId] = null;
+
+                } catch (error) {
+                    console.error(`Error processing event ${eventId}:`, error);
+                    // لا تحذف الحدث الذي فشل، حاول مرة أخرى لاحقاً
+                }
+            }
+
+            // 5. حذف جميع الأحداث التي تمت معالجتها دفعة واحدة
+            if (Object.keys(updatesToDelete).length > 0) {
+                console.log("Cleaning up processed events...");
+                await update(ref(rtdb, 'attendance_events'), updatesToDelete);
+            }
+        }
+
 
         // ======================================================================
         // ## دوال التحميل والتنزيل ##
@@ -930,6 +1026,8 @@
 
         // --- التشغيل الأولي ---
         showPage('dashboard');
+        // ## الإضافة الجديدة: استدعاء دالة الجسر عند تحميل الصفحة
+        processPendingAttendanceEvents();
         
         setupTabs('student-tabs', 'student-tabs-content', departments, (tabContent, deptName) => {
             tabContent.innerHTML = `<table id="students-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
