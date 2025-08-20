@@ -166,9 +166,7 @@
 
     <div id="pdf-prepare-area" class="pdf-prepare-area"></div>
 
-    <div id="user-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('user-modal')">&times;</span><h3 id="user-modal-title"></h3><form id="user-form"><input type="hidden" id="userId"><div class="form-group"><label>الاسم الكامل</label><input type="text" id="displayName" required></div><div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div><div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم التغيير</small></div><div class="form-group"><label>الدور</label><select id="role" required onchange="toggleDepartmentSelect()"><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option><option value="طالب">طالب</option></select></div><div class="form-group" id="department-group" style="display:none;"><label>القسم</label><select id="department"></select>
-    <!-- ## تعديل: إضافة حقل المجموعة للطالب ## -->
-    <label style="margin-top: 10px;">المجموعة</label><select id="group"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></div><div class="form-group"><label>رمز الباركود (رقم)</label><input type="text" id="barcodeId"></div><div class="form-group"><label>رمز RFID (UID)</label><input type="text" id="rfid"></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
+    <div id="user-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('user-modal')">&times;</span><h3 id="user-modal-title"></h3><form id="user-form"><input type="hidden" id="userId"><div class="form-group"><label>الاسم الكامل</label><input type="text" id="displayName" required></div><div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div><div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم التغيير</small></div><div class="form-group"><label>الدور</label><select id="role" required onchange="toggleDepartmentSelect()"><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option><option value="طالب">طالب</option></select></div><div class="form-group" id="department-group" style="display:none;"><label>القسم</label><select id="department"></select></div><div class="form-group"><label>رمز الباركود (رقم)</label><input type="text" id="barcodeId"></div><div class="form-group"><label>رمز RFID (UID)</label><input type="text" id="rfid"></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
     
     <div id="room-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('room-modal')">&times;</span><h3 id="room-modal-title"></h3><form id="room-form"><input type="hidden" id="roomId"><div class="form-group"><label>اسم القاعة</label><input type="text" id="roomName" required></div><div class="form-group"><label>السعة</label><input type="number" id="roomCapacity" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
     
@@ -409,7 +407,6 @@
             }
         }
 
-        // ## تعديل: إضافة حقل المجموعة (group) إلى بيانات المستخدم في RTDB
         async function syncAllowedRfids() {
             const usersRef = collection(db, "Users");
             const usersSnapshot = await getDocs(usersRef);
@@ -422,7 +419,7 @@
                         role: userData.role || 'unknown', 
                         name: userData.displayName || 'Unknown User', 
                         department: userData.department || 'none',
-                        group: userData.group || 'A', // <-- التعديل هنا
+                        group: userData.group || 'N/A',
                         userId: doc.id
                     };
                 }
@@ -430,7 +427,6 @@
             await set(ref(rtdb, 'allowed_rfids'), allowedRfids);
         }
 
-        // ## تعديل: إضافة حقل المجموعة (group) عند حفظ بيانات الطالب
         document.getElementById('user-form').addEventListener('submit', async (e) => { 
             e.preventDefault(); 
             const id = document.getElementById('userId').value; 
@@ -445,7 +441,7 @@
             }; 
             if (role === 'طالب') {
                 data.department = document.getElementById('department').value;
-                data.group = document.getElementById('group').value; // <-- التعديل هنا
+                data.group = document.getElementById('group').value;
             }
             if (id) { 
                 if (password) { data.password = password; } 
@@ -640,7 +636,6 @@
             await set(ref(rtdb, 'locks/Room' + roomName), { status: newStatus, last_user_uid: adminUid });
         };
 
-        // ## تعديل: إضافة حقل المجموعة (group) عند تعديل بيانات الطالب
         window.editItem = async (collectionName, id, type) => {
             openModal(`${type}-modal`); 
             const itemDoc = await getDoc(doc(db, collectionName, id));
@@ -656,7 +651,7 @@
                 toggleDepartmentSelect();
                 if (data.role === 'طالب') {
                     document.getElementById('department').value = data.department;
-                    document.getElementById('group').value = data.group || 'A'; // <-- التعديل هنا
+                    document.getElementById('group').value = data.group || 'A';
                 }
             } else if (type === 'room') {
                 document.getElementById('roomName').value = data.name;
@@ -871,7 +866,7 @@
             html2pdf().from(exportContent).set(options).save();
         };
 
-        // ## تعديل: "دالة الجسر" أصبحت أذكى الآن
+        // ## تعديل: "دالة الجسر" بالمنطق النهائي الصحيح
         async function processPendingAttendanceEvents() {
             const eventsRef = ref(rtdb, 'attendance_events');
             const eventsSnapshot = await get(eventsRef);
@@ -911,7 +906,6 @@
                     const today = new Date().toISOString().slice(0, 10);
                     const attendanceColl = collection(db, "AttendanceRecords");
                     
-                    // البحث عن سجل الحضور لليوم
                     const q = query(attendanceColl, where("scheduleId", "==", activeLecture.scheduleId), where("lectureDate", "==", today));
                     const querySnapshot = await getDocs(q);
                     
@@ -919,7 +913,6 @@
                     let currentAttendees = [];
 
                     if (querySnapshot.empty) {
-                        // حساب رقم المحاضرة الجديد
                         const pastLecturesQuery = query(attendanceColl, where("scheduleId", "==", activeLecture.scheduleId));
                         const pastLecturesSnap = await getDocs(pastLecturesQuery);
                         const newLectureNumber = pastLecturesSnap.size + 1;
@@ -930,7 +923,7 @@
                             lecturerName: activeLecture.lecturerName,
                             lectureDate: today,
                             scheduleId: activeLecture.scheduleId,
-                            lectureNumber: newLectureNumber, // <-- إضافة رقم المحاضرة
+                            lectureNumber: newLectureNumber,
                             attendees: []
                         });
                     } else {
@@ -938,19 +931,17 @@
                         currentAttendees = querySnapshot.docs[0].data().attendees || [];
                     }
 
-                    // التحقق مما إذا كان الطالب قد حضر بالفعل
                     const alreadyAttended = currentAttendees.some(attendee => attendee.studentId === studentId);
                     if (alreadyAttended) {
-                        console.log(`Student ${studentData.displayName} already attended. Skipping.`);
-                        updatesToDelete[eventId] = null; // حذف الحدث لأنه مكرر
+                        updatesToDelete[eventId] = null;
                         continue;
                     }
 
                     const newAttendee = {
                         studentId: studentId,
                         studentName: studentData.displayName,
-                        studentGroup: studentData.group || 'N/A', // <-- إضافة المجموعة
-                        timestamp: serverTimestamp() // استخدام وقت السيرفر الدقيق
+                        studentGroup: studentData.group || 'N/A',
+                        timestamp: serverTimestamp()
                     };
                     
                     await updateDoc(attendanceDocRef, {
@@ -1029,8 +1020,7 @@
 
         // --- التشغيل الأولي ---
         showPage('dashboard');
-        // ## الإضافة الجديدة: استدعاء دالة الجسر بشكل دوري
-        setInterval(processPendingAttendanceEvents, 15000); // استدعاء الدالة كل 15 ثانية
+        setInterval(processPendingAttendanceEvents, 15000);
         
         setupTabs('student-tabs', 'student-tabs-content', departments, (tabContent, deptName) => {
             tabContent.innerHTML = `<table id="students-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
