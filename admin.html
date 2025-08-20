@@ -125,18 +125,13 @@
 
         <div id="rooms" class="page"><div class="card"><h3>القاعات الدراسية</h3><button class="btn btn-primary" onclick="openModal('room-modal')">إضافة قاعة</button><table id="rooms-table"><thead><tr><th>اسم القاعة</th><th>السعة</th><th>رمز QR</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
 
-        <!-- ## تعديل: تغيير هيكل الفلترة في صفحة سجلات الحضور ## -->
         <div id="attendance" class="page">
             <div class="card">
                 <h3>سجلات الحضور والغياب</h3>
                 <div class="filter-container">
                     <div class="form-group">
-                        <label for="attendance-department-filter">فلترة حسب القسم</label>
-                        <select id="attendance-department-filter" onchange="window.populateCourseFilterForDepartment(this.value)"></select>
-                    </div>
-                    <div class="form-group">
                         <label for="attendance-course-filter">فلترة حسب المادة</label>
-                        <select id="attendance-course-filter" onchange="window.renderAttendanceTable()"></select>
+                        <select id="attendance-course-filter" onchange="window.filterAttendanceRecords()"></select>
                     </div>
                 </div>
                 <table id="attendance-summary-table">
@@ -149,9 +144,7 @@
                             <th>إجراء</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <!-- سيتم عرض رسالة هنا لتوجيه المستخدم -->
-                    </tbody>
+                    <tbody></tbody>
                 </table>
             </div>
         </div>
@@ -169,6 +162,7 @@
                 <div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div>
                 <div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم التغيير</small></div>
                 <div class="form-group"><label>الدور</label><select id="role" required onchange="toggleDepartmentSelect()"><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option><option value="طالب">طالب</option></select></div>
+                <!-- ## تعديل: تم حذف حقل المجموعة من هنا ## -->
                 <div class="form-group" id="department-group" style="display:none;"><label>القسم</label><select id="department"></select></div>
                 <div class="form-group"><label>رمز الباركود (رقم)</label><input type="text" id="barcodeId"></div>
                 <div class="form-group"><label>رمز RFID (UID)</label><input type="text" id="rfid"></div>
@@ -292,8 +286,7 @@
             document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
             document.querySelector(`.nav-link[href="#${pageId}"]`).classList.add('active');
             if (pageId === 'attendance') {
-                // ## تعديل: استدعاء دالة تهيئة الفلاتر عند فتح الصفحة
-                initializeAttendanceFilters();
+                listenForAttendanceRecords();
             }
         };
 
@@ -561,8 +554,7 @@
                     tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${lecturerName}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td>${(s.groups||[]).join(', ')}</td><td><button class="btn btn-warning" onclick="editItem('Schedules','${s.id}','schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules','${s.id}','الجدول')">حذف</button>${manageStudentsBtn}</td></tr>`;
                 });
             });
-            // ## تعديل: لا نعد نستدعي هذه الدالة مباشرة من هنا
-            // populateCourseFilter();
+            populateCourseFilter();
         });
 
         onSnapshot(collection(db, "Rooms"), (snapshot) => {
@@ -739,84 +731,46 @@
             renderEnrolledStudents();
         }
         // ======================================================================
-        // ## دوال إدارة وعرض سجلات الحضور (مع الفلترة الجديدة) ##
+        // ## دوال إدارة وعرض سجلات الحضور ##
         // ======================================================================
         
         function listenForAttendanceRecords() {
             const attendanceRef = collection(db, "AttendanceRecords");
             onSnapshot(attendanceRef, (snap) => {
                 allAttendanceData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                // لا نعرض الجدول مباشرة، بل ننتظر اختيار المستخدم
-                renderAttendanceTable(); 
+                renderAttendanceTable();
             });
         }
 
-        // ## تعديل: دالة جديدة لتهيئة فلاتر القسم والمادة
-        function initializeAttendanceFilters() {
-            listenForAttendanceRecords();
-            const deptFilter = document.getElementById('attendance-department-filter');
-            deptFilter.innerHTML = '<option value="">اختر القسم أولاً...</option>';
-            departments.forEach(dep => {
-                deptFilter.innerHTML += `<option value="${dep}">${dep}</option>`;
+        function populateCourseFilter() {
+            const filterSelect = document.getElementById('attendance-course-filter');
+            const uniqueCourses = [...new Map(allSchedulesData.map(item => [item['courseCode'], item])).values()];
+            filterSelect.innerHTML = '<option value="">جميع المواد</option>';
+            uniqueCourses.forEach(course => {
+                filterSelect.innerHTML += `<option value="${course.courseCode}">${course.courseName} (${course.courseCode})</option>`;
             });
-            // مسح قائمة المواد وإفراغ الجدول عند البداية
-            document.getElementById('attendance-course-filter').innerHTML = '<option value="">اختر مادة...</option>';
-            document.querySelector('#attendance-summary-table tbody').innerHTML = '<tr><td colspan="5">الرجاء اختيار قسم ثم مادة لعرض السجلات.</td></tr>';
         }
 
-        // ## تعديل: دالة جديدة لملء فلتر المواد بناءً على القسم المختار
-        window.populateCourseFilterForDepartment = (selectedDept) => {
-            const courseFilter = document.getElementById('attendance-course-filter');
-            const tbody = document.querySelector('#attendance-summary-table tbody');
-            
-            if (!selectedDept) {
-                courseFilter.innerHTML = '<option value="">اختر مادة...</option>';
-                tbody.innerHTML = '<tr><td colspan="5">الرجاء اختيار قسم ثم مادة لعرض السجلات.</td></tr>';
-                return;
-            }
-
-            const coursesInDept = allSchedulesData.filter(s => s.department === selectedDept);
-            const uniqueCourses = [...new Map(coursesInDept.map(item => [item['courseCode'], item])).values()];
-            
-            courseFilter.innerHTML = '<option value="">اختر مادة...</option>';
-            if (uniqueCourses.length > 0) {
-                uniqueCourses.forEach(course => {
-                    courseFilter.innerHTML += `<option value="${course.courseCode}">${course.courseName} (${course.courseCode})</option>`;
-                });
-            }
-            // مسح الجدول عند تغيير القسم
-            tbody.innerHTML = '<tr><td colspan="5">الرجاء اختيار مادة لعرض السجلات.</td></tr>';
+        window.filterAttendanceRecords = () => {
+            renderAttendanceTable();
         };
 
-        // ## تعديل: دالة عرض الجدول تعتمد الآن على الفلترين معاً
-        window.renderAttendanceTable = () => {
+        function renderAttendanceTable() {
             const tbody = document.querySelector('#attendance-summary-table tbody');
-            const selectedDept = document.getElementById('attendance-department-filter').value;
-            const selectedCourseCode = document.getElementById('attendance-course-filter').value;
-
-            if (!selectedDept || !selectedCourseCode) {
-                // لا تعرض شيئاً إذا لم يتم اختيار القسم والمادة
-                if (!selectedDept) {
-                    tbody.innerHTML = '<tr><td colspan="5">الرجاء اختيار قسم ثم مادة لعرض السجلات.</td></tr>';
-                } else {
-                    tbody.innerHTML = '<tr><td colspan="5">الرجاء اختيار مادة لعرض السجلات.</td></tr>';
-                }
-                return;
-            }
+            tbody.innerHTML = '';
+            const selectedCourse = document.getElementById('attendance-course-filter').value;
             
-            // 1. نجد كل الجداول الدراسية التي تطابق رمز المادة المختار
-            const relevantSchedules = allSchedulesData.filter(s => s.courseCode === selectedCourseCode);
-            const relevantScheduleIds = relevantSchedules.map(s => s.id);
-
-            // 2. نفلتر سجلات الحضور التي تنتمي لأي من هذه الجداول
-            const filteredData = allAttendanceData.filter(record => relevantScheduleIds.includes(record.scheduleId));
+            const filteredData = allAttendanceData.filter(record => {
+                const schedule = allSchedulesData.find(s => s.id === record.scheduleId);
+                if (!schedule) return false;
+                return !selectedCourse || schedule.courseCode === selectedCourse;
+            });
 
             if (filteredData.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5">لا توجد سجلات حضور لهذه المادة.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5">لا توجد سجلات حضور تطابق هذا الفلتر.</td></tr>';
                 return;
             }
-            
-            tbody.innerHTML = '';
+
             filteredData.sort((a, b) => new Date(b.lectureDate) - new Date(a.lectureDate));
 
             filteredData.forEach(record => {
@@ -905,7 +859,7 @@
         };
 
         // ======================================================================
-        // ## "دالة الجسر" التي تربط بين RTDB و Firestore ##
+        // ## "دالة الجسر" التي تربط بين RTDB و Firestore (المنطق الجديد) ##
         // ======================================================================
         async function processPendingAttendanceEvents() {
             const eventsRef = ref(rtdb, 'attendance_events');
@@ -936,8 +890,10 @@
                         continue;
                     }
                     
+                    // ## المنطق الجديد: البحث عن الجدول الدراسي للمحاضرة النشطة
                     const scheduleData = allSchedulesData.find(s => s.id === activeLecture.scheduleId);
                     if (!scheduleData || !scheduleData.enrolledStudents.includes(studentId)) {
+                        // الطالب غير مسجل في هذه المادة، تجاهل الحضور
                         updatesToDelete[eventId] = null;
                         continue;
                     }
@@ -980,6 +936,7 @@
                         const newAttendee = {
                             studentId: studentId,
                             studentName: studentData.displayName,
+                            // ## المنطق الجديد: المجموعة هي مجموعات المادة نفسها
                             studentGroup: scheduleData.groups.join(', ') || "N/A", 
                             timestamp: new Date()
                         };
@@ -1063,7 +1020,7 @@
 
         // --- التشغيل الأولي ---
         showPage('dashboard');
-        setInterval(processPendingAttendanceEvents, 15000);
+        setInterval(processPendingAttendanceEvents, 15000); // تشغيل الدالة كل 15 ثانية
         
         setupTabs('student-tabs', 'student-tabs-content', departments, (tabContent, deptName) => {
             tabContent.innerHTML = `<table id="students-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
