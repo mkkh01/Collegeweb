@@ -28,7 +28,7 @@
         .btn-primary { background-color: var(--primary-color); } .btn-warning { background-color: var(--warning-color); }
         .btn-danger { background-color: var(--danger-color); } .btn-success { background-color: var(--success-color); } .btn-info { background-color: var(--info-color); }
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
-        .modal-content { background-color: #fefefe; margin: 5% auto; padding: 30px; border: 1px solid #888; width: 90%; max-width: 600px; border-radius: 8px; }
+        .modal-content { background-color: #fefefe; margin: 5% auto; padding: 30px; border: 1px solid #888; width: 90%; max-width: 800px; border-radius: 8px; } /* زيادة عرض النافذة */
         .close-btn { color: #aaa; float: left; font-size: 28px; font-weight: bold; cursor: pointer; }
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; margin-bottom: 5px; }
@@ -63,9 +63,13 @@
         #student-search-results { border: 1px solid #ccc; max-height: 150px; overflow-y: auto; margin-top: 5px; border-radius: 4px; position: absolute; background-color: white; width: calc(100% - 22px); z-index: 1001; }
         #student-search-results div { padding: 10px; cursor: pointer; }
         #student-search-results div:hover { background-color: #f0f0f0; }
-        #enrolled-students-list { list-style-type: none; padding: 0; max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 4px; }
-        #enrolled-students-list li { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #eee; }
-        #enrolled-students-list li:last-child { border-bottom: none; }
+        
+        /* ## تعديل: أنماط لجدول الطلاب المسجلين ## */
+        #enrolled-students-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        #enrolled-students-table th, #enrolled-students-table td { border: 1px solid #ddd; padding: 8px; text-align: right; }
+        #enrolled-students-table th { background-color: #f2f2f2; }
+        #enrolled-students-container { max-height: 250px; overflow-y: auto; }
+
     </style>
 </head>
 <body>
@@ -129,7 +133,7 @@
     <div id="room-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('room-modal')">&times;</span><h3 id="room-modal-title"></h3><form id="room-form"><input type="hidden" id="roomId"><div class="form-group"><label>اسم القاعة</label><input type="text" id="roomName" required></div><div class="form-group"><label>السعة</label><input type="number" id="roomCapacity" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
     
     <div id="schedule-modal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 600px;">
             <span class="close-btn" onclick="closeModal('schedule-modal')">&times;</span>
             <h3 id="schedule-modal-title"></h3>
             <form id="schedule-form">
@@ -155,7 +159,7 @@
         </div>
     </div>
 
-    <!-- ## تعديل: إضافة نافذة إدارة الطلاب ## -->
+    <!-- ## تعديل: تحديث نافذة إدارة الطلاب لاستخدام جدول ## -->
     <div id="manage-students-modal" class="modal">
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal('manage-students-modal')">&times;</span>
@@ -167,9 +171,22 @@
             </div>
             <hr>
             <h4>الطلاب المسجلون في المادة</h4>
-            <ul id="enrolled-students-list">
-                <!-- سيتم ملء القائمة هنا -->
-            </ul>
+            <div id="enrolled-students-container">
+                <table id="enrolled-students-table">
+                    <thead>
+                        <tr>
+                            <th>اسم الطالب</th>
+                            <th>اسم المستخدم</th>
+                            <th>كلمة المرور</th>
+                            <th>RFID (UID)</th>
+                            <th>إجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- سيتم ملء الجدول هنا -->
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
     <script type="module">
@@ -194,13 +211,12 @@
         const roomDataStore = {};
         let allSchedulesData = [];
         let allUsersData = {}; 
-        let allStudentsData = []; // ## تعديل: مخزن لبيانات الطلاب
+        let allStudentsData = []; // مخزن لبيانات الطلاب
         const departments = [
             "القسم العام", "قسم الهندسة الكهربائية والالكترونية", "قسم الهندسة الكيميائية", 
             "قسم الهندسة المدنية", "قسم الهندسة الميكانيكية", "قسم الهندسة المعمارية"
         ];
 
-        // ## تعديل: متغيرات لحفظ حالة نافذة إدارة الطلاب
         let currentManagingSchedule = {
             id: null,
             department: null,
@@ -222,7 +238,10 @@
             if (form) form.reset();
             const hiddenId = form ? form.querySelector(`input[type=hidden]`) : null;
             if (hiddenId) hiddenId.value = '';
-            document.querySelector(`#${modalId} h3`).textContent = 'إضافة جديد';
+            // لا نغير العنوان هنا لكل النوافذ، سيتم تخصيصه عند الفتح
+            if (modalId === 'user-modal' || modalId === 'room-modal' || modalId === 'schedule-modal') {
+                 document.querySelector(`#${modalId} h3`).textContent = 'إضافة جديد';
+            }
             if (modalId === 'user-modal') toggleDepartmentSelect();
             if (modalId === 'schedule-modal') populateSelects();
             document.getElementById(modalId).style.display = 'block';
@@ -402,27 +421,23 @@
                 day: document.getElementById('day').value,
                 time: `${document.getElementById('startTime').value}-${document.getElementById('endTime').value}`,
                 groups: selectedGroups,
-                enrolledStudents: [] // ## تعديل: إضافة حقل الطلاب المسجلين عند الإنشاء
             };
             
-            const scheduleRef = id ? doc(db, "Schedules", id) : collection(db, "Schedules");
             if (id) {
-                // عند التعديل، لا نلمس حقل الطلاب المسجلين
-                delete data.enrolledStudents;
-                await updateDoc(scheduleRef, data);
+                await updateDoc(doc(db, "Schedules", id), data);
             } else {
-                await addDoc(scheduleRef, data);
+                data.enrolledStudents = []; // إضافة حقل الطلاب المسجلين فقط عند الإنشاء
+                await addDoc(collection(db, "Schedules"), data);
             }
             closeModal('schedule-modal');
         });
 
         onSnapshot(collection(db, "Users"), (snap) => {
             allUsersData = {};
-            allStudentsData = []; // ## تعديل: إعادة تعيين بيانات الطلاب
+            allStudentsData = []; // إعادة تعيين بيانات الطلاب
             snap.forEach(d => {
                 const userData = d.data();
-                allUsersData[d.id] = userData.displayName;
-                // ## تعديل: تعبئة مصفوفة الطلاب للبحث
+                allUsersData[d.id] = userData; // تخزين كائن المستخدم الكامل
                 if (userData.role === 'طالب') {
                     allStudentsData.push({ id: d.id, ...userData });
                 }
@@ -490,8 +505,7 @@
                 const tbody = container.querySelector('table tbody');
                 tbody.innerHTML = '';
                 scheduleDataByDept[deptName].forEach(s => {
-                    const lecturerName = allUsersData[s.lecturerId] || 'محاضر محذوف';
-                    // ## تعديل: إضافة زر إدارة الطلاب
+                    const lecturerName = allUsersData[s.lecturerId]?.displayName || 'محاضر محذوف';
                     const manageStudentsBtn = `<button class="btn btn-info" onclick="openManageStudentsModal('${s.id}', '${s.department}', '${s.courseName} (${s.courseCode})')">إدارة الطلاب</button>`;
                     tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${lecturerName}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td>${(s.groups||[]).join(', ')}</td><td><button class="btn btn-warning" onclick="editItem('Schedules','${s.id}','schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules','${s.id}','الجدول')">حذف</button>${manageStudentsBtn}</td></tr>`;
                 });
@@ -584,7 +598,6 @@
             await set(ref(rtdb, 'locks/Room' + roomName), { status: newStatus, last_user_uid: adminUid });
         };
 
-        // --- دوال مساعدة (تعديل، حذف، طباعة، تحميل) ---
         window.editItem = async (collectionName, id, type) => {
             openModal(`${type}-modal`); 
             const itemDoc = await getDoc(doc(db, collectionName, id));
@@ -636,7 +649,7 @@
             }
         };
 
-        // ## تعديل: إضافة دوال إدارة الطلاب ##
+        // ## تعديل: تحديث دوال إدارة الطلاب لعرض بيانات إضافية ##
         window.openManageStudentsModal = async (scheduleId, department, courseTitle) => {
             const scheduleDoc = await getDoc(doc(db, "Schedules", scheduleId));
             if (!scheduleDoc.exists()) {
@@ -655,22 +668,25 @@
         };
 
         function renderEnrolledStudents() {
-            const list = document.getElementById('enrolled-students-list');
-            list.innerHTML = '';
+            const tableBody = document.querySelector('#enrolled-students-table tbody');
+            tableBody.innerHTML = '';
             if (currentManagingSchedule.enrolledStudents.length === 0) {
-                list.innerHTML = '<li>لا يوجد طلاب مسجلون حاليًا.</li>';
+                tableBody.innerHTML = '<tr><td colspan="5">لا يوجد طلاب مسجلون حاليًا.</td></tr>';
                 return;
             }
             currentManagingSchedule.enrolledStudents.forEach(studentId => {
-                const studentName = allUsersData[studentId] || `طالب (ID: ${studentId})`;
-                const li = document.createElement('li');
-                li.textContent = studentName;
-                const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'btn btn-danger';
-                deleteBtn.textContent = 'حذف';
-                deleteBtn.onclick = () => removeStudentFromSchedule(studentId);
-                li.appendChild(deleteBtn);
-                list.appendChild(li);
+                const studentData = allUsersData[studentId];
+                if (!studentData) return; // تخطي في حال تم حذف الطالب
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${studentData.displayName || 'غير متوفر'}</td>
+                    <td>${studentData.username || 'غير متوفر'}</td>
+                    <td>${studentData.password || 'غير متوفر'}</td>
+                    <td>${studentData.rfid || 'غير متوفر'}</td>
+                    <td><button class="btn btn-danger btn-sm" onclick="removeStudentFromSchedule('${studentId}')">حذف</button></td>
+                `;
+                tableBody.appendChild(tr);
             });
         }
 
@@ -710,7 +726,7 @@
             document.getElementById('student-search').focus();
         }
 
-        async function removeStudentFromSchedule(studentId) {
+        window.removeStudentFromSchedule = async (studentId) => {
             const scheduleRef = doc(db, "Schedules", currentManagingSchedule.id);
             await updateDoc(scheduleRef, {
                 enrolledStudents: arrayRemove(studentId)
@@ -719,7 +735,6 @@
             currentManagingSchedule.enrolledStudents = currentManagingSchedule.enrolledStudents.filter(id => id !== studentId);
             renderEnrolledStudents();
         }
-
 
         window.downloadIdCardAsPDF = (name, role, barcodeValue) => {
             const prepareArea = document.getElementById('pdf-prepare-area');
