@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
@@ -373,18 +373,25 @@
             contentContainer.querySelector(`#${contentContainerId}-${tabName.replace(/\s/g, '-')}`).style.display = "block";
             evt.currentTarget.classList.add("active");
         };
-
+        // #################### التعديل هنا ####################
+        // استبدل الدالة القديمة بهذه النسخة الجديدة التي تحتوي على أوامر طباعة للتشخيص
         async function syncActiveLectureForRoom(roomName, userId) {
             const roomKey = "Room" + roomName;
+            const activeLectureRef = ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`);
+
             if (!userId || userId === 'none') {
-                await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), "none");
+                await set(activeLectureRef, "none");
                 return;
             }
+
+            console.log(`--- Syncing active lecture for Room: ${roomName}, UserID: ${userId} ---`);
 
             const now = new Date();
             const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
             const currentDay = days[now.getDay()];
             
+            console.log(`Searching for a schedule on: ${currentDay}`);
+
             const upcomingLecture = allSchedulesData.find(schedule => 
                 schedule.lecturerId === userId && 
                 schedule.room === roomName &&
@@ -392,6 +399,7 @@
             );
 
             if (upcomingLecture) {
+                console.log("SUCCESS: Found a matching schedule:", upcomingLecture);
                 const lecturerName = allUsersData[upcomingLecture.lecturerId]?.displayName || 'غير محدد';
                 const activeLectureData = {
                     courseName: upcomingLecture.courseName,
@@ -399,14 +407,19 @@
                     lecturerId: upcomingLecture.lecturerId,
                     time: upcomingLecture.time,
                     groups: upcomingLecture.groups || [],
-                    // ## مهم: إضافة ID الجدول لربط سجل الحضور
                     scheduleId: upcomingLecture.id 
                 };
-                await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), activeLectureData);
+                await set(activeLectureRef, activeLectureData);
+                console.log("Active lecture has been set in Realtime Database.");
             } else {
-                await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), "none");
+                // هذه هي الرسالة الأهم التي ستظهر على الأغلب
+                console.error(`FAILURE: No matching schedule found for UserID '${userId}' in Room '${roomName}' on '${currentDay}'.`);
+                console.error("Please check the 'Schedules' collection in Firestore to ensure a correct entry exists.");
+                await set(activeLectureRef, "none");
             }
+            console.log("--- Sync complete. ---");
         }
+        // #################### نهاية التعديل ####################
 
         async function syncAllowedRfids() {
             const usersRef = collection(db, "Users");
