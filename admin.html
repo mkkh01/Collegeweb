@@ -34,7 +34,7 @@
         .form-group label { display: block; margin-bottom: 5px; }
         .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
         .room-status-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
-        .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; display: flex; flex-direction: column; justify-content: space-between; min-height: 190px; transition: background-color 0.5s ease; }
+        .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; display: flex; flex-direction: column; justify-content: space-between; min-height: 190px; transition: background-color: 0.5s ease; }
         .room-card.open { background-color: var(--success-color); }
         .room-card.closed { background-color: var(--danger-color); }
         .room-card h4 { margin-top: 0; font-size: 1.8rem; color: white; }
@@ -250,8 +250,8 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         // ## تعديل: استيراد كل الدوال المطلوبة من المكتبات
-        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where, arrayUnion, arrayRemove, setDoc, writeBatch, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { getDatabase, ref, set, onValue, get, update, remove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where, arrayUnion, arrayRemove, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getDatabase, ref, set, onValue, get, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
@@ -373,25 +373,17 @@
             contentContainer.querySelector(`#${contentContainerId}-${tabName.replace(/\s/g, '-')}`).style.display = "block";
             evt.currentTarget.classList.add("active");
         };
-        // #################### التعديل هنا ####################
-        // استبدل الدالة القديمة بهذه النسخة الجديدة التي تحتوي على أوامر طباعة للتشخيص
         async function syncActiveLectureForRoom(roomName, userId) {
             const roomKey = "Room" + roomName;
-            const activeLectureRef = ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`);
-
             if (!userId || userId === 'none') {
-                await set(activeLectureRef, "none");
+                await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), "none");
                 return;
             }
-
-            console.log(`--- Syncing active lecture for Room: ${roomName}, UserID: ${userId} ---`);
 
             const now = new Date();
             const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
             const currentDay = days[now.getDay()];
             
-            console.log(`Searching for a schedule on: ${currentDay}`);
-
             const upcomingLecture = allSchedulesData.find(schedule => 
                 schedule.lecturerId === userId && 
                 schedule.room === roomName &&
@@ -399,7 +391,6 @@
             );
 
             if (upcomingLecture) {
-                console.log("SUCCESS: Found a matching schedule:", upcomingLecture);
                 const lecturerName = allUsersData[upcomingLecture.lecturerId]?.displayName || 'غير محدد';
                 const activeLectureData = {
                     courseName: upcomingLecture.courseName,
@@ -407,19 +398,14 @@
                     lecturerId: upcomingLecture.lecturerId,
                     time: upcomingLecture.time,
                     groups: upcomingLecture.groups || [],
+                    // ## مهم: إضافة ID الجدول لربط سجل الحضور
                     scheduleId: upcomingLecture.id 
                 };
-                await set(activeLectureRef, activeLectureData);
-                console.log("Active lecture has been set in Realtime Database.");
+                await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), activeLectureData);
             } else {
-                // هذه هي الرسالة الأهم التي ستظهر على الأغلب
-                console.error(`FAILURE: No matching schedule found for UserID '${userId}' in Room '${roomName}' on '${currentDay}'.`);
-                console.error("Please check the 'Schedules' collection in Firestore to ensure a correct entry exists.");
-                await set(activeLectureRef, "none");
+                await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), "none");
             }
-            console.log("--- Sync complete. ---");
         }
-        // #################### نهاية التعديل ####################
 
         async function syncAllowedRfids() {
             const usersRef = collection(db, "Users");
@@ -440,6 +426,7 @@
             });
             await set(ref(rtdb, 'allowed_rfids'), allowedRfids);
         }
+
         document.getElementById('user-form').addEventListener('submit', async (e) => { 
             e.preventDefault(); 
             const id = document.getElementById('userId').value; 
@@ -689,12 +676,7 @@
                         await set(ref(rtdb, 'schedules_by_room/Room' + roomName), null);
                     }
                 }
-                // ## تعديل: اسم المجموعة لسجلات الحضور هو "AttendanceRecords"
-                if (collectionName === 'AttendanceRecords') {
-                     await deleteDoc(doc(db, "AttendanceRecords", id));
-                } else {
-                     await deleteDoc(doc(db, collectionName, id));
-                }
+                await deleteDoc(doc(db, collectionName, id));
             }
         };
 
@@ -795,7 +777,7 @@
                 return;
             }
 
-            filteredData.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+            filteredData.sort((a, b) => new Date(b.lectureDate) - new Date(a.lectureDate));
 
             filteredData.forEach(record => {
                 tbody.innerHTML += `
@@ -807,7 +789,6 @@
                         <td>${record.attendees?.length || 0}</td>
                         <td>
                             <button class="btn btn-info" onclick="window.showAttendanceDetails('${record.id}')">عرض التفاصيل</button>
-                            <button class="btn btn-danger" onclick="window.deleteItem('AttendanceRecords', '${record.id}', 'سجل الحضور')">حذف</button>
                         </td>
                     </tr>
                 `;
@@ -885,7 +866,7 @@
         };
 
         // ======================================================================
-        // ## الإضافة الجديدة: "دالة الجسر" التي تربط بين RTDB و Firestore ##
+        // ## تعديل على الكود الناجح: إضافة رقم المحاضرة، المجموعة، ومنع التكرار ##
         // ======================================================================
         async function processPendingAttendanceEvents() {
             const eventsRef = ref(rtdb, 'attendance_events');
@@ -896,12 +877,13 @@
             }
 
             const events = eventsSnapshot.val();
-            const batch = writeBatch(db);
+            const batch = writeBatch(db); // استخدام batch لتحسين الأداء
             const eventsToDeleteFromRtdb = {};
 
             for (const eventId in events) {
                 const eventData = events[eventId];
-                const { studentId, roomName, studentGroup, studentName } = eventData;
+                // في كود ESP8266، تأكد من أنه يرسل studentId و roomName
+                const { studentId, roomName } = eventData;
 
                 if (!studentId || !roomName) {
                     eventsToDeleteFromRtdb[eventId] = null;
@@ -913,54 +895,72 @@
                     const activeLecture = activeLectureSnap.val();
 
                     if (!activeLecture || activeLecture === "none") {
-                        eventsToDeleteFromRtdb[eventId] = null;
+                        // لا تحذف الحدث، فقط تجاهله لهذه الدورة
+                        // سيتم محاولة معالجته مرة أخرى لاحقًا
                         continue;
                     }
+
+                    const studentDoc = await getDoc(doc(db, "Users", studentId));
+                    if (!studentDoc.exists()) {
+                        eventsToDeleteFromRtdb[eventId] = null; // حذف الحدث إذا كان الطالب غير موجود
+                        continue;
+                    }
+                    const studentData = studentDoc.data();
 
                     const today = new Date().toISOString().slice(0, 10);
                     const attendanceCollectionRef = collection(db, "AttendanceRecords");
                     const q = query(attendanceCollectionRef, where("scheduleId", "==", activeLecture.scheduleId), where("lectureDate", "==", today));
                     const querySnapshot = await getDocs(q);
                     
+                    // هذا هو الكائن الذي سيتم إضافته إلى قائمة الحضور
                     const newAttendee = {
                         studentId: studentId,
-                        studentName: studentName || "اسم غير معروف",
-                        studentGroup: studentGroup || "N/A",
-                        timestamp: serverTimestamp()
+                        studentName: studentData.displayName || "اسم غير معروف",
+                        studentGroup: studentData.group || "N/A", // **تمت إضافة المجموعة هنا**
+                        timestamp: new Date() // استخدام وقت المتصفح الحالي
                     };
 
                     if (querySnapshot.empty) {
+                        // --- 1. حساب رقم المحاضرة ---
                         const lectureCountQuery = query(attendanceCollectionRef, where("scheduleId", "==", activeLecture.scheduleId));
                         const lectureCountSnapshot = await getDocs(lectureCountQuery);
                         const newLectureNumber = lectureCountSnapshot.size + 1;
 
+                        // إنشاء سجل حضور جديد بالكامل
                         const newAttendanceDocRef = doc(attendanceCollectionRef);
                         batch.set(newAttendanceDocRef, {
                             courseName: activeLecture.courseName,
                             lecturerName: activeLecture.lecturerName,
                             lectureDate: today,
                             scheduleId: activeLecture.scheduleId,
-                            lectureNumber: newLectureNumber,
-                            attendees: [newAttendee],
-                            createdAt: serverTimestamp()
+                            lectureNumber: newLectureNumber, // **تمت إضافة رقم المحاضرة هنا**
+                            attendees: [newAttendee] // إضافة أول طالب حاضر
                         });
+
                     } else {
+                        // --- 2. منع التكرار ---
+                        // تحديث سجل موجود باستخدام arrayUnion
                         const attendanceDocRef = querySnapshot.docs[0].ref;
                         batch.update(attendanceDocRef, {
-                            attendees: arrayUnion(newAttendee)
+                            attendees: arrayUnion(newAttendee) // **arrayUnion يمنع التكرار تلقائيًا**
                         });
                     }
+                    
+                    // ضع علامة على هذا الحدث ليتم حذفه لأنه تمت معالجته بنجاح
                     eventsToDeleteFromRtdb[eventId] = null;
+
                 } catch (error) {
                     console.error(`Error processing event ${eventId}:`, error);
                 }
             }
 
+            // تنفيذ جميع عمليات الكتابة والحذف دفعة واحدة
             if (Object.keys(eventsToDeleteFromRtdb).length > 0) {
                 await batch.commit();
                 await update(ref(rtdb, 'attendance_events'), eventsToDeleteFromRtdb);
             }
         }
+
 
         // ======================================================================
         // ## دوال التحميل والتنزيل ##
@@ -1026,6 +1026,8 @@
 
         // --- التشغيل الأولي ---
         showPage('dashboard');
+        // ## الإضافة الجديدة: استدعاء دالة الجسر عند تحميل الصفحة
+        setInterval(processPendingAttendanceEvents, 10000); // التحقق كل 10 ثوانٍ
         
         setupTabs('student-tabs', 'student-tabs-content', departments, (tabContent, deptName) => {
             tabContent.innerHTML = `<table id="students-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
@@ -1034,9 +1036,6 @@
         setupTabs('schedule-tabs', 'schedule-tabs-content', departments, (tabContent, deptName) => {
             tabContent.innerHTML = `<table id="schedules-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>المجموعات</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
         });
-
-        // ## الإضافة الجديدة: استدعاء دالة الجسر بشكل دوري
-        setInterval(processPendingAttendanceEvents, 10000); // التحقق كل 10 ثوانٍ
 
     </script>
 </body>
