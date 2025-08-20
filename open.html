@@ -34,7 +34,6 @@
     <div class="container">
         <h1 id="room-title"></h1>
         
-        <!-- 1. قسم المصادقة (يظهر في البداية) -->
         <div id="auth-section">
             <p>أدخل بياناتك للمصادقة.</p>
             <form id="auth-form">
@@ -44,7 +43,6 @@
             </form>
         </div>
 
-        <!-- 2. قسم التحكم (يظهر بعد المصادقة الناجحة) -->
         <div id="control-section" class="hidden">
             <div id="status-indicator" class="status-display"></div>
             <p id="control-message"></p>
@@ -57,8 +55,8 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, query, where, getDocs, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+        import { getFirestore, collection, query, where, getDocs, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
@@ -89,27 +87,68 @@
         let roomDocRef = null;
         let authenticatedUser = null;
         let roomStatusUnsubscribe = null;
+        // ## تعديل: إضافة مخزن لجداول المحاضرات ##
+        let allSchedules = [];
 
-        // ## تعديل: دمج تحديث حالة القفل مع تحديث حالة القاعة في Firestore ##
+        // ## تعديل: دالة جديدة لتحديث المحاضرة النشطة ##
+        async function syncActiveLecture(user) {
+            const roomKey = "Room" + roomName;
+            const activeLectureRef = ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`);
+
+            if (!user || user.role !== 'عضو هيئة تدريس') {
+                await set(activeLectureRef, "none");
+                return;
+            }
+
+            const now = new Date();
+            const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+            const currentDay = days[now.getDay()];
+            const currentTime = now.getHours() * 60 + now.getMinutes();
+
+            const currentSchedule = allSchedules.find(schedule => {
+                if (schedule.lecturerId !== user.id || schedule.room !== roomName || schedule.day !== currentDay) {
+                    return false;
+                }
+                const timeParts = schedule.time.split('-');
+                const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
+                const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]);
+                return currentTime >= startTime && currentTime < endTime;
+            });
+
+            if (currentSchedule) {
+                const activeLectureData = {
+                    courseName: currentSchedule.courseName,
+                    lecturerName: user.displayName,
+                    lecturerId: user.id,
+                    time: currentSchedule.time,
+                    groups: currentSchedule.groups || []
+                };
+                await set(activeLectureRef, activeLectureData);
+                console.log("Active lecture synced:", activeLectureData);
+            } else {
+                await set(activeLectureRef, "none");
+                console.log("No active lecture found for this user at this time.");
+            }
+        }
+
         async function setRoomStatus(newStatus, user) {
             if (!roomDocRef || !user) return;
             actionBtn.disabled = true;
             logoutBtn.disabled = true;
             try {
                 const userUid = newStatus === 'open' ? user.id : 'none';
-                
-                // تحديث Realtime Database أولاً لضمان السرعة
                 const lockName = "Room" + roomName;
                 const lockRef = ref(rtdb, 'locks/' + lockName);
-                await set(lockRef, {
-                    status: newStatus,
-                    last_user_uid: userUid
-                });
                 
-                // لا حاجة لتحديث Firestore هنا، لأن حالة القاعة تدار الآن عبر Realtime DB
-                // وهذا يجعل النظام أكثر تفاعلية وسرعة
-
-                updateControlUI(newStatus);
+                // تحديث حالة القفل والمحاضرة النشطة معًا
+                await set(lockRef, { status: newStatus, last_user_uid: userUid });
+                if (newStatus === 'open') {
+                    await syncActiveLecture(user);
+                } else {
+                    // عند الإغلاق، قم بإزالة المحاضرة النشطة
+                    const activeLectureRef = ref(rtdb, `schedules_by_room/${lockName}/active_lecture`);
+                    await set(activeLectureRef, "none");
+                }
 
             } catch (error) {
                 console.error("Error setting room status:", error);
@@ -166,7 +205,6 @@
                 const userDoc = userSnapshot.docs[0];
                 const userData = userDoc.data();
 
-                // ## تعديل: التحقق من صلاحية الدور ومنع الطلاب ##
                 const allowedRoles = ['admin', 'عضو هيئة تدريس', 'مشرف', 'عامل نظافة'];
                 if (!userData.role || !allowedRoles.includes(userData.role.trim())) {
                     throw new Error('ليس لديك صلاحية لفتح القاعة. هذه الميزة مخصصة للموظفين فقط.');
@@ -183,7 +221,6 @@
                 
                 if (roomStatusUnsubscribe) roomStatusUnsubscribe();
 
-                // الاستماع لحالة القفل من Realtime Database
                 const lockRef = ref(rtdb, 'locks/Room' + roomName);
                 roomStatusUnsubscribe = onValue(lockRef, (snapshot) => {
                     const lockData = snapshot.val();
@@ -193,7 +230,6 @@
                     }
                 });
 
-                // عند المصادقة، قم بفتح القاعة مباشرة
                 await setRoomStatus('open', authenticatedUser);
 
             } catch (error) {
@@ -213,22 +249,38 @@
         });
 
         // --- التهيئة الأولية للصفحة ---
-        if (!roomName) {
-            roomTitleElement.textContent = 'خطأ';
-            authSection.innerHTML = '<p class="error">رابط غير صالح. يرجى مسح رمز QR صحيح.</p>';
-        } else {
+        async function initializePage() {
+            if (!roomName) {
+                roomTitleElement.textContent = 'خطأ';
+                authSection.innerHTML = '<p class="error">رابط غير صالح. يرجى مسح رمز QR صحيح.</p>';
+                return;
+            }
+            
             roomTitleElement.textContent = `إدارة القاعة: ${roomName}`;
-            const q = query(collection(db, "Rooms"), where("name", "==", roomName));
-            getDocs(q).then(snapshot => {
-                if (snapshot.empty) {
+            
+            try {
+                // جلب بيانات القاعة
+                const roomQuery = query(collection(db, "Rooms"), where("name", "==", roomName));
+                const roomSnapshot = await getDocs(roomQuery);
+                if (roomSnapshot.empty) {
                     authSection.innerHTML = `<p class="error">القاعة "${roomName}" غير موجودة.</p>`;
                     return;
                 }
-                roomDocRef = doc(db, "Rooms", snapshot.docs[0].id);
-            }).catch(err => {
-                 authSection.innerHTML = `<p class="error">حدث خطأ في الاتصال بقاعدة البيانات.</p>`;
-            });
+                roomDocRef = doc(db, "Rooms", roomSnapshot.docs[0].id);
+
+                // ## تعديل: جلب جميع الجداول مرة واحدة عند تحميل الصفحة ##
+                const schedulesSnapshot = await getDocs(collection(db, "Schedules"));
+                allSchedules = schedulesSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                console.log(`Loaded ${allSchedules.length} schedules.`);
+
+            } catch (err) {
+                authSection.innerHTML = `<p class="error">حدث خطأ في الاتصال بقاعدة البيانات.</p>`;
+                console.error("Initialization error:", err);
+            }
         }
+
+        initializePage();
+
     </script>
 </body>
 </html>
