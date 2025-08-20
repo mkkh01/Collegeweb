@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
@@ -250,8 +250,8 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         // ## تعديل: استيراد كل الدوال المطلوبة من المكتبات
-        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where, arrayUnion, arrayRemove, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { getDatabase, ref, set, onValue, get, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where, arrayUnion, arrayRemove, setDoc, writeBatch, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getDatabase, ref, set, onValue, get, update, remove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
@@ -399,6 +399,7 @@
                     lecturerId: upcomingLecture.lecturerId,
                     time: upcomingLecture.time,
                     groups: upcomingLecture.groups || [],
+                    // ## مهم: إضافة ID الجدول لربط سجل الحضور
                     scheduleId: upcomingLecture.id 
                 };
                 await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), activeLectureData);
@@ -419,14 +420,13 @@
                         role: userData.role || 'unknown', 
                         name: userData.displayName || 'Unknown User', 
                         department: userData.department || 'none',
-                        group: userData.group || 'N/A',
+                        group: userData.group || 'A', // إضافة مجموعة افتراضية
                         userId: doc.id
                     };
                 }
             });
             await set(ref(rtdb, 'allowed_rfids'), allowedRfids);
         }
-
         document.getElementById('user-form').addEventListener('submit', async (e) => { 
             e.preventDefault(); 
             const id = document.getElementById('userId').value; 
@@ -441,7 +441,6 @@
             }; 
             if (role === 'طالب') {
                 data.department = document.getElementById('department').value;
-                data.group = document.getElementById('group').value;
             }
             if (id) { 
                 if (password) { data.password = password; } 
@@ -627,7 +626,6 @@
             }
             card.innerHTML = `<div><h4>${roomData.name}</h4><p>${statusText}</p>${detailsHtml}</div><button class="btn btn-warning" onclick="toggleRoomStatus('${docId}', '${status}')">تغيير الحالة</button>`;
         }
-
         window.toggleRoomStatus = async (id, currentStatus) => {
             const newStatus = currentStatus === 'open' ? 'closed' : 'open';
             const roomName = roomDataStore[id].name;
@@ -649,10 +647,7 @@
                 document.getElementById('rfid').value = data.rfid || '';
                 document.getElementById('barcodeId').value = data.barcodeId || '';
                 toggleDepartmentSelect();
-                if (data.role === 'طالب') {
-                    document.getElementById('department').value = data.department;
-                    document.getElementById('group').value = data.group || 'A';
-                }
+                if (data.role === 'طالب') document.getElementById('department').value = data.department;
             } else if (type === 'room') {
                 document.getElementById('roomName').value = data.name;
                 document.getElementById('roomCapacity').value = data.capacity;
@@ -681,7 +676,12 @@
                         await set(ref(rtdb, 'schedules_by_room/Room' + roomName), null);
                     }
                 }
-                await deleteDoc(doc(db, collectionName, id));
+                // ## تعديل: اسم المجموعة لسجلات الحضور هو "AttendanceRecords"
+                if (collectionName === 'AttendanceRecords') {
+                     await deleteDoc(doc(db, "AttendanceRecords", id));
+                } else {
+                     await deleteDoc(doc(db, collectionName, id));
+                }
             }
         };
 
@@ -741,6 +741,10 @@
             renderEnrolledStudents();
         }
 
+        // ======================================================================
+        // ## تعديل: إضافة دوال جديدة لإدارة وعرض سجلات الحضور ##
+        // ======================================================================
+        
         function listenForAttendanceRecords() {
             const attendanceRef = collection(db, "AttendanceRecords");
             onSnapshot(attendanceRef, (snap) => {
@@ -778,7 +782,7 @@
                 return;
             }
 
-            filteredData.sort((a, b) => new Date(b.lectureDate) - new Date(a.lectureDate));
+            filteredData.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
             filteredData.forEach(record => {
                 tbody.innerHTML += `
@@ -790,6 +794,7 @@
                         <td>${record.attendees?.length || 0}</td>
                         <td>
                             <button class="btn btn-info" onclick="window.showAttendanceDetails('${record.id}')">عرض التفاصيل</button>
+                            <button class="btn btn-danger" onclick="window.deleteItem('AttendanceRecords', '${record.id}', 'سجل الحضور')">حذف</button>
                         </td>
                     </tr>
                 `;
@@ -815,7 +820,7 @@
                     tableBody.innerHTML += `
                         <tr>
                             <td>${attendee.studentName || 'غير معروف'}</td>
-                            <td>${attendee.studentGroup || 'N/A'}</td>
+                            <td>${attendee.studentGroup || 'غير محدد'}</td>
                             <td>${attendanceTime}</td>
                         </tr>
                     `;
@@ -866,99 +871,87 @@
             html2pdf().from(exportContent).set(options).save();
         };
 
-        // ## تعديل: "دالة الجسر" بالمنطق النهائي الصحيح
+        // ======================================================================
+        // ## الإضافة الجديدة: "دالة الجسر" التي تربط بين RTDB و Firestore ##
+        // ======================================================================
         async function processPendingAttendanceEvents() {
             const eventsRef = ref(rtdb, 'attendance_events');
             const eventsSnapshot = await get(eventsRef);
 
             if (!eventsSnapshot.exists()) {
-                return;
+                return; // لا يوجد شيء لفعله
             }
 
             const events = eventsSnapshot.val();
-            const updatesToDelete = {};
+            const batch = writeBatch(db);
+            const eventsToDeleteFromRtdb = {};
 
             for (const eventId in events) {
                 const eventData = events[eventId];
-                const { studentId, roomName } = eventData;
+                const { studentId, roomName, studentGroup, studentName } = eventData;
 
                 if (!studentId || !roomName) {
-                    updatesToDelete[eventId] = null;
+                    eventsToDeleteFromRtdb[eventId] = null;
                     continue;
                 }
 
                 try {
-                    const activeLectureSnap = await get(ref(rtdb, `/schedules_by_room/${roomName}/active_lecture`));
+                    const activeLectureSnap = await get(ref(rtdb, `schedules_by_room/Room${roomName}/active_lecture`));
                     const activeLecture = activeLectureSnap.val();
 
                     if (!activeLecture || activeLecture === "none") {
-                        updatesToDelete[eventId] = null;
+                        eventsToDeleteFromRtdb[eventId] = null;
                         continue;
                     }
-
-                    const studentDoc = await getDoc(doc(db, "Users", studentId));
-                    if (!studentDoc.exists()) {
-                        updatesToDelete[eventId] = null;
-                        continue;
-                    }
-                    const studentData = studentDoc.data();
 
                     const today = new Date().toISOString().slice(0, 10);
-                    const attendanceColl = collection(db, "AttendanceRecords");
-                    
-                    const q = query(attendanceColl, where("scheduleId", "==", activeLecture.scheduleId), where("lectureDate", "==", today));
+                    const attendanceCollectionRef = collection(db, "AttendanceRecords");
+                    const q = query(attendanceCollectionRef, where("scheduleId", "==", activeLecture.scheduleId), where("lectureDate", "==", today));
                     const querySnapshot = await getDocs(q);
                     
-                    let attendanceDocRef;
-                    let currentAttendees = [];
+                    const newAttendee = {
+                        studentId: studentId,
+                        studentName: studentName || "اسم غير معروف",
+                        studentGroup: studentGroup || "N/A",
+                        timestamp: serverTimestamp()
+                    };
 
                     if (querySnapshot.empty) {
-                        const pastLecturesQuery = query(attendanceColl, where("scheduleId", "==", activeLecture.scheduleId));
-                        const pastLecturesSnap = await getDocs(pastLecturesQuery);
-                        const newLectureNumber = pastLecturesSnap.size + 1;
+                        const lectureCountQuery = query(attendanceCollectionRef, where("scheduleId", "==", activeLecture.scheduleId));
+                        const lectureCountSnapshot = await getDocs(lectureCountQuery);
+                        const newLectureNumber = lectureCountSnapshot.size + 1;
 
-                        attendanceDocRef = doc(collection(db, "AttendanceRecords"));
-                        await setDoc(attendanceDocRef, {
+                        const newAttendanceDocRef = doc(attendanceCollectionRef);
+                        batch.set(newAttendanceDocRef, {
                             courseName: activeLecture.courseName,
                             lecturerName: activeLecture.lecturerName,
                             lectureDate: today,
                             scheduleId: activeLecture.scheduleId,
                             lectureNumber: newLectureNumber,
-                            attendees: []
+                            attendees: [newAttendee],
+                            createdAt: serverTimestamp()
                         });
                     } else {
-                        attendanceDocRef = querySnapshot.docs[0].ref;
-                        currentAttendees = querySnapshot.docs[0].data().attendees || [];
+                        const attendanceDocRef = querySnapshot.docs[0].ref;
+                        batch.update(attendanceDocRef, {
+                            attendees: arrayUnion(newAttendee)
+                        });
                     }
-
-                    const alreadyAttended = currentAttendees.some(attendee => attendee.studentId === studentId);
-                    if (alreadyAttended) {
-                        updatesToDelete[eventId] = null;
-                        continue;
-                    }
-
-                    const newAttendee = {
-                        studentId: studentId,
-                        studentName: studentData.displayName,
-                        studentGroup: studentData.group || 'N/A',
-                        timestamp: serverTimestamp()
-                    };
-                    
-                    await updateDoc(attendanceDocRef, {
-                        attendees: arrayUnion(newAttendee)
-                    });
-
-                    updatesToDelete[eventId] = null;
-
+                    eventsToDeleteFromRtdb[eventId] = null;
                 } catch (error) {
                     console.error(`Error processing event ${eventId}:`, error);
                 }
             }
 
-            if (Object.keys(updatesToDelete).length > 0) {
-                await update(ref(rtdb, 'attendance_events'), updatesToDelete);
+            if (Object.keys(eventsToDeleteFromRtdb).length > 0) {
+                await batch.commit();
+                await update(ref(rtdb, 'attendance_events'), eventsToDeleteFromRtdb);
             }
         }
+
+        // ======================================================================
+        // ## دوال التحميل والتنزيل ##
+        // ======================================================================
 
         window.downloadIdCardAsPDF = (name, role, barcodeValue) => {
             const prepareArea = document.getElementById('pdf-prepare-area');
@@ -1020,7 +1013,6 @@
 
         // --- التشغيل الأولي ---
         showPage('dashboard');
-        setInterval(processPendingAttendanceEvents, 15000);
         
         setupTabs('student-tabs', 'student-tabs-content', departments, (tabContent, deptName) => {
             tabContent.innerHTML = `<table id="students-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
@@ -1029,6 +1021,9 @@
         setupTabs('schedule-tabs', 'schedule-tabs-content', departments, (tabContent, deptName) => {
             tabContent.innerHTML = `<table id="schedules-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>المجموعات</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
         });
+
+        // ## الإضافة الجديدة: استدعاء دالة الجسر بشكل دوري
+        setInterval(processPendingAttendanceEvents, 10000); // التحقق كل 10 ثوانٍ
 
     </script>
 </body>
