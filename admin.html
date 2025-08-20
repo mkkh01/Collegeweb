@@ -892,7 +892,7 @@
                     const activeLectureSnap = await get(ref(rtdb, `/schedules_by_room/${roomName}/active_lecture`));
                     const activeLecture = activeLectureSnap.val();
 
-                    if (!activeLecture || activeLecture === "none") {
+                    if (!activeLecture || activeLecture === "none" || !activeLecture.scheduleId) {
                         updatesToDelete[eventId] = null;
                         continue;
                     }
@@ -907,25 +907,13 @@
                     const today = new Date().toISOString().slice(0, 10);
                     const attendanceColl = collection(db, "AttendanceRecords");
                     
-                    // التحقق مما إذا كان الطالب قد حضر بالفعل اليوم في هذه المادة
-                    const studentAlreadyAttendedQuery = query(attendanceColl, 
-                        where("scheduleId", "==", activeLecture.scheduleId), 
-                        where("lectureDate", "==", today),
-                        where("attendees", "array-contains", { studentId: studentId, studentName: studentData.displayName, studentGroup: studentData.group || 'N/A' })
-                    );
-                    const attendedSnap = await getDocs(studentAlreadyAttendedQuery);
-                    if (!attendedSnap.empty) {
-                        console.log(`Student ${studentData.displayName} already attended. Skipping.`);
-                        updatesToDelete[eventId] = null; // حذف الحدث لأنه مكرر
-                        continue;
-                    }
-
                     // البحث عن سجل الحضور لليوم أو إنشائه
                     const q = query(attendanceColl, where("scheduleId", "==", activeLecture.scheduleId), where("lectureDate", "==", today));
                     const querySnapshot = await getDocs(q);
                     
                     let attendanceDocRef;
                     let isNewRecord = querySnapshot.empty;
+                    let recordData;
 
                     if (isNewRecord) {
                         // حساب رقم المحاضرة الجديد
@@ -934,16 +922,26 @@
                         const newLectureNumber = pastLecturesSnap.size + 1;
 
                         attendanceDocRef = doc(collection(db, "AttendanceRecords"));
-                        await setDoc(attendanceDocRef, {
+                        recordData = {
                             courseName: activeLecture.courseName,
                             lecturerName: activeLecture.lecturerName,
                             lectureDate: today,
                             scheduleId: activeLecture.scheduleId,
                             lectureNumber: newLectureNumber, // <-- إضافة رقم المحاضرة
                             attendees: []
-                        });
+                        };
+                        await setDoc(attendanceDocRef, recordData);
                     } else {
                         attendanceDocRef = querySnapshot.docs[0].ref;
+                        recordData = querySnapshot.docs[0].data();
+                    }
+
+                    // التحقق مما إذا كان الطالب قد حضر بالفعل
+                    const alreadyAttended = recordData.attendees.some(attendee => attendee.studentId === studentId);
+                    if (alreadyAttended) {
+                        console.log(`Student ${studentData.displayName} already attended. Skipping.`);
+                        updatesToDelete[eventId] = null; // حذف الحدث لأنه مكرر
+                        continue;
                     }
 
                     const newAttendee = {
