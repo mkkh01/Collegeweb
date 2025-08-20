@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لوحة تحكم الطالب</title>
+    <title>لوحة إعلانات الطالب</title>
     <style>
         :root { --primary-color: #007bff; --success-color: #28a745; --danger-color: #dc3545; --secondary-color: #6c757d; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; padding: 30px; }
@@ -13,28 +13,15 @@
         .logout-btn { padding: 10px 20px; background-color: var(--danger-color); color: white; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; }
         .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
         h3 { color: #0056b3; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 0; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 12px; text-align: right; border-bottom: 1px solid #ddd; }
-        th { background-color: #f2f2f2; }
-        .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; }
-        .btn-primary { background-color: var(--primary-color); }
-        .btn-danger { background-color: var(--danger-color); }
         .room-status-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
         .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; display: flex; flex-direction: column; justify-content: center; min-height: 160px; }
         .room-card.open { background-color: var(--success-color); }
         .room-card.closed { background-color: var(--danger-color); }
         .room-card h4 { margin-top: 0; font-size: 1.8rem; }
         .room-card p { margin: 4px 0; }
-        /* ## تعديل: تحسين مظهر تفاصيل المحاضرة ## */
         .room-card .details { margin-top: 10px; min-height: 45px; font-weight: normal; font-size: 0.9rem; }
         .room-card .details p { font-size: 1rem; font-weight: normal; margin: 2px 0; }
         .room-card .details p:first-child { font-weight: bold; font-size: 1.1rem; }
-        #student-schedule-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
-        #student-schedule-form select { padding: 10px; border: 1px solid #ccc; border-radius: 5px; flex: 1; min-width: 200px; }
-        #student-schedule-form button { flex-basis: 100%; padding: 12px; }
-        @media (min-width: 768px) {
-            #student-schedule-form button { flex-basis: auto; }
-        }
     </style>
 </head>
 <body>
@@ -57,29 +44,13 @@
             <div id="room-status-container" class="room-status-container"></div>
         </div>
 
-        <div class="card">
-            <h3>تسجيل المواد الدراسية</h3>
-            <form id="student-schedule-form">
-                <select id="available-courses" required onchange="window.handleCourseSelection(this.value)">
-                    <option value="" disabled selected>1. اختر المادة...</option>
-                </select>
-                <select id="student-group" required style="display: none;">
-                    <option value="" disabled selected>2. اختر مجموعتك...</option>
-                </select>
-                <button type="submit" class="btn btn-primary">إضافة للجدول</button>
-            </form>
-            
-            <h3>جدولي الدراسي</h3>
-            <table id="my-schedules-table">
-                <thead><tr><th>المادة</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>المجموعة</th><th>إجراء</th></tr></thead>
-                <tbody><!-- سيتم تعبئة الجدول هنا --></tbody>
-            </table>
-        </div>
+        <!-- تم حذف قسم تسجيل المواد والجدول الدراسي -->
+
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, query, where, onSnapshot, addDoc, deleteDoc, doc, getDoc, getDocs, or } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
@@ -96,28 +67,28 @@
         const rtdb = getDatabase(app);
 
         const user = JSON.parse(sessionStorage.getItem('user'));
-        const studentDepartment = user.department;
-        document.getElementById('welcome-message').textContent = `أهلاً بك، ${user.displayName} (قسم ${studentDepartment || 'غير محدد'})`;
+        document.getElementById('welcome-message').textContent = `أهلاً بك، ${user.displayName}`;
 
-        let allAvailableSchedules = [];
-        let registeredCourseIdentifiers = [];
-
-        // --- 1. عرض لوحة الإعلانات (للقراءة فقط) ---
+        // --- عرض لوحة الإعلانات (للقراءة فقط) ---
         const statusContainer = document.getElementById('room-status-container');
         const locksRef = ref(rtdb, 'locks');
         let allSchedulesData = [];
         let allUsersData = {};
         let roomDataStore = {};
 
+        // دالة لجلب البيانات الأولية وتحديث لوحة الإعلانات
         async function initializeDashboard() {
+            // جلب جميع الجداول الدراسية مرة واحدة
             const schedulesSnap = await getDocs(collection(db, "Schedules"));
             allSchedulesData = schedulesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
+            // جلب جميع المستخدمين مرة واحدة لتحديد أسماء المحاضرين
             const usersSnap = await getDocs(collection(db, "Users"));
             usersSnap.forEach(doc => {
                 allUsersData[doc.id] = doc.data().displayName;
             });
 
+            // الاستماع لتغيرات القاعات (إضافة/تعديل/حذف)
             onSnapshot(collection(db, "Rooms"), (snapshot) => {
                 snapshot.docChanges().forEach((change) => {
                     const docId = change.doc.id;
@@ -126,32 +97,36 @@
                     if (change.type === "modified") roomDataStore[docId] = { ...roomDataStore[docId], ...roomData };
                     if (change.type === "removed") delete roomDataStore[docId];
                 });
+                // بعد أي تغيير في القاعات، أعد رسم اللوحة بالكامل
                 updateAllDashboardCards();
             });
 
+            // الاستماع لتغيرات حالة الأقفال في Realtime Database
             onValue(locksRef, (snapshot) => {
                 const allLocksStatus = snapshot.val() || {};
                 for (const docId in roomDataStore) {
                     const roomName = roomDataStore[docId].name;
                     const lockName = "Room" + roomName;
-                    if (allLocksStatus[lockName]) {
-                        roomDataStore[docId].status = allLocksStatus[lockName].status;
-                    } else {
-                        roomDataStore[docId].status = 'closed';
-                    }
+                    // تحديث حالة القفل بناءً على البيانات من Realtime DB
+                    roomDataStore[docId].status = allLocksStatus[lockName]?.status || 'closed';
                 }
+                // بعد أي تغيير في حالة الأقفال، أعد رسم اللوحة بالكامل
                 updateAllDashboardCards();
             });
         }
 
+        // دالة لرسم وتحديث بطاقات القاعات في الواجهة
         function updateAllDashboardCards() {
-            statusContainer.innerHTML = '';
+            statusContainer.innerHTML = ''; // إفراغ الحاوية قبل إعادة الرسم
+            
+            // المرور على جميع القاعات المخزنة لدينا
             Object.values(roomDataStore).forEach(roomData => {
                 const now = new Date();
                 const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
                 const currentDay = days[now.getDay()];
                 const currentTime = now.getHours() * 60 + now.getMinutes();
 
+                // البحث عن المحاضرة الحالية في هذه القاعة بناءً على اليوم والوقت
                 const currentSchedule = allSchedulesData.find(schedule => {
                     if (schedule.room !== roomData.name || schedule.day !== currentDay) return false;
                     const timeParts = schedule.time.split('-');
@@ -164,168 +139,28 @@
                 const statusText = status === 'open' ? 'مفتوحة' : 'مغلقة';
                 const statusClass = status === 'open' ? 'open' : 'closed';
 
+                // إعداد تفاصيل المحاضرة
                 let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
                 if (currentSchedule) {
                     const lecturerName = allUsersData[currentSchedule.lecturerId] || 'غير محدد';
                     detailsHtml = `<div class="details"><p>${lecturerName}</p><p>${currentSchedule.courseName}</p></div>`;
                 }
 
-                statusContainer.innerHTML += `<div class="room-card ${statusClass}"><h4>${roomData.name}</h4><p>${statusText}</p>${detailsHtml}</div>`;
+                // إضافة بطاقة القاعة إلى الواجهة
+                statusContainer.innerHTML += `
+                    <div class="room-card ${statusClass}">
+                        <h4>${roomData.name}</h4>
+                        <p>${statusText}</p>
+                        ${detailsHtml}
+                    </div>`;
             });
         }
         
+        // بدء تشغيل لوحة الإعلانات
         initializeDashboard();
-        setInterval(updateAllDashboardCards, 60000);
-
-        // --- 2. إدارة الجدول الدراسي للطالب ---
-        const scheduleForm = document.getElementById('student-schedule-form');
-        const scheduleTableBody = document.querySelector('#my-schedules-table tbody');
-        const availableCoursesSelect = document.getElementById('available-courses');
-        const studentGroupSelect = document.getElementById('student-group');
         
-        const studentSchedulesRef = collection(db, "StudentSchedules");
-        const studentQuery = query(studentSchedulesRef, where("studentId", "==", user.id));
-
-        async function populateAvailableCourses() {
-            const schedulesRef = collection(db, "Schedules");
-            const q = query(schedulesRef, or(
-                where("department", "==", studentDepartment),
-                where("department", "==", "القسم العام")
-            ));
-            
-            const querySnapshot = await getDocs(q);
-            allAvailableSchedules = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-            const uniqueCourses = {};
-            allAvailableSchedules.forEach(schedule => {
-                const courseIdentifier = `${schedule.courseName} (${schedule.courseCode})`;
-                if (!uniqueCourses[courseIdentifier]) {
-                    uniqueCourses[courseIdentifier] = [];
-                }
-                uniqueCourses[courseIdentifier].push(...schedule.groups);
-            });
-
-            availableCoursesSelect.innerHTML = '<option value="" disabled selected>1. اختر المادة...</option>';
-            for (const courseIdentifier in uniqueCourses) {
-                if (!registeredCourseIdentifiers.includes(courseIdentifier)) {
-                    availableCoursesSelect.innerHTML += `<option value="${courseIdentifier}">${courseIdentifier}</option>`;
-                }
-            }
-        }
-
-        window.handleCourseSelection = (selectedCourseIdentifier) => {
-            studentGroupSelect.innerHTML = '<option value="" disabled selected>2. اختر مجموعتك...</option>';
-            studentGroupSelect.style.display = 'none';
-
-            if (!selectedCourseIdentifier) return;
-
-            const courseData = allAvailableSchedules.filter(s => `${s.courseName} (${s.courseCode})` === selectedCourseIdentifier);
-            const availableGroups = new Set();
-            courseData.forEach(s => {
-                (s.groups || []).forEach(g => availableGroups.add(g));
-            });
-
-            if (availableGroups.size > 0) {
-                availableGroups.forEach(group => {
-                    studentGroupSelect.innerHTML += `<option value="${group}">${group}</option>`;
-                });
-                studentGroupSelect.style.display = 'block';
-            }
-        };
-
-        // ## تعديل شامل: لضمان المزامنة الفورية لبيانات الجدول ##
-        onSnapshot(studentQuery, (snapshot) => {
-            let tableRows = [];
-            registeredCourseIdentifiers = [];
-            
-            if (snapshot.empty) {
-                scheduleTableBody.innerHTML = '<tr><td colspan="6">جدولك فارغ. قم بإضافة موادك الدراسية من القائمة أعلاه.</td></tr>';
-                populateAvailableCourses();
-                return;
-            }
-
-            const promises = snapshot.docs.map(studentScheduleDoc => {
-                return new Promise(async (resolve) => {
-                    const s = studentScheduleDoc.data();
-                    const originalScheduleRef = doc(db, "Schedules", s.scheduleId);
-                    const originalScheduleSnap = await getDoc(originalScheduleRef);
-
-                    if (originalScheduleSnap.exists()) {
-                        const updatedSchedule = originalScheduleSnap.data();
-                        const courseIdentifier = `${updatedSchedule.courseName} (${updatedSchedule.courseCode})`;
-                        registeredCourseIdentifiers.push(courseIdentifier);
-
-                        tableRows.push(`
-                            <tr>
-                                <td>${courseIdentifier}</td>
-                                <td>${updatedSchedule.room}</td>
-                                <td>${updatedSchedule.day}</td>
-                                <td>${updatedSchedule.time}</td>
-                                <td>${s.group}</td>
-                                <td><button class="btn btn-danger" onclick="window.deleteSchedule('${studentScheduleDoc.id}')">حذف</button></td>
-                            </tr>`);
-                    } else {
-                        tableRows.push(`
-                            <tr>
-                                <td colspan="5" style="color: red;">تم حذف هذه المادة (${s.courseName}) من قبل الإدارة.</td>
-                                <td><button class="btn btn-danger" onclick="window.deleteSchedule('${studentScheduleDoc.id}')">إزالة</button></td>
-                            </tr>`);
-                    }
-                    resolve();
-                });
-            });
-
-            Promise.all(promises).then(() => {
-                scheduleTableBody.innerHTML = tableRows.join('');
-                populateAvailableCourses();
-            });
-        });
-
-        scheduleForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const selectedCourseIdentifier = availableCoursesSelect.value;
-            const selectedGroup = studentGroupSelect.value;
-
-            if (!selectedCourseIdentifier || !selectedGroup) {
-                alert("يرجى اختيار المادة والمجموعة.");
-                return;
-            }
-            
-            const [courseName, courseCodeWithParens] = selectedCourseIdentifier.split(' (');
-            const courseCode = courseCodeWithParens.slice(0, -1);
-
-            const targetSchedule = allAvailableSchedules.find(s => 
-                s.courseCode === courseCode &&
-                (s.groups || []).includes(selectedGroup)
-            );
-
-            if (!targetSchedule) {
-                alert("حدث خطأ، لا توجد محاضرة لهذه المادة في المجموعة المختارة.");
-                return;
-            }
-
-            await addDoc(studentSchedulesRef, {
-                studentId: user.id,
-                displayName: user.displayName,
-                department: studentDepartment,
-                scheduleId: targetSchedule.id, // <-- حفظ ID الجدول الأصلي للمزامنة
-                courseName: targetSchedule.courseName,
-                courseCode: targetSchedule.courseCode,
-                room: targetSchedule.room,
-                day: targetSchedule.day,
-                time: targetSchedule.time,
-                group: selectedGroup,
-            });
-            
-            scheduleForm.reset();
-            studentGroupSelect.style.display = 'none';
-        });
-
-        window.deleteSchedule = async (id) => {
-            if (confirm('هل أنت متأكد من حذف هذه المادة من جدولك؟')) {
-                await deleteDoc(doc(db, "StudentSchedules", id));
-            }
-        };
+        // تحديث معلومات الوقت في لوحة الإعلانات كل دقيقة
+        setInterval(updateAllDashboardCards, 60000);
 
     </script>
 </body>
