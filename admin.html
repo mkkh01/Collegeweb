@@ -34,7 +34,7 @@
         .form-group label { display: block; margin-bottom: 5px; }
         .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
         .room-status-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
-        .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; display: flex; flex-direction: column; justify-content: space-between; min-height: 190px; transition: background-color: 0.5s ease; }
+        .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; display: flex; flex-direction: column; justify-content: space-between; min-height: 190px; transition: background-color 0.5s ease; }
         .room-card.open { background-color: var(--success-color); }
         .room-card.closed { background-color: var(--danger-color); }
         .room-card h4 { margin-top: 0; font-size: 1.8rem; color: white; }
@@ -250,8 +250,8 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         // ## تعديل: استيراد كل الدوال المطلوبة من المكتبات
-        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where, arrayUnion, arrayRemove, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { getDatabase, ref, set, onValue, get, update, remove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where, arrayUnion, arrayRemove, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getDatabase, ref, set, onValue, get, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
@@ -373,6 +373,7 @@
             contentContainer.querySelector(`#${contentContainerId}-${tabName.replace(/\s/g, '-')}`).style.display = "block";
             evt.currentTarget.classList.add("active");
         };
+
         async function syncActiveLectureForRoom(roomName, userId) {
             const roomKey = "Room" + roomName;
             if (!userId || userId === 'none') {
@@ -626,6 +627,7 @@
             }
             card.innerHTML = `<div><h4>${roomData.name}</h4><p>${statusText}</p>${detailsHtml}</div><button class="btn btn-warning" onclick="toggleRoomStatus('${docId}', '${status}')">تغيير الحالة</button>`;
         }
+
         window.toggleRoomStatus = async (id, currentStatus) => {
             const newStatus = currentStatus === 'open' ? 'closed' : 'open';
             const roomName = roomDataStore[id].name;
@@ -866,86 +868,97 @@
         };
 
         // ======================================================================
-        // ## الحل الثالث: "التحكم المباشر" - منطق جديد ##
+        // ## الإضافة الجديدة: "دالة الجسر" التي تربط بين RTDB و Firestore ##
         // ======================================================================
+        async function processPendingAttendanceEvents() {
+            console.log("Checking for pending attendance events...");
+            const eventsRef = ref(rtdb, 'attendance_events');
+            const eventsSnapshot = await get(eventsRef);
 
-        async function executeRegistrationCommand(commandData) {
-            const { studentId, roomName } = commandData;
-
-            if (!studentId || !roomName) {
-                console.error("Invalid command data received:", commandData);
-                return;
+            if (!eventsSnapshot.exists()) {
+                console.log("No pending events found.");
+                return; // لا يوجد شيء لفعله
             }
 
-            try {
-                const activeLectureSnap = await get(ref(rtdb, `schedules_by_room/Room${roomName}/active_lecture`));
-                const activeLecture = activeLectureSnap.val();
+            const events = eventsSnapshot.val();
+            const updatesToDelete = {}; // لتجميع عمليات الحذف
 
-                if (!activeLecture || activeLecture === "none") {
-                    console.log(`Command ignored: No active lecture in Room${roomName}.`);
-                    return;
+            for (const eventId in events) {
+                const eventData = events[eventId];
+                const { studentId, roomName } = eventData;
+
+                if (!studentId || !roomName) {
+                    updatesToDelete[eventId] = null; // حذف الحدث غير الصالح
+                    continue;
                 }
 
-                const studentDoc = await getDoc(doc(db, "Users", studentId));
-                if (!studentDoc.exists()) {
-                    console.log(`Command ignored: Student ${studentId} not found.`);
-                    return;
-                }
-                const studentData = studentDoc.data();
+                try {
+                    // 1. جلب المحاضرة النشطة من RTDB
+                    const activeLectureSnap = await get(ref(rtdb, `/schedules_by_room/${roomName}/active_lecture`));
+                    const activeLecture = activeLectureSnap.val();
 
-                const today = new Date().toISOString().slice(0, 10);
-                const attendanceCollectionRef = collection(db, "AttendanceRecords");
-                const q = query(attendanceCollectionRef, where("scheduleId", "==", activeLecture.scheduleId), where("lectureDate", "==", today));
-                const querySnapshot = await getDocs(q);
-                
-                const newAttendee = {
-                    studentId: studentId,
-                    studentName: studentData.displayName || "اسم غير معروف",
-                    studentGroup: studentData.group || "N/A",
-                    timestamp: new Date()
-                };
+                    if (!activeLecture || activeLecture === "none") {
+                        console.log(`Event ${eventId}: No active lecture in ${roomName}. Skipping.`);
+                        updatesToDelete[eventId] = null; // حذف الحدث لأنه لا يمكن معالجته الآن
+                        continue;
+                    }
 
-                if (querySnapshot.empty) {
-                    const lectureCountQuery = query(attendanceCollectionRef, where("scheduleId", "==", activeLecture.scheduleId));
-                    const lectureCountSnapshot = await getDocs(lectureCountQuery);
-                    const newLectureNumber = lectureCountSnapshot.size + 1;
+                    // 2. جلب بيانات الطالب من Firestore
+                    const studentDoc = await getDoc(doc(db, "Users", studentId));
+                    if (!studentDoc.exists()) {
+                        console.log(`Event ${eventId}: Student ${studentId} not found. Skipping.`);
+                        updatesToDelete[eventId] = null; // حذف الحدث
+                        continue;
+                    }
+                    const studentData = studentDoc.data();
 
-                    const newAttendanceDocRef = doc(attendanceCollectionRef);
-                    await setDoc(newAttendanceDocRef, {
-                        courseName: activeLecture.courseName,
-                        lecturerName: activeLecture.lecturerName,
-                        lectureDate: today,
-                        scheduleId: activeLecture.scheduleId,
-                        lectureNumber: newLectureNumber,
-                        attendees: [newAttendee]
-                    });
-                    console.log(`SUCCESS: New attendance record created for ${activeLecture.courseName} and student ${studentData.displayName} added.`);
-                } else {
-                    const attendanceDocRef = querySnapshot.docs[0].ref;
+                    // 3. البحث عن سجل الحضور أو إنشائه في Firestore
+                    const today = new Date().toISOString().slice(0, 10);
+                    const q = query(collection(db, "AttendanceRecords"), where("scheduleId", "==", activeLecture.scheduleId), where("lectureDate", "==", today));
+                    const querySnapshot = await getDocs(q);
+                    
+                    let attendanceDocRef;
+                    if (querySnapshot.empty) {
+                        console.log(`Event ${eventId}: Creating new attendance record for ${activeLecture.courseName}.`);
+                        attendanceDocRef = doc(collection(db, "AttendanceRecords"));
+                        await setDoc(attendanceDocRef, {
+                            courseName: activeLecture.courseName,
+                            lecturerName: activeLecture.lecturerName,
+                            lectureDate: today,
+                            scheduleId: activeLecture.scheduleId,
+                            attendees: []
+                        });
+                    } else {
+                        attendanceDocRef = querySnapshot.docs[0].ref;
+                    }
+
+                    // 4. إضافة الطالب إلى قائمة الحضور (باستخدام arrayUnion لمنع التكرار)
+                    const newAttendee = {
+                        studentId: studentId,
+                        studentName: studentData.displayName,
+                        studentGroup: studentData.group || "N/A",
+                        timestamp: new Date() // استخدام وقت المتصفح الحالي
+                    };
+                    
+                    console.log(`Event ${eventId}: Adding ${studentData.displayName} to attendance.`);
                     await updateDoc(attendanceDocRef, {
                         attendees: arrayUnion(newAttendee)
                     });
-                    console.log(`SUCCESS: Student ${studentData.displayName} added to existing attendance record.`);
-                }
-            } catch (error) {
-                console.error("Error executing registration command:", error);
-            }
-        }
 
-        function listenForAdminCommands() {
-            const commandsRef = ref(rtdb, 'commands_for_admin');
-            onValue(commandsRef, (snapshot) => {
-                if (!snapshot.exists()) {
-                    return;
+                    // تم النجاح، قم بوضع علامة لحذف الحدث
+                    updatesToDelete[eventId] = null;
+
+                } catch (error) {
+                    console.error(`Error processing event ${eventId}:`, error);
+                    // لا تحذف الحدث الذي فشل، حاول مرة أخرى لاحقاً
                 }
-                const commands = snapshot.val();
-                for (const commandId in commands) {
-                    console.log(`New command received: ${commandId}`);
-                    executeRegistrationCommand(commands[commandId]);
-                    // حذف الأمر بعد معالجته مباشرة
-                    remove(ref(rtdb, `commands_for_admin/${commandId}`));
-                }
-            });
+            }
+
+            // 5. حذف جميع الأحداث التي تمت معالجتها دفعة واحدة
+            if (Object.keys(updatesToDelete).length > 0) {
+                console.log("Cleaning up processed events...");
+                await update(ref(rtdb, 'attendance_events'), updatesToDelete);
+            }
         }
 
 
@@ -1013,6 +1026,8 @@
 
         // --- التشغيل الأولي ---
         showPage('dashboard');
+        // ## الإضافة الجديدة: استدعاء دالة الجسر عند تحميل الصفحة
+        processPendingAttendanceEvents();
         
         setupTabs('student-tabs', 'student-tabs-content', departments, (tabContent, deptName) => {
             tabContent.innerHTML = `<table id="students-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
@@ -1021,9 +1036,6 @@
         setupTabs('schedule-tabs', 'schedule-tabs-content', departments, (tabContent, deptName) => {
             tabContent.innerHTML = `<table id="schedules-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>المجموعات</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
         });
-
-        // ## الحل الثالث: تشغيل مستمع الأوامر ##
-        listenForAdminCommands();
 
     </script>
 </body>
