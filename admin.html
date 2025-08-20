@@ -166,7 +166,9 @@
 
     <div id="pdf-prepare-area" class="pdf-prepare-area"></div>
 
-    <div id="user-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('user-modal')">&times;</span><h3 id="user-modal-title"></h3><form id="user-form"><input type="hidden" id="userId"><div class="form-group"><label>الاسم الكامل</label><input type="text" id="displayName" required></div><div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div><div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم التغيير</small></div><div class="form-group"><label>الدور</label><select id="role" required onchange="toggleDepartmentSelect()"><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option><option value="طالب">طالب</option></select></div><div class="form-group" id="department-group" style="display:none;"><label>القسم</label><select id="department"></select></div><div class="form-group"><label>رمز الباركود (رقم)</label><input type="text" id="barcodeId"></div><div class="form-group"><label>رمز RFID (UID)</label><input type="text" id="rfid"></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
+    <div id="user-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('user-modal')">&times;</span><h3 id="user-modal-title"></h3><form id="user-form"><input type="hidden" id="userId"><div class="form-group"><label>الاسم الكامل</label><input type="text" id="displayName" required></div><div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div><div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم التغيير</small></div><div class="form-group"><label>الدور</label><select id="role" required onchange="toggleDepartmentSelect()"><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option><option value="طالب">طالب</option></select></div><div class="form-group" id="department-group" style="display:none;"><label>القسم</label><select id="department"></select>
+    <!-- ## تعديل: إضافة حقل المجموعة للطالب ## -->
+    <label style="margin-top: 10px;">المجموعة</label><select id="group"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></div><div class="form-group"><label>رمز الباركود (رقم)</label><input type="text" id="barcodeId"></div><div class="form-group"><label>رمز RFID (UID)</label><input type="text" id="rfid"></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
     
     <div id="room-modal" class="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal('room-modal')">&times;</span><h3 id="room-modal-title"></h3><form id="room-form"><input type="hidden" id="roomId"><div class="form-group"><label>اسم القاعة</label><input type="text" id="roomName" required></div><div class="form-group"><label>السعة</label><input type="number" id="roomCapacity" required></div><button type="submit" class="btn btn-success">حفظ</button></form></div></div>
     
@@ -250,7 +252,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         // ## تعديل: استيراد كل الدوال المطلوبة من المكتبات
-        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where, arrayUnion, arrayRemove, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where, arrayUnion, arrayRemove, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getDatabase, ref, set, onValue, get, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
@@ -399,7 +401,6 @@
                     lecturerId: upcomingLecture.lecturerId,
                     time: upcomingLecture.time,
                     groups: upcomingLecture.groups || [],
-                    // ## مهم: إضافة ID الجدول لربط سجل الحضور
                     scheduleId: upcomingLecture.id 
                 };
                 await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), activeLectureData);
@@ -408,6 +409,7 @@
             }
         }
 
+        // ## تعديل: إضافة حقل المجموعة (group) إلى بيانات المستخدم في RTDB
         async function syncAllowedRfids() {
             const usersRef = collection(db, "Users");
             const usersSnapshot = await getDocs(usersRef);
@@ -420,7 +422,7 @@
                         role: userData.role || 'unknown', 
                         name: userData.displayName || 'Unknown User', 
                         department: userData.department || 'none',
-                        group: userData.group || 'A', // إضافة مجموعة افتراضية
+                        group: userData.group || 'A', // <-- التعديل هنا
                         userId: doc.id
                     };
                 }
@@ -428,6 +430,7 @@
             await set(ref(rtdb, 'allowed_rfids'), allowedRfids);
         }
 
+        // ## تعديل: إضافة حقل المجموعة (group) عند حفظ بيانات الطالب
         document.getElementById('user-form').addEventListener('submit', async (e) => { 
             e.preventDefault(); 
             const id = document.getElementById('userId').value; 
@@ -442,6 +445,7 @@
             }; 
             if (role === 'طالب') {
                 data.department = document.getElementById('department').value;
+                data.group = document.getElementById('group').value; // <-- التعديل هنا
             }
             if (id) { 
                 if (password) { data.password = password; } 
@@ -636,6 +640,7 @@
             await set(ref(rtdb, 'locks/Room' + roomName), { status: newStatus, last_user_uid: adminUid });
         };
 
+        // ## تعديل: إضافة حقل المجموعة (group) عند تعديل بيانات الطالب
         window.editItem = async (collectionName, id, type) => {
             openModal(`${type}-modal`); 
             const itemDoc = await getDoc(doc(db, collectionName, id));
@@ -649,7 +654,10 @@
                 document.getElementById('rfid').value = data.rfid || '';
                 document.getElementById('barcodeId').value = data.barcodeId || '';
                 toggleDepartmentSelect();
-                if (data.role === 'طالب') document.getElementById('department').value = data.department;
+                if (data.role === 'طالب') {
+                    document.getElementById('department').value = data.department;
+                    document.getElementById('group').value = data.group || 'A'; // <-- التعديل هنا
+                }
             } else if (type === 'room') {
                 document.getElementById('roomName').value = data.name;
                 document.getElementById('roomCapacity').value = data.capacity;
@@ -738,10 +746,6 @@
             renderEnrolledStudents();
         }
 
-        // ======================================================================
-        // ## تعديل: إضافة دوال جديدة لإدارة وعرض سجلات الحضور ##
-        // ======================================================================
-        
         function listenForAttendanceRecords() {
             const attendanceRef = collection(db, "AttendanceRecords");
             onSnapshot(attendanceRef, (snap) => {
@@ -816,7 +820,7 @@
                     tableBody.innerHTML += `
                         <tr>
                             <td>${attendee.studentName || 'غير معروف'}</td>
-                            <td>${attendee.studentGroup || 'غير محدد'}</td>
+                            <td>${attendee.studentGroup || 'N/A'}</td>
                             <td>${attendanceTime}</td>
                         </tr>
                     `;
@@ -867,104 +871,103 @@
             html2pdf().from(exportContent).set(options).save();
         };
 
-        // ======================================================================
-        // ## الإضافة الجديدة: "دالة الجسر" التي تربط بين RTDB و Firestore ##
-        // ======================================================================
+        // ## تعديل: "دالة الجسر" أصبحت أذكى الآن
         async function processPendingAttendanceEvents() {
-            console.log("Checking for pending attendance events...");
             const eventsRef = ref(rtdb, 'attendance_events');
             const eventsSnapshot = await get(eventsRef);
 
             if (!eventsSnapshot.exists()) {
-                console.log("No pending events found.");
-                return; // لا يوجد شيء لفعله
+                return;
             }
 
             const events = eventsSnapshot.val();
-            const updatesToDelete = {}; // لتجميع عمليات الحذف
+            const updatesToDelete = {};
 
             for (const eventId in events) {
                 const eventData = events[eventId];
                 const { studentId, roomName } = eventData;
 
                 if (!studentId || !roomName) {
-                    updatesToDelete[eventId] = null; // حذف الحدث غير الصالح
+                    updatesToDelete[eventId] = null;
                     continue;
                 }
 
                 try {
-                    // 1. جلب المحاضرة النشطة من RTDB
                     const activeLectureSnap = await get(ref(rtdb, `/schedules_by_room/${roomName}/active_lecture`));
                     const activeLecture = activeLectureSnap.val();
 
                     if (!activeLecture || activeLecture === "none") {
-                        console.log(`Event ${eventId}: No active lecture in ${roomName}. Skipping.`);
-                        updatesToDelete[eventId] = null; // حذف الحدث لأنه لا يمكن معالجته الآن
+                        updatesToDelete[eventId] = null;
                         continue;
                     }
 
-                    // 2. جلب بيانات الطالب من Firestore
                     const studentDoc = await getDoc(doc(db, "Users", studentId));
                     if (!studentDoc.exists()) {
-                        console.log(`Event ${eventId}: Student ${studentId} not found. Skipping.`);
-                        updatesToDelete[eventId] = null; // حذف الحدث
+                        updatesToDelete[eventId] = null;
                         continue;
                     }
                     const studentData = studentDoc.data();
 
-                    // 3. البحث عن سجل الحضور أو إنشائه في Firestore
                     const today = new Date().toISOString().slice(0, 10);
-                    const q = query(collection(db, "AttendanceRecords"), where("scheduleId", "==", activeLecture.scheduleId), where("lectureDate", "==", today));
+                    const attendanceColl = collection(db, "AttendanceRecords");
+                    
+                    // البحث عن سجل الحضور لليوم
+                    const q = query(attendanceColl, where("scheduleId", "==", activeLecture.scheduleId), where("lectureDate", "==", today));
                     const querySnapshot = await getDocs(q);
                     
                     let attendanceDocRef;
+                    let currentAttendees = [];
+
                     if (querySnapshot.empty) {
-                        console.log(`Event ${eventId}: Creating new attendance record for ${activeLecture.courseName}.`);
+                        // حساب رقم المحاضرة الجديد
+                        const pastLecturesQuery = query(attendanceColl, where("scheduleId", "==", activeLecture.scheduleId));
+                        const pastLecturesSnap = await getDocs(pastLecturesQuery);
+                        const newLectureNumber = pastLecturesSnap.size + 1;
+
                         attendanceDocRef = doc(collection(db, "AttendanceRecords"));
                         await setDoc(attendanceDocRef, {
                             courseName: activeLecture.courseName,
                             lecturerName: activeLecture.lecturerName,
                             lectureDate: today,
                             scheduleId: activeLecture.scheduleId,
+                            lectureNumber: newLectureNumber, // <-- إضافة رقم المحاضرة
                             attendees: []
                         });
                     } else {
                         attendanceDocRef = querySnapshot.docs[0].ref;
+                        currentAttendees = querySnapshot.docs[0].data().attendees || [];
                     }
 
-                    // 4. إضافة الطالب إلى قائمة الحضور (باستخدام arrayUnion لمنع التكرار)
+                    // التحقق مما إذا كان الطالب قد حضر بالفعل
+                    const alreadyAttended = currentAttendees.some(attendee => attendee.studentId === studentId);
+                    if (alreadyAttended) {
+                        console.log(`Student ${studentData.displayName} already attended. Skipping.`);
+                        updatesToDelete[eventId] = null; // حذف الحدث لأنه مكرر
+                        continue;
+                    }
+
                     const newAttendee = {
                         studentId: studentId,
                         studentName: studentData.displayName,
-                        studentGroup: studentData.group || "N/A",
-                        timestamp: new Date() // استخدام وقت المتصفح الحالي
+                        studentGroup: studentData.group || 'N/A', // <-- إضافة المجموعة
+                        timestamp: serverTimestamp() // استخدام وقت السيرفر الدقيق
                     };
                     
-                    console.log(`Event ${eventId}: Adding ${studentData.displayName} to attendance.`);
                     await updateDoc(attendanceDocRef, {
                         attendees: arrayUnion(newAttendee)
                     });
 
-                    // تم النجاح، قم بوضع علامة لحذف الحدث
                     updatesToDelete[eventId] = null;
 
                 } catch (error) {
                     console.error(`Error processing event ${eventId}:`, error);
-                    // لا تحذف الحدث الذي فشل، حاول مرة أخرى لاحقاً
                 }
             }
 
-            // 5. حذف جميع الأحداث التي تمت معالجتها دفعة واحدة
             if (Object.keys(updatesToDelete).length > 0) {
-                console.log("Cleaning up processed events...");
                 await update(ref(rtdb, 'attendance_events'), updatesToDelete);
             }
         }
-
-
-        // ======================================================================
-        // ## دوال التحميل والتنزيل ##
-        // ======================================================================
 
         window.downloadIdCardAsPDF = (name, role, barcodeValue) => {
             const prepareArea = document.getElementById('pdf-prepare-area');
@@ -1026,8 +1029,8 @@
 
         // --- التشغيل الأولي ---
         showPage('dashboard');
-        // ## الإضافة الجديدة: استدعاء دالة الجسر عند تحميل الصفحة
-        processPendingAttendanceEvents();
+        // ## الإضافة الجديدة: استدعاء دالة الجسر بشكل دوري
+        setInterval(processPendingAttendanceEvents, 15000); // استدعاء الدالة كل 15 ثانية
         
         setupTabs('student-tabs', 'student-tabs-content', departments, (tabContent, deptName) => {
             tabContent.innerHTML = `<table id="students-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
