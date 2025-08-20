@@ -113,6 +113,7 @@
                 <div id="student-tabs-content"></div>
             </div>
         </div>
+
         <div id="schedules" class="page">
             <div class="card">
                 <h3>الجداول الدراسية</h3>
@@ -160,10 +161,9 @@
                 <div class="form-group"><label>الاسم الكامل</label><input type="text" id="displayName" required></div>
                 <div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div>
                 <div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم التغيير</small></div>
-                <div class="form-group"><label>الدور</label><select id="role" required onchange="toggleDepartmentAndGroupSelect()"><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option><option value="طالب">طالب</option></select></div>
+                <div class="form-group"><label>الدور</label><select id="role" required onchange="toggleDepartmentSelect()"><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option><option value="طالب">طالب</option></select></div>
+                <!-- ## تعديل: تم حذف حقل المجموعة من هنا ## -->
                 <div class="form-group" id="department-group" style="display:none;"><label>القسم</label><select id="department"></select></div>
-                <!-- ## تعديل: تم إضافة حقل المجموعة للطالب ## -->
-                <div class="form-group" id="student-group-group" style="display:none;"><label>المجموعة</label><select id="studentGroup"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></div>
                 <div class="form-group"><label>رمز الباركود (رقم)</label><input type="text" id="barcodeId"></div>
                 <div class="form-group"><label>رمز RFID (UID)</label><input type="text" id="rfid"></div>
                 <button type="submit" class="btn btn-success">حفظ</button>
@@ -216,7 +216,8 @@
                     <thead>
                         <tr>
                             <th>اسم الطالب</th>
-                            <th>المجموعة</th>
+                            <th>اسم المستخدم</th>
+                            <th>كلمة المرور</th>
                             <th>RFID (UID)</th>
                             <th>إجراء</th>
                         </tr>
@@ -297,7 +298,7 @@
             if (modalId === 'user-modal' || modalId === 'room-modal' || modalId === 'schedule-modal') {
                  document.querySelector(`#${modalId} h3`).textContent = 'إضافة جديد';
             }
-            if (modalId === 'user-modal') toggleDepartmentAndGroupSelect();
+            if (modalId === 'user-modal') toggleDepartmentSelect();
             if (modalId === 'schedule-modal') populateSelects();
             document.getElementById(modalId).style.display = 'block';
         };
@@ -321,13 +322,14 @@
         populateDepartmentSelect('department');
         populateDepartmentSelect('scheduleDepartment');
 
-        window.toggleDepartmentAndGroupSelect = () => {
+        window.toggleDepartmentSelect = () => {
             const role = document.getElementById('role').value;
-            const isStudent = role === 'طالب';
-            document.getElementById('department-group').style.display = isStudent ? 'block' : 'none';
-            document.getElementById('student-group-group').style.display = isStudent ? 'block' : 'none';
+            document.getElementById('department-group').style.display = (role === 'طالب') ? 'block' : 'none';
         };
-        
+        // ======================================================================
+        // ## الجزء الثاني: منطق التطبيق (عرض البيانات ومعالجتها) ##
+        // ======================================================================
+
         function setupTabs(tabsContainerId, contentContainerId, tabsArray, callback) {
             const tabsContainer = document.getElementById(tabsContainerId);
             const contentContainer = document.getElementById(contentContainerId);
@@ -376,26 +378,21 @@
             const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
             const currentDay = days[now.getDay()];
             
-            const activeSchedule = allSchedulesData.find(schedule => {
-                if (schedule.lecturerId !== userId || schedule.room !== roomName || schedule.day !== currentDay) {
-                    return false;
-                }
-                const [startTimeStr, endTimeStr] = schedule.time.split('-');
-                const today = new Date();
-                const startTime = new Date(today.toDateString() + ' ' + startTimeStr);
-                const endTime = new Date(today.toDateString() + ' ' + endTimeStr);
-                return now >= startTime && now <= endTime;
-            });
+            const upcomingLecture = allSchedulesData.find(schedule => 
+                schedule.lecturerId === userId && 
+                schedule.room === roomName &&
+                schedule.day === currentDay
+            );
 
-            if (activeSchedule) {
-                const lecturerName = allUsersData[activeSchedule.lecturerId]?.displayName || 'غير محدد';
+            if (upcomingLecture) {
+                const lecturerName = allUsersData[upcomingLecture.lecturerId]?.displayName || 'غير محدد';
                 const activeLectureData = {
-                    courseName: activeSchedule.courseName,
+                    courseName: upcomingLecture.courseName,
                     lecturerName: lecturerName,
-                    lecturerId: activeSchedule.lecturerId,
-                    time: activeSchedule.time,
-                    groups: activeSchedule.groups || [],
-                    scheduleId: activeSchedule.id 
+                    lecturerId: upcomingLecture.lecturerId,
+                    time: upcomingLecture.time,
+                    groups: upcomingLecture.groups || [],
+                    scheduleId: upcomingLecture.id 
                 };
                 await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), activeLectureData);
             } else {
@@ -435,7 +432,6 @@
             }; 
             if (role === 'طالب') {
                 data.department = document.getElementById('department').value;
-                data.group = document.getElementById('studentGroup').value;
             }
             if (id) { 
                 if (password) { data.password = password; } 
@@ -525,19 +521,17 @@
             departments.forEach(deptName => {
                 const container = document.querySelector(`#student-tabs-content-${deptName.replace(/\s/g, '-')}`);
                 if (!container) return;
-                const table = container.querySelector('table');
-                if (table) {
-                    table.innerHTML = `<thead><tr><th>الاسم الكامل</th><th>المجموعة</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody>`;
-                    const tbody = table.querySelector('tbody');
-                    studentDataByDept[deptName].forEach(u => {
-                        const actionsHtml = `<button class="btn btn-warning" onclick="editItem('Users','${u.id}','user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users','${u.id}','الطالب')">حذف</button><button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}','${u.role}','${u.barcodeId}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadBarcodeAsPNG('${u.displayName}', '${u.barcodeId}')">تحميل صورة الرمز</button>`;
-                        tbody.innerHTML += `<tr><td>${u.displayName||''}</td><td>${u.group||'N/A'}</td><td><div class="barcode-container">${u.barcodeId?`<svg id="barcode-${u.id}"></svg>`:'لا يوجد'}</div></td><td>${u.rfid||'لا يوجد'}</td><td>${actionsHtml}</td></tr>`;
-                        if (u.barcodeId) JsBarcode(`#barcode-${u.id}`, u.barcodeId);
-                    });
-                }
+                const tbody = container.querySelector('table tbody');
+                tbody.innerHTML = '';
+                studentDataByDept[deptName].forEach(u => {
+                    const actionsHtml = `<button class="btn btn-warning" onclick="editItem('Users','${u.id}','user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users','${u.id}','الطالب')">حذف</button><button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}','${u.role}','${u.barcodeId}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadBarcodeAsPNG('${u.displayName}', '${u.barcodeId}')">تحميل صورة الرمز</button>`;
+                    tbody.innerHTML += `<tr><td>${u.displayName||''}</td><td><div class="barcode-container">${u.barcodeId?`<svg id="barcode-${u.id}"></svg>`:'لا يوجد'}</div></td><td>${u.rfid||'لا يوجد'}</td><td>${actionsHtml}</td></tr>`;
+                    if (u.barcodeId) JsBarcode(`#barcode-${u.id}`, u.barcodeId);
+                });
             });
             syncAllowedRfids();
         });
+
         onSnapshot(collection(db, "Schedules"), (snap) => {
             allSchedulesData = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
             const scheduleDataByDept = {};
@@ -645,10 +639,9 @@
                 document.getElementById('role').value = data.role;
                 document.getElementById('rfid').value = data.rfid || '';
                 document.getElementById('barcodeId').value = data.barcodeId || '';
-                toggleDepartmentAndGroupSelect();
+                toggleDepartmentSelect();
                 if (data.role === 'طالب') {
                     document.getElementById('department').value = data.department;
-                    document.getElementById('studentGroup').value = data.group || 'A';
                 }
             } else if (type === 'room') {
                 document.getElementById('roomName').value = data.name;
@@ -697,12 +690,12 @@
         function renderEnrolledStudents() {
             const tableBody = document.querySelector('#enrolled-students-table tbody');
             tableBody.innerHTML = '';
-            if (currentManagingSchedule.enrolledStudents.length === 0) { tableBody.innerHTML = '<tr><td colspan="4">لا يوجد طلاب مسجلون حاليًا.</td></tr>'; return; }
+            if (currentManagingSchedule.enrolledStudents.length === 0) { tableBody.innerHTML = '<tr><td colspan="5">لا يوجد طلاب مسجلون حاليًا.</td></tr>'; return; }
             currentManagingSchedule.enrolledStudents.forEach(studentId => {
                 const studentData = allUsersData[studentId];
                 if (!studentData) return;
                 const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${studentData.displayName || ''}</td><td>${studentData.group || 'N/A'}</td><td>${studentData.rfid || ''}</td><td><button class="btn btn-danger btn-sm" onclick="removeStudentFromSchedule('${studentId}')">حذف</button></td>`;
+                tr.innerHTML = `<td>${studentData.displayName || ''}</td><td>${studentData.username || ''}</td><td>${studentData.password || ''}</td><td>${studentData.rfid || ''}</td><td><button class="btn btn-danger btn-sm" onclick="removeStudentFromSchedule('${studentId}')">حذف</button></td>`;
                 tableBody.appendChild(tr);
             });
         }
@@ -715,7 +708,7 @@
             const filteredStudents = allStudentsData.filter(student => student.department === currentManagingSchedule.department && !currentManagingSchedule.enrolledStudents.includes(student.id) && student.displayName.toLowerCase().includes(searchTerm));
             filteredStudents.forEach(student => {
                 const div = document.createElement('div');
-                div.textContent = `${student.displayName} (مجموعة ${student.group})`;
+                div.textContent = student.displayName;
                 div.onclick = () => addStudentToSchedule(student.id);
                 resultsContainer.appendChild(div);
             });
@@ -737,6 +730,9 @@
             currentManagingSchedule.enrolledStudents = currentManagingSchedule.enrolledStudents.filter(id => id !== studentId);
             renderEnrolledStudents();
         }
+        // ======================================================================
+        // ## دوال إدارة وعرض سجلات الحضور ##
+        // ======================================================================
         
         function listenForAttendanceRecords() {
             const attendanceRef = collection(db, "AttendanceRecords");
@@ -862,6 +858,9 @@
             html2pdf().from(exportContent).set(options).save();
         };
 
+        // ======================================================================
+        // ## "دالة الجسر" التي تربط بين RTDB و Firestore (المنطق الجديد) ##
+        // ======================================================================
         async function processPendingAttendanceEvents() {
             const eventsRef = ref(rtdb, 'attendance_events');
             const eventsSnapshot = await get(eventsRef);
@@ -875,35 +874,37 @@
 
             for (const eventId in events) {
                 const eventData = events[eventId];
-                const { studentId, roomName, timestamp } = eventData;
+                const { studentId, roomName } = eventData;
 
-                updatesToDelete[eventId] = null; // Assume deletion unless proven otherwise
-
-                if (!studentId || !roomName || !timestamp) continue;
+                if (!studentId || !roomName) {
+                    updatesToDelete[eventId] = null;
+                    continue;
+                }
 
                 try {
-                    const eventTime = new Date(timestamp);
                     const activeLectureSnap = await get(ref(rtdb, `/schedules_by_room/${roomName}/active_lecture`));
                     const activeLecture = activeLectureSnap.val();
 
-                    if (!activeLecture || activeLecture === "none") continue;
+                    if (!activeLecture || activeLecture === "none") {
+                        updatesToDelete[eventId] = null;
+                        continue;
+                    }
                     
+                    // ## المنطق الجديد: البحث عن الجدول الدراسي للمحاضرة النشطة
                     const scheduleData = allSchedulesData.find(s => s.id === activeLecture.scheduleId);
-                    if (!scheduleData) continue;
-
-                    const [startTimeStr, endTimeStr] = scheduleData.time.split('-');
-                    const lectureStartTime = new Date(eventTime.toDateString() + ' ' + startTimeStr);
-                    const lectureEndTime = new Date(eventTime.toDateString() + ' ' + endTimeStr);
-
-                    if (eventTime < lectureStartTime || eventTime > lectureEndTime) continue;
+                    if (!scheduleData || !scheduleData.enrolledStudents.includes(studentId)) {
+                        // الطالب غير مسجل في هذه المادة، تجاهل الحضور
+                        updatesToDelete[eventId] = null;
+                        continue;
+                    }
 
                     const studentData = allUsersData[studentId];
-                    if (!studentData) continue;
+                    if (!studentData) {
+                        updatesToDelete[eventId] = null;
+                        continue;
+                    }
 
-                    if (!scheduleData.enrolledStudents.includes(studentId)) continue;
-                    if (!scheduleData.groups.includes(studentData.group)) continue;
-
-                    const today = new Date(timestamp).toISOString().slice(0, 10);
+                    const today = new Date().toISOString().slice(0, 10);
                     const docId = `${activeLecture.scheduleId}_${today}`;
                     let attendanceDocRef;
                     let attendanceData;
@@ -935,11 +936,14 @@
                         const newAttendee = {
                             studentId: studentId,
                             studentName: studentData.displayName,
-                            studentGroup: studentData.group || "N/A", 
-                            timestamp: eventTime
+                            // ## المنطق الجديد: المجموعة هي مجموعات المادة نفسها
+                            studentGroup: scheduleData.groups.join(', ') || "N/A", 
+                            timestamp: new Date()
                         };
                         batch.update(attendanceDocRef, { attendees: arrayUnion(newAttendee) });
                     }
+
+                    updatesToDelete[eventId] = null;
 
                 } catch (error) {
                     console.error(`Error processing event ${eventId}:`, error);
@@ -951,6 +955,10 @@
                 await update(ref(rtdb, 'attendance_events'), updatesToDelete);
             }
         }
+
+        // ======================================================================
+        // ## دوال التحميل والتنزيل ##
+        // ======================================================================
 
         window.downloadIdCardAsPDF = (name, role, barcodeValue) => {
             const prepareArea = document.getElementById('pdf-prepare-area');
@@ -1010,11 +1018,12 @@
             });
         }
 
+        // --- التشغيل الأولي ---
         showPage('dashboard');
-        setInterval(processPendingAttendanceEvents, 15000); 
+        setInterval(processPendingAttendanceEvents, 15000); // تشغيل الدالة كل 15 ثانية
         
         setupTabs('student-tabs', 'student-tabs-content', departments, (tabContent, deptName) => {
-            tabContent.innerHTML = `<table id="students-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>الاسم الكامل</th><th>المجموعة</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
+            tabContent.innerHTML = `<table id="students-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
         });
 
         setupTabs('schedule-tabs', 'schedule-tabs-content', departments, (tabContent, deptName) => {
