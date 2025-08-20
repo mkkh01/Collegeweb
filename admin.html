@@ -68,6 +68,7 @@
         #enrolled-students-table th { background-color: #f2f2f2; }
         #enrolled-students-container { max-height: 250px; overflow-y: auto; }
 
+        /* ## تعديل: أنماط جديدة لقسم سجلات الحضور ## */
         .filter-container { display: flex; gap: 20px; margin-bottom: 20px; align-items: flex-end; }
         .filter-container .form-group { margin-bottom: 0; }
         #attendance-details-modal .modal-content { max-width: 900px; }
@@ -95,6 +96,7 @@
         <a href="#users" class="nav-link" onclick="showPage('users')">إدارة المستخدمين</a>
         <a href="#schedules" class="nav-link" onclick="showPage('schedules')">الجدول الدراسي</a>
         <a href="#rooms" class="nav-link" onclick="showPage('rooms')">إدارة القاعات</a>
+        <!-- ## تعديل: إضافة رابط لقسم سجلات الحضور ## -->
         <a href="#attendance" class="nav-link" onclick="showPage('attendance')">سجلات الحضور</a>
         <a href="index.html" style="color: var(--warning-color); margin-top: 30px;" onclick="sessionStorage.clear()">تسجيل الخروج</a>
     </div>
@@ -133,6 +135,7 @@
 
         <div id="rooms" class="page"><div class="card"><h3>القاعات الدراسية</h3><button class="btn btn-primary" onclick="openModal('room-modal')">إضافة قاعة</button><table id="rooms-table"><thead><tr><th>اسم القاعة</th><th>السعة</th><th>رمز QR</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
 
+        <!-- ## تعديل: إضافة صفحة سجلات الحضور ## -->
         <div id="attendance" class="page">
             <div class="card">
                 <h3>سجلات الحضور والغياب</h3>
@@ -226,6 +229,7 @@
         </div>
     </div>
 
+    <!-- ## تعديل: إضافة نافذة منبثقة لعرض تفاصيل الحضور ## -->
     <div id="attendance-details-modal" class="modal">
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal('attendance-details-modal')">&times;</span>
@@ -247,6 +251,7 @@
     </div>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        // ## تعديل: استيراد كل الدوال المطلوبة من المكتبات
         import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where, arrayUnion, arrayRemove, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getDatabase, ref, set, onValue, get, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
@@ -396,6 +401,7 @@
                     lecturerId: upcomingLecture.lecturerId,
                     time: upcomingLecture.time,
                     groups: upcomingLecture.groups || [],
+                    // ## مهم: إضافة ID الجدول لربط سجل الحضور
                     scheduleId: upcomingLecture.id 
                 };
                 await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), activeLectureData);
@@ -868,7 +874,6 @@
 
         // ## تعديل: "دالة الجسر" أصبحت أذكى الآن
         async function processPendingAttendanceEvents() {
-            console.log("Checking for pending attendance events...");
             const eventsRef = ref(rtdb, 'attendance_events');
             const eventsSnapshot = await get(eventsRef);
 
@@ -892,7 +897,7 @@
                     const activeLectureSnap = await get(ref(rtdb, `/schedules_by_room/${roomName}/active_lecture`));
                     const activeLecture = activeLectureSnap.val();
 
-                    if (!activeLecture || activeLecture === "none" || !activeLecture.scheduleId) {
+                    if (!activeLecture || activeLecture === "none") {
                         updatesToDelete[eventId] = null;
                         continue;
                     }
@@ -907,37 +912,35 @@
                     const today = new Date().toISOString().slice(0, 10);
                     const attendanceColl = collection(db, "AttendanceRecords");
                     
-                    // البحث عن سجل الحضور لليوم أو إنشائه
+                    // البحث عن سجل الحضور لليوم
                     const q = query(attendanceColl, where("scheduleId", "==", activeLecture.scheduleId), where("lectureDate", "==", today));
                     const querySnapshot = await getDocs(q);
                     
                     let attendanceDocRef;
-                    let isNewRecord = querySnapshot.empty;
-                    let recordData;
+                    let currentAttendees = [];
 
-                    if (isNewRecord) {
+                    if (querySnapshot.empty) {
                         // حساب رقم المحاضرة الجديد
                         const pastLecturesQuery = query(attendanceColl, where("scheduleId", "==", activeLecture.scheduleId));
                         const pastLecturesSnap = await getDocs(pastLecturesQuery);
                         const newLectureNumber = pastLecturesSnap.size + 1;
 
                         attendanceDocRef = doc(collection(db, "AttendanceRecords"));
-                        recordData = {
+                        await setDoc(attendanceDocRef, {
                             courseName: activeLecture.courseName,
                             lecturerName: activeLecture.lecturerName,
                             lectureDate: today,
                             scheduleId: activeLecture.scheduleId,
                             lectureNumber: newLectureNumber, // <-- إضافة رقم المحاضرة
                             attendees: []
-                        };
-                        await setDoc(attendanceDocRef, recordData);
+                        });
                     } else {
                         attendanceDocRef = querySnapshot.docs[0].ref;
-                        recordData = querySnapshot.docs[0].data();
+                        currentAttendees = querySnapshot.docs[0].data().attendees || [];
                     }
 
                     // التحقق مما إذا كان الطالب قد حضر بالفعل
-                    const alreadyAttended = recordData.attendees.some(attendee => attendee.studentId === studentId);
+                    const alreadyAttended = currentAttendees.some(attendee => attendee.studentId === studentId);
                     if (alreadyAttended) {
                         console.log(`Student ${studentData.displayName} already attended. Skipping.`);
                         updatesToDelete[eventId] = null; // حذف الحدث لأنه مكرر
@@ -1025,8 +1028,9 @@
             });
         }
 
+        // --- التشغيل الأولي ---
         showPage('dashboard');
-        processPendingAttendanceEvents();
+        // ## الإضافة الجديدة: استدعاء دالة الجسر بشكل دوري
         setInterval(processPendingAttendanceEvents, 15000); // استدعاء الدالة كل 15 ثانية
         
         setupTabs('student-tabs', 'student-tabs-content', departments, (tabContent, deptName) => {
