@@ -57,7 +57,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, query, where, getDocs, doc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, query, where, getDocs, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
@@ -90,41 +90,41 @@
         let authenticatedUser = null;
         let roomStatusUnsubscribe = null;
 
-        function updateRealtimeDBStatus(rName, newStatus, userId) {
-            const lockName = "Room" + rName;
-            const lockRef = ref(rtdb, 'locks/' + lockName);
-            set(lockRef, {
-                status: newStatus,
-                last_user_uid: userId
-            });
-        }
-
-        function showSection(sectionToShow) {
-            authSection.classList.toggle('hidden', sectionToShow !== authSection);
-            controlSection.classList.toggle('hidden', sectionToShow !== controlSection);
-            messageElement.textContent = '';
-        }
-
+        // ## تعديل: دمج تحديث حالة القفل مع تحديث حالة القاعة في Firestore ##
         async function setRoomStatus(newStatus, user) {
             if (!roomDocRef || !user) return;
             actionBtn.disabled = true;
             logoutBtn.disabled = true;
             try {
-                await updateDoc(roomDocRef, { status: newStatus });
-                
                 const userUid = newStatus === 'open' ? user.id : 'none';
                 
-                updateRealtimeDBStatus(roomName, newStatus, userUid);
+                // تحديث Realtime Database أولاً لضمان السرعة
+                const lockName = "Room" + roomName;
+                const lockRef = ref(rtdb, 'locks/' + lockName);
+                await set(lockRef, {
+                    status: newStatus,
+                    last_user_uid: userUid
+                });
                 
+                // لا حاجة لتحديث Firestore هنا، لأن حالة القاعة تدار الآن عبر Realtime DB
+                // وهذا يجعل النظام أكثر تفاعلية وسرعة
+
                 updateControlUI(newStatus);
 
             } catch (error) {
+                console.error("Error setting room status:", error);
                 messageElement.textContent = 'فشلت العملية. حاول مرة أخرى.';
                 messageElement.className = 'error';
             } finally {
                 actionBtn.disabled = false;
                 logoutBtn.disabled = false;
             }
+        }
+
+        function showSection(sectionToShow) {
+            authSection.classList.toggle('hidden', sectionToShow !== authSection);
+            controlSection.classList.toggle('hidden', sectionToShow !== controlSection);
+            messageElement.textContent = '';
         }
 
         function updateControlUI(status) {
@@ -166,14 +166,11 @@
                 const userDoc = userSnapshot.docs[0];
                 const userData = userDoc.data();
 
-                // ======================================================
-                // ## التعديل المطلوب: التحقق من صلاحية الدور ##
-                // ======================================================
+                // ## تعديل: التحقق من صلاحية الدور ومنع الطلاب ##
                 const allowedRoles = ['admin', 'عضو هيئة تدريس', 'مشرف', 'عامل نظافة'];
                 if (!userData.role || !allowedRoles.includes(userData.role.trim())) {
-                    throw new Error('ليس لديك صلاحية لفتح القاعة عبر QR.');
+                    throw new Error('ليس لديك صلاحية لفتح القاعة. هذه الميزة مخصصة للموظفين فقط.');
                 }
-                // ======================================================
 
                 authenticatedUser = {
                     id: userDoc.id,
@@ -186,10 +183,13 @@
                 
                 if (roomStatusUnsubscribe) roomStatusUnsubscribe();
 
-                roomStatusUnsubscribe = onSnapshot(roomDocRef, (docSnap) => {
-                    if (docSnap.exists() && authenticatedUser) {
-                        const roomStatus = docSnap.data().status;
-                        updateControlUI(roomStatus);
+                // الاستماع لحالة القفل من Realtime Database
+                const lockRef = ref(rtdb, 'locks/Room' + roomName);
+                roomStatusUnsubscribe = onValue(lockRef, (snapshot) => {
+                    const lockData = snapshot.val();
+                    const status = lockData ? lockData.status : 'closed';
+                    if (authenticatedUser) {
+                        updateControlUI(status);
                     }
                 });
 
