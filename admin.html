@@ -113,7 +113,6 @@
                 <div id="student-tabs-content"></div>
             </div>
         </div>
-
         <div id="schedules" class="page">
             <div class="card">
                 <h3>الجداول الدراسية</h3>
@@ -125,18 +124,13 @@
 
         <div id="rooms" class="page"><div class="card"><h3>القاعات الدراسية</h3><button class="btn btn-primary" onclick="openModal('room-modal')">إضافة قاعة</button><table id="rooms-table"><thead><tr><th>اسم القاعة</th><th>السعة</th><th>رمز QR</th><th>إجراء</th></tr></thead><tbody></tbody></table></div></div>
 
-        <!-- ## تعديل: تغيير هيكل الفلترة في صفحة سجلات الحضور ## -->
         <div id="attendance" class="page">
             <div class="card">
                 <h3>سجلات الحضور والغياب</h3>
                 <div class="filter-container">
                     <div class="form-group">
-                        <label for="attendance-department-filter">فلترة حسب القسم</label>
-                        <select id="attendance-department-filter" onchange="window.populateCourseFilterForDepartment(this.value)"></select>
-                    </div>
-                    <div class="form-group">
                         <label for="attendance-course-filter">فلترة حسب المادة</label>
-                        <select id="attendance-course-filter" onchange="window.renderAttendanceTable()"></select>
+                        <select id="attendance-course-filter" onchange="window.filterAttendanceRecords()"></select>
                     </div>
                 </div>
                 <table id="attendance-summary-table">
@@ -149,9 +143,7 @@
                             <th>إجراء</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <!-- سيتم عرض رسالة هنا لتوجيه المستخدم -->
-                    </tbody>
+                    <tbody></tbody>
                 </table>
             </div>
         </div>
@@ -168,8 +160,10 @@
                 <div class="form-group"><label>الاسم الكامل</label><input type="text" id="displayName" required></div>
                 <div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" required></div>
                 <div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم التغيير</small></div>
-                <div class="form-group"><label>الدور</label><select id="role" required onchange="toggleDepartmentSelect()"><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option><option value="طالب">طالب</option></select></div>
+                <div class="form-group"><label>الدور</label><select id="role" required onchange="toggleDepartmentAndGroupSelect()"><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option><option value="طالب">طالب</option></select></div>
                 <div class="form-group" id="department-group" style="display:none;"><label>القسم</label><select id="department"></select></div>
+                <!-- ## تعديل: تم إضافة حقل المجموعة للطالب ## -->
+                <div class="form-group" id="student-group-group" style="display:none;"><label>المجموعة</label><select id="studentGroup"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></div>
                 <div class="form-group"><label>رمز الباركود (رقم)</label><input type="text" id="barcodeId"></div>
                 <div class="form-group"><label>رمز RFID (UID)</label><input type="text" id="rfid"></div>
                 <button type="submit" class="btn btn-success">حفظ</button>
@@ -222,8 +216,7 @@
                     <thead>
                         <tr>
                             <th>اسم الطالب</th>
-                            <th>اسم المستخدم</th>
-                            <th>كلمة المرور</th>
+                            <th>المجموعة</th>
                             <th>RFID (UID)</th>
                             <th>إجراء</th>
                         </tr>
@@ -292,8 +285,7 @@
             document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
             document.querySelector(`.nav-link[href="#${pageId}"]`).classList.add('active');
             if (pageId === 'attendance') {
-                // ## تعديل: استدعاء دالة تهيئة الفلاتر عند فتح الصفحة
-                initializeAttendanceFilters();
+                listenForAttendanceRecords();
             }
         };
 
@@ -305,7 +297,7 @@
             if (modalId === 'user-modal' || modalId === 'room-modal' || modalId === 'schedule-modal') {
                  document.querySelector(`#${modalId} h3`).textContent = 'إضافة جديد';
             }
-            if (modalId === 'user-modal') toggleDepartmentSelect();
+            if (modalId === 'user-modal') toggleDepartmentAndGroupSelect();
             if (modalId === 'schedule-modal') populateSelects();
             document.getElementById(modalId).style.display = 'block';
         };
@@ -329,14 +321,13 @@
         populateDepartmentSelect('department');
         populateDepartmentSelect('scheduleDepartment');
 
-        window.toggleDepartmentSelect = () => {
+        window.toggleDepartmentAndGroupSelect = () => {
             const role = document.getElementById('role').value;
-            document.getElementById('department-group').style.display = (role === 'طالب') ? 'block' : 'none';
+            const isStudent = role === 'طالب';
+            document.getElementById('department-group').style.display = isStudent ? 'block' : 'none';
+            document.getElementById('student-group-group').style.display = isStudent ? 'block' : 'none';
         };
-        // ======================================================================
-        // ## الجزء الثاني: منطق التطبيق (عرض البيانات ومعالجتها) ##
-        // ======================================================================
-
+        
         function setupTabs(tabsContainerId, contentContainerId, tabsArray, callback) {
             const tabsContainer = document.getElementById(tabsContainerId);
             const contentContainer = document.getElementById(contentContainerId);
@@ -385,21 +376,26 @@
             const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
             const currentDay = days[now.getDay()];
             
-            const upcomingLecture = allSchedulesData.find(schedule => 
-                schedule.lecturerId === userId && 
-                schedule.room === roomName &&
-                schedule.day === currentDay
-            );
+            const activeSchedule = allSchedulesData.find(schedule => {
+                if (schedule.lecturerId !== userId || schedule.room !== roomName || schedule.day !== currentDay) {
+                    return false;
+                }
+                const [startTimeStr, endTimeStr] = schedule.time.split('-');
+                const today = new Date();
+                const startTime = new Date(today.toDateString() + ' ' + startTimeStr);
+                const endTime = new Date(today.toDateString() + ' ' + endTimeStr);
+                return now >= startTime && now <= endTime;
+            });
 
-            if (upcomingLecture) {
-                const lecturerName = allUsersData[upcomingLecture.lecturerId]?.displayName || 'غير محدد';
+            if (activeSchedule) {
+                const lecturerName = allUsersData[activeSchedule.lecturerId]?.displayName || 'غير محدد';
                 const activeLectureData = {
-                    courseName: upcomingLecture.courseName,
+                    courseName: activeSchedule.courseName,
                     lecturerName: lecturerName,
-                    lecturerId: upcomingLecture.lecturerId,
-                    time: upcomingLecture.time,
-                    groups: upcomingLecture.groups || [],
-                    scheduleId: upcomingLecture.id 
+                    lecturerId: activeSchedule.lecturerId,
+                    time: activeSchedule.time,
+                    groups: activeSchedule.groups || [],
+                    scheduleId: activeSchedule.id 
                 };
                 await set(ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`), activeLectureData);
             } else {
@@ -439,6 +435,7 @@
             }; 
             if (role === 'طالب') {
                 data.department = document.getElementById('department').value;
+                data.group = document.getElementById('studentGroup').value;
             }
             if (id) { 
                 if (password) { data.password = password; } 
@@ -528,17 +525,19 @@
             departments.forEach(deptName => {
                 const container = document.querySelector(`#student-tabs-content-${deptName.replace(/\s/g, '-')}`);
                 if (!container) return;
-                const tbody = container.querySelector('table tbody');
-                tbody.innerHTML = '';
-                studentDataByDept[deptName].forEach(u => {
-                    const actionsHtml = `<button class="btn btn-warning" onclick="editItem('Users','${u.id}','user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users','${u.id}','الطالب')">حذف</button><button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}','${u.role}','${u.barcodeId}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadBarcodeAsPNG('${u.displayName}', '${u.barcodeId}')">تحميل صورة الرمز</button>`;
-                    tbody.innerHTML += `<tr><td>${u.displayName||''}</td><td><div class="barcode-container">${u.barcodeId?`<svg id="barcode-${u.id}"></svg>`:'لا يوجد'}</div></td><td>${u.rfid||'لا يوجد'}</td><td>${actionsHtml}</td></tr>`;
-                    if (u.barcodeId) JsBarcode(`#barcode-${u.id}`, u.barcodeId);
-                });
+                const table = container.querySelector('table');
+                if (table) {
+                    table.innerHTML = `<thead><tr><th>الاسم الكامل</th><th>المجموعة</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody>`;
+                    const tbody = table.querySelector('tbody');
+                    studentDataByDept[deptName].forEach(u => {
+                        const actionsHtml = `<button class="btn btn-warning" onclick="editItem('Users','${u.id}','user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users','${u.id}','الطالب')">حذف</button><button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}','${u.role}','${u.barcodeId}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadBarcodeAsPNG('${u.displayName}', '${u.barcodeId}')">تحميل صورة الرمز</button>`;
+                        tbody.innerHTML += `<tr><td>${u.displayName||''}</td><td>${u.group||'N/A'}</td><td><div class="barcode-container">${u.barcodeId?`<svg id="barcode-${u.id}"></svg>`:'لا يوجد'}</div></td><td>${u.rfid||'لا يوجد'}</td><td>${actionsHtml}</td></tr>`;
+                        if (u.barcodeId) JsBarcode(`#barcode-${u.id}`, u.barcodeId);
+                    });
+                }
             });
             syncAllowedRfids();
         });
-
         onSnapshot(collection(db, "Schedules"), (snap) => {
             allSchedulesData = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
             const scheduleDataByDept = {};
@@ -561,8 +560,7 @@
                     tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${lecturerName}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td>${(s.groups||[]).join(', ')}</td><td><button class="btn btn-warning" onclick="editItem('Schedules','${s.id}','schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules','${s.id}','الجدول')">حذف</button>${manageStudentsBtn}</td></tr>`;
                 });
             });
-            // ## تعديل: لا نعد نستدعي هذه الدالة مباشرة من هنا
-            // populateCourseFilter();
+            populateCourseFilter();
         });
 
         onSnapshot(collection(db, "Rooms"), (snapshot) => {
@@ -647,9 +645,10 @@
                 document.getElementById('role').value = data.role;
                 document.getElementById('rfid').value = data.rfid || '';
                 document.getElementById('barcodeId').value = data.barcodeId || '';
-                toggleDepartmentSelect();
+                toggleDepartmentAndGroupSelect();
                 if (data.role === 'طالب') {
                     document.getElementById('department').value = data.department;
+                    document.getElementById('studentGroup').value = data.group || 'A';
                 }
             } else if (type === 'room') {
                 document.getElementById('roomName').value = data.name;
@@ -698,12 +697,12 @@
         function renderEnrolledStudents() {
             const tableBody = document.querySelector('#enrolled-students-table tbody');
             tableBody.innerHTML = '';
-            if (currentManagingSchedule.enrolledStudents.length === 0) { tableBody.innerHTML = '<tr><td colspan="5">لا يوجد طلاب مسجلون حاليًا.</td></tr>'; return; }
+            if (currentManagingSchedule.enrolledStudents.length === 0) { tableBody.innerHTML = '<tr><td colspan="4">لا يوجد طلاب مسجلون حاليًا.</td></tr>'; return; }
             currentManagingSchedule.enrolledStudents.forEach(studentId => {
                 const studentData = allUsersData[studentId];
                 if (!studentData) return;
                 const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${studentData.displayName || ''}</td><td>${studentData.username || ''}</td><td>${studentData.password || ''}</td><td>${studentData.rfid || ''}</td><td><button class="btn btn-danger btn-sm" onclick="removeStudentFromSchedule('${studentId}')">حذف</button></td>`;
+                tr.innerHTML = `<td>${studentData.displayName || ''}</td><td>${studentData.group || 'N/A'}</td><td>${studentData.rfid || ''}</td><td><button class="btn btn-danger btn-sm" onclick="removeStudentFromSchedule('${studentId}')">حذف</button></td>`;
                 tableBody.appendChild(tr);
             });
         }
@@ -716,7 +715,7 @@
             const filteredStudents = allStudentsData.filter(student => student.department === currentManagingSchedule.department && !currentManagingSchedule.enrolledStudents.includes(student.id) && student.displayName.toLowerCase().includes(searchTerm));
             filteredStudents.forEach(student => {
                 const div = document.createElement('div');
-                div.textContent = student.displayName;
+                div.textContent = `${student.displayName} (مجموعة ${student.group})`;
                 div.onclick = () => addStudentToSchedule(student.id);
                 resultsContainer.appendChild(div);
             });
@@ -738,85 +737,44 @@
             currentManagingSchedule.enrolledStudents = currentManagingSchedule.enrolledStudents.filter(id => id !== studentId);
             renderEnrolledStudents();
         }
-        // ======================================================================
-        // ## دوال إدارة وعرض سجلات الحضور (مع الفلترة الجديدة) ##
-        // ======================================================================
         
         function listenForAttendanceRecords() {
             const attendanceRef = collection(db, "AttendanceRecords");
             onSnapshot(attendanceRef, (snap) => {
                 allAttendanceData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                // لا نعرض الجدول مباشرة، بل ننتظر اختيار المستخدم
-                renderAttendanceTable(); 
+                renderAttendanceTable();
             });
         }
 
-        // ## تعديل: دالة جديدة لتهيئة فلاتر القسم والمادة
-        function initializeAttendanceFilters() {
-            listenForAttendanceRecords();
-            const deptFilter = document.getElementById('attendance-department-filter');
-            deptFilter.innerHTML = '<option value="">اختر القسم أولاً...</option>';
-            departments.forEach(dep => {
-                deptFilter.innerHTML += `<option value="${dep}">${dep}</option>`;
+        function populateCourseFilter() {
+            const filterSelect = document.getElementById('attendance-course-filter');
+            const uniqueCourses = [...new Map(allSchedulesData.map(item => [item['courseCode'], item])).values()];
+            filterSelect.innerHTML = '<option value="">جميع المواد</option>';
+            uniqueCourses.forEach(course => {
+                filterSelect.innerHTML += `<option value="${course.courseCode}">${course.courseName} (${course.courseCode})</option>`;
             });
-            // مسح قائمة المواد وإفراغ الجدول عند البداية
-            document.getElementById('attendance-course-filter').innerHTML = '<option value="">اختر مادة...</option>';
-            document.querySelector('#attendance-summary-table tbody').innerHTML = '<tr><td colspan="5">الرجاء اختيار قسم ثم مادة لعرض السجلات.</td></tr>';
         }
 
-        // ## تعديل: دالة جديدة لملء فلتر المواد بناءً على القسم المختار
-        window.populateCourseFilterForDepartment = (selectedDept) => {
-            const courseFilter = document.getElementById('attendance-course-filter');
-            const tbody = document.querySelector('#attendance-summary-table tbody');
-            
-            if (!selectedDept) {
-                courseFilter.innerHTML = '<option value="">اختر مادة...</option>';
-                tbody.innerHTML = '<tr><td colspan="5">الرجاء اختيار قسم ثم مادة لعرض السجلات.</td></tr>';
-                return;
-            }
-
-            const coursesInDept = allSchedulesData.filter(s => s.department === selectedDept);
-            const uniqueCourses = [...new Map(coursesInDept.map(item => [item['courseCode'], item])).values()];
-            
-            courseFilter.innerHTML = '<option value="">اختر مادة...</option>';
-            if (uniqueCourses.length > 0) {
-                uniqueCourses.forEach(course => {
-                    courseFilter.innerHTML += `<option value="${course.courseCode}">${course.courseName} (${course.courseCode})</option>`;
-                });
-            }
-            // مسح الجدول عند تغيير القسم
-            tbody.innerHTML = '<tr><td colspan="5">الرجاء اختيار مادة لعرض السجلات.</td></tr>';
+        window.filterAttendanceRecords = () => {
+            renderAttendanceTable();
         };
 
-        // ## تعديل: دالة عرض الجدول تعتمد الآن على الفلترين معاً
-        window.renderAttendanceTable = () => {
+        function renderAttendanceTable() {
             const tbody = document.querySelector('#attendance-summary-table tbody');
-            const selectedDept = document.getElementById('attendance-department-filter').value;
-            const selectedCourseCode = document.getElementById('attendance-course-filter').value;
-
-            if (!selectedDept || !selectedCourseCode) {
-                // لا تعرض شيئاً إذا لم يتم اختيار القسم والمادة
-                if (!selectedDept) {
-                    tbody.innerHTML = '<tr><td colspan="5">الرجاء اختيار قسم ثم مادة لعرض السجلات.</td></tr>';
-                } else {
-                    tbody.innerHTML = '<tr><td colspan="5">الرجاء اختيار مادة لعرض السجلات.</td></tr>';
-                }
-                return;
-            }
+            tbody.innerHTML = '';
+            const selectedCourse = document.getElementById('attendance-course-filter').value;
             
-            // 1. نجد كل الجداول الدراسية التي تطابق رمز المادة المختار
-            const relevantSchedules = allSchedulesData.filter(s => s.courseCode === selectedCourseCode);
-            const relevantScheduleIds = relevantSchedules.map(s => s.id);
-
-            // 2. نفلتر سجلات الحضور التي تنتمي لأي من هذه الجداول
-            const filteredData = allAttendanceData.filter(record => relevantScheduleIds.includes(record.scheduleId));
+            const filteredData = allAttendanceData.filter(record => {
+                const schedule = allSchedulesData.find(s => s.id === record.scheduleId);
+                if (!schedule) return false;
+                return !selectedCourse || schedule.courseCode === selectedCourse;
+            });
 
             if (filteredData.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5">لا توجد سجلات حضور لهذه المادة.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5">لا توجد سجلات حضور تطابق هذا الفلتر.</td></tr>';
                 return;
             }
-            
-            tbody.innerHTML = '';
+
             filteredData.sort((a, b) => new Date(b.lectureDate) - new Date(a.lectureDate));
 
             filteredData.forEach(record => {
@@ -904,9 +862,6 @@
             html2pdf().from(exportContent).set(options).save();
         };
 
-        // ======================================================================
-        // ## "دالة الجسر" التي تربط بين RTDB و Firestore ##
-        // ======================================================================
         async function processPendingAttendanceEvents() {
             const eventsRef = ref(rtdb, 'attendance_events');
             const eventsSnapshot = await get(eventsRef);
@@ -920,35 +875,35 @@
 
             for (const eventId in events) {
                 const eventData = events[eventId];
-                const { studentId, roomName } = eventData;
+                const { studentId, roomName, timestamp } = eventData;
 
-                if (!studentId || !roomName) {
-                    updatesToDelete[eventId] = null;
-                    continue;
-                }
+                updatesToDelete[eventId] = null; // Assume deletion unless proven otherwise
+
+                if (!studentId || !roomName || !timestamp) continue;
 
                 try {
+                    const eventTime = new Date(timestamp);
                     const activeLectureSnap = await get(ref(rtdb, `/schedules_by_room/${roomName}/active_lecture`));
                     const activeLecture = activeLectureSnap.val();
 
-                    if (!activeLecture || activeLecture === "none") {
-                        updatesToDelete[eventId] = null;
-                        continue;
-                    }
+                    if (!activeLecture || activeLecture === "none") continue;
                     
                     const scheduleData = allSchedulesData.find(s => s.id === activeLecture.scheduleId);
-                    if (!scheduleData || !scheduleData.enrolledStudents.includes(studentId)) {
-                        updatesToDelete[eventId] = null;
-                        continue;
-                    }
+                    if (!scheduleData) continue;
+
+                    const [startTimeStr, endTimeStr] = scheduleData.time.split('-');
+                    const lectureStartTime = new Date(eventTime.toDateString() + ' ' + startTimeStr);
+                    const lectureEndTime = new Date(eventTime.toDateString() + ' ' + endTimeStr);
+
+                    if (eventTime < lectureStartTime || eventTime > lectureEndTime) continue;
 
                     const studentData = allUsersData[studentId];
-                    if (!studentData) {
-                        updatesToDelete[eventId] = null;
-                        continue;
-                    }
+                    if (!studentData) continue;
 
-                    const today = new Date().toISOString().slice(0, 10);
+                    if (!scheduleData.enrolledStudents.includes(studentId)) continue;
+                    if (!scheduleData.groups.includes(studentData.group)) continue;
+
+                    const today = new Date(timestamp).toISOString().slice(0, 10);
                     const docId = `${activeLecture.scheduleId}_${today}`;
                     let attendanceDocRef;
                     let attendanceData;
@@ -980,13 +935,11 @@
                         const newAttendee = {
                             studentId: studentId,
                             studentName: studentData.displayName,
-                            studentGroup: scheduleData.groups.join(', ') || "N/A", 
-                            timestamp: new Date()
+                            studentGroup: studentData.group || "N/A", 
+                            timestamp: eventTime
                         };
                         batch.update(attendanceDocRef, { attendees: arrayUnion(newAttendee) });
                     }
-
-                    updatesToDelete[eventId] = null;
 
                 } catch (error) {
                     console.error(`Error processing event ${eventId}:`, error);
@@ -998,10 +951,6 @@
                 await update(ref(rtdb, 'attendance_events'), updatesToDelete);
             }
         }
-
-        // ======================================================================
-        // ## دوال التحميل والتنزيل ##
-        // ======================================================================
 
         window.downloadIdCardAsPDF = (name, role, barcodeValue) => {
             const prepareArea = document.getElementById('pdf-prepare-area');
@@ -1061,12 +1010,11 @@
             });
         }
 
-        // --- التشغيل الأولي ---
         showPage('dashboard');
-        setInterval(processPendingAttendanceEvents, 15000);
+        setInterval(processPendingAttendanceEvents, 15000); 
         
         setupTabs('student-tabs', 'student-tabs-content', departments, (tabContent, deptName) => {
-            tabContent.innerHTML = `<table id="students-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
+            tabContent.innerHTML = `<table id="students-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>الاسم الكامل</th><th>المجموعة</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
         });
 
         setupTabs('schedule-tabs', 'schedule-tabs-content', departments, (tabContent, deptName) => {
