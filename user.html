@@ -15,10 +15,6 @@
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { padding: 12px; text-align: right; border-bottom: 1px solid #ddd; }
         th { background-color: #f2f2f2; }
-        .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 14px; }
-        .btn-primary { background-color: #007bff; }
-        .attendance-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .attendance-controls select, .attendance-controls input[type="date"] { padding: 8px; border: 1px solid #ccc; border-radius: 5px; }
         .room-status-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
         .room-card { padding: 20px; border-radius: 8px; text-align: center; color: white; font-weight: bold; display: flex; flex-direction: column; justify-content: space-between; min-height: 160px; }
         .room-card.open { background-color: #28a745; }
@@ -26,6 +22,8 @@
         .room-card h4 { margin-top: 0; font-size: 1.8rem; }
         .room-card p { margin: 4px 0; font-size: 1rem; }
         .room-card .details { margin-top: 10px; min-height: 45px; font-weight: normal; font-size: 0.9rem; }
+        .room-card .details p { font-size: 1rem; font-weight: normal; margin: 2px 0; }
+        .room-card .details p:first-child { font-weight: bold; font-size: 1.1rem; }
     </style>
 </head>
 <body>
@@ -57,26 +55,14 @@
                 </table>
             </div>
 
-            <div class="card">
-                <h3>سجلات الحضور</h3>
-                <div class="attendance-controls">
-                    <select id="course-select" onchange="window.populateGroups()"><option value="">اختر المادة</option></select>
-                    <select id="group-select"><option value="">اختر المجموعة</option></select>
-                    <input type="date" id="attendance-date">
-                    <button class="btn btn-primary" onclick="window.fetchAttendance()">بحث</button>
-                </div>
-                <table id="attendance-table">
-                    <thead><tr><th>اسم الطالب</th><th>القاعة</th><th>المادة</th><th>المجموعة</th><th>وقت الحضور</th></tr></thead>
-                    <tbody><tr><td colspan="5">اختر مادة وتاريخًا لعرض سجلات الحضور.</td></tr></tbody>
-                </table>
-                <button class="btn btn-primary" style="margin-top: 20px;" onclick="window.printAttendance()">طباعة الكشف</button>
-            </div>
+            <!-- تم حذف بطاقة سجلات الحضور من هنا -->
+            
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, query, where, onSnapshot, getDocs, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, query, where, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
@@ -101,7 +87,9 @@
         const locksRef = ref(rtdb, 'locks');
         let allSchedulesData = [];
         let allUsersData = {};
+        let roomDataStore = {};
 
+        // --- 1. تهيئة وعرض لوحة الإعلانات ---
         async function initializeDashboard() {
             const schedulesSnap = await getDocs(collection(db, "Schedules"));
             allSchedulesData = schedulesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -111,180 +99,87 @@
                 allUsersData[doc.id] = doc.data().displayName;
             });
 
+            onSnapshot(collection(db, "Rooms"), (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    const docId = change.doc.id;
+                    const roomData = change.doc.data();
+                    if (change.type === "added") roomDataStore[docId] = roomData;
+                    if (change.type === "modified") roomDataStore[docId] = { ...roomDataStore[docId], ...roomData };
+                    if (change.type === "removed") delete roomDataStore[docId];
+                });
+                updateAllDashboardCards();
+            });
+
             onValue(locksRef, (snapshot) => {
                 const allLocksStatus = snapshot.val() || {};
-                renderDashboard(allLocksStatus);
+                for (const docId in roomDataStore) {
+                    const roomName = roomDataStore[docId].name;
+                    const lockName = "Room" + roomName;
+                    roomDataStore[docId].status = allLocksStatus[lockName]?.status || 'closed';
+                }
+                updateAllDashboardCards();
             });
         }
 
-        function renderDashboard(allLocksStatus) {
+        function updateAllDashboardCards() {
             statusContainer.innerHTML = '';
-            getDocs(collection(db, "Rooms")).then(roomSnapshot => {
-                roomSnapshot.forEach(doc => {
-                    const room = doc.data();
-                    const lockName = "Room" + room.name;
-                    const lockStatus = allLocksStatus[lockName] ? allLocksStatus[lockName].status : 'closed';
-                    const statusClass = lockStatus === 'open' ? 'open' : 'closed';
-                    const statusText = lockStatus === 'open' ? 'مفتوحة' : 'مغلقة';
+            Object.values(roomDataStore).forEach(roomData => {
+                const now = new Date();
+                const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+                const currentDay = days[now.getDay()];
+                const currentTime = now.getHours() * 60 + now.getMinutes();
 
-                    const now = new Date();
-                    const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-                    const currentDay = days[now.getDay()];
-                    const currentTime = now.getHours() * 60 + now.getMinutes();
-
-                    const currentSchedule = allSchedulesData.find(schedule => {
-                        if (schedule.room !== room.name || schedule.day !== currentDay) return false;
-                        const timeParts = schedule.time.split('-');
-                        const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
-                        const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]);
-                        return currentTime >= startTime && currentTime < endTime;
-                    });
-
-                    let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
-                    if (currentSchedule) {
-                        const lecturerName = allUsersData[currentSchedule.lecturerId] || 'غير محدد';
-                        detailsHtml = `<div class="details"><p>${lecturerName}</p><p>${currentSchedule.courseName}</p></div>`;
-                    }
-
-                    statusContainer.innerHTML += `<div class="room-card ${statusClass}"><div><h4>${room.name}</h4><p>${statusText}</p></div>${detailsHtml}</div>`;
+                const currentSchedule = allSchedulesData.find(schedule => {
+                    if (schedule.room !== roomData.name || schedule.day !== currentDay) return false;
+                    const timeParts = schedule.time.split('-');
+                    const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
+                    const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]);
+                    return currentTime >= startTime && currentTime < endTime;
                 });
+
+                const status = roomData.status || 'closed';
+                const statusText = status === 'open' ? 'مفتوحة' : 'مغلقة';
+                const statusClass = status === 'open' ? 'open' : 'closed';
+
+                let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
+                if (currentSchedule) {
+                    const lecturerName = allUsersData[currentSchedule.lecturerId] || 'غير محدد';
+                    detailsHtml = `<div class="details"><p>${lecturerName}</p><p>${currentSchedule.courseName}</p></div>`;
+                }
+
+                statusContainer.innerHTML += `
+                    <div class="room-card ${statusClass}">
+                        <div><h4>${roomData.name}</h4><p>${statusText}</p></div>
+                        ${detailsHtml}
+                    </div>`;
             });
         }
         
         initializeDashboard();
+        setInterval(updateAllDashboardCards, 60000);
 
+
+        // --- 2. عرض الأقسام الخاصة بعضو هيئة التدريس ---
         if (userRole === 'عضو هيئة تدريس') {
             document.getElementById('lecturer-sections').style.display = 'block';
 
             const schedulesTableBody = document.querySelector('#my-schedules-table tbody');
-            const courseSelect = document.getElementById('course-select');
-            const groupSelect = document.getElementById('group-select');
-            const attendanceTableBody = document.querySelector('#attendance-table tbody');
             const schedulesRef = collection(db, "Schedules");
             
-            let lecturerSchedules = [];
-
             const qSchedules = query(schedulesRef, where("lecturerId", "==", user.id));
 
             onSnapshot(qSchedules, (snapshot) => {
                 schedulesTableBody.innerHTML = '';
-                courseSelect.innerHTML = '<option value="">اختر المادة</option>';
-                lecturerSchedules = [];
                 
-                const uniqueCourses = new Map();
-
                 if (snapshot.empty) {
                     schedulesTableBody.innerHTML = '<tr><td colspan="6">لا توجد محاضرات مجدولة لك.</td></tr>';
                     return;
                 }
                 snapshot.forEach(doc => {
-                    const s = { id: doc.id, ...doc.data() };
-                    lecturerSchedules.push(s);
+                    const s = doc.data();
                     schedulesTableBody.innerHTML += `<tr><td>${s.day}</td><td>${s.time}</td><td>${s.courseCode}</td><td>${s.courseName}</td><td>${s.room}</td><td>${(s.groups || []).join(', ')}</td></tr>`;
-                    
-                    if (!uniqueCourses.has(s.courseName)) {
-                        uniqueCourses.set(s.courseName, s.courseName);
-                        courseSelect.innerHTML += `<option value="${s.courseName}">${s.courseName}</option>`;
-                    }
                 });
             });
-
-            window.populateGroups = () => {
-                const selectedCourse = courseSelect.value;
-                groupSelect.innerHTML = '<option value="">اختر المجموعة</option>';
-                if (!selectedCourse) return;
-
-                const allGroupsForCourse = new Set();
-                lecturerSchedules
-                    .filter(s => s.courseName === selectedCourse && s.groups)
-                    .forEach(s => {
-                        s.groups.forEach(g => allGroupsForCourse.add(g));
-                    });
-                
-                allGroupsForCourse.forEach(group => {
-                    groupSelect.innerHTML += `<option value="${group}">${group}</option>`;
-                });
-            };
-
-            // ####################################################################
-            // ##                 التعديل الجديد والمهم هنا                     ##
-            // ####################################################################
-            window.fetchAttendance = async () => {
-                const selectedCourse = courseSelect.value;
-                const selectedGroup = groupSelect.value;
-                const selectedDateStr = document.getElementById('attendance-date').value;
-
-                if (!selectedCourse || !selectedGroup || !selectedDateStr) {
-                    alert('يرجى اختيار المادة، المجموعة، والتاريخ أولاً.');
-                    return;
-                }
-
-                attendanceTableBody.innerHTML = '<tr><td colspan="5">جاري البحث...</td></tr>';
-
-                // ## البحث باستخدام حقل التاريخ الجديد لضمان الدقة ##
-                const attendanceCollectionRef = collection(db, "Attendance");
-                const q = query(attendanceCollectionRef, 
-                    where("lecturerName", "==", userDisplayName),
-                    where("courseName", "==", selectedCourse),
-                    where("group", "==", selectedGroup),
-                    where("date", "==", selectedDateStr) // البحث بالتاريخ المطابق
-                );
-
-                try {
-                    const snapshot = await getDocs(q);
-                    attendanceTableBody.innerHTML = '';
-                    if (snapshot.empty) {
-                        attendanceTableBody.innerHTML = '<tr><td colspan="5">لا توجد سجلات حضور لهذه المجموعة في هذا اليوم.</td></tr>';
-                        return;
-                    }
-                    
-                    let finalResults = [];
-                    snapshot.forEach(doc => {
-                        finalResults.push(doc.data());
-                    });
-
-                    // فرز النتائج حسب الطابع الزمني (الأحدث أولاً)
-                    finalResults.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
-                    finalResults.forEach(a => {
-                        // تحويل الطابع الزمني (epoch) إلى وقت مقروء
-                        const attendanceTime = a.timestamp ? new Date(a.timestamp * 1000).toLocaleTimeString('ar-EG') : 'غير محدد';
-                        attendanceTableBody.innerHTML += `<tr><td>${a.studentName}</td><td>${a.roomName}</td><td>${a.courseName}</td><td>${a.group}</td><td>${attendanceTime}</td></tr>`;
-                    });
-
-                } catch (error) {
-                    console.error("Error fetching attendance: ", error);
-                    // ملاحظة: هذا النوع من البحث يتطلب إنشاء فهرس (index) في Firestore
-                    attendanceTableBody.innerHTML = `<tr><td colspan="5">حدث خطأ. قد تحتاج إلى إنشاء فهرس في Firestore. افتح الرابط في الكونسول لإنشائه.</td></tr>`;
-                    console.log("لحل هذا الخطأ، يرجى إنشاء فهرس مركب في Firestore. افتح الرابط التالي الذي قد يظهر في رسالة الخطأ في الكونسول:");
-                    console.log(error.message); 
-                }
-            };
-
-            window.printAttendance = () => {
-                const tableToPrint = document.getElementById('attendance-table');
-                const selectedDate = document.getElementById('attendance-date').value;
-                const selectedCourse = courseSelect.value;
-                const selectedGroup = groupSelect.value;
-                
-                if (tableToPrint.querySelector('tbody tr td[colspan="5"]')) {
-                    alert("يرجى البحث عن سجلات الحضور أولاً قبل الطباعة.");
-                    return;
-                }
-
-                const printWindow = window.open('', '', 'height=600,width=800');
-                printWindow.document.write('<html lang="ar" dir="rtl"><head><title>كشف حضور الطلاب</title>');
-                printWindow.document.write('<style>body{font-family: "Segoe UI", sans-serif; padding: 20px;} table{width: 100%; border-collapse: collapse;} th, td{border: 1px solid #333; padding: 10px; text-align: right;} h2, h3 {text-align: center;}</style>');
-                printWindow.document.write('</head><body>');
-                printWindow.document.write(`<h2>كشف حضور ليوم: ${selectedDate || 'غير محدد'}</h2>`);
-                printWindow.document.write(`<h3>المادة: ${selectedCourse} - المجموعة: ${selectedGroup}</h3>`);
-                printWindow.document.write(`<h3>المحاضر: ${userDisplayName}</h3>`);
-                printWindow.document.write(tableToPrint.outerHTML);
-                printWindow.document.write('</body></html>');
-                printWindow.document.close();
-                printWindow.focus();
-                printWindow.print();
-            };
         }
     </script>
 </body>
