@@ -599,6 +599,10 @@
                 }
                 updateDashboardCard(docId);
             }
+            
+            // ### --- التعديل الحاسم والنهائي هنا --- ###
+            // استدعاء دالة الجسر بعد كل تحديث لحالة القاعات
+            processPendingAttendanceEvents(); 
         });
 
         function createDashboardCard(docId, roomData) {
@@ -1026,8 +1030,6 @@
 
         // --- التشغيل الأولي ---
         showPage('dashboard');
-        // ## الإضافة الجديدة: استدعاء دالة الجسر عند تحميل الصفحة
-        setInterval(processPendingAttendanceEvents, 10000); // التحقق كل 10 ثوانٍ
         
         setupTabs('student-tabs', 'student-tabs-content', departments, (tabContent, deptName) => {
             tabContent.innerHTML = `<table id="students-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
