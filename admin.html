@@ -244,24 +244,10 @@
         </div>
     </div>
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where, arrayUnion, arrayRemove, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { getDatabase, ref, set, onValue, get, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
-            authDomain: "gggg-dc7d0.firebaseapp.com",
-            projectId: "gggg-dc7d0",
-            storageBucket: "gggg-dc7d0.appspot.com",
-            messagingSenderId: "151376454562",
-            appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const rtdb = getDatabase(app);
-
         function initializeAppLogic() {
+            const db = getFirestore(app);
+            const rtdb = getDatabase(app);
+
             const SITE_URL = "https://cpld.netlify.app";
             const roomDataStore = {};
             let allSchedulesData = [];
@@ -324,6 +310,7 @@
             window.toggleDepartmentSelect = () => {
                 const role = document.getElementById('role').value;
                 document.getElementById('department-group').style.display = (role === 'طالب') ? 'block' : 'none';
+            };
             // ======================================================================
             // ## الجزء الثاني: منطق التطبيق (عرض البيانات ومعالجتها) ##
             // ======================================================================
@@ -365,67 +352,52 @@
                 evt.currentTarget.classList.add("active");
             };
 
-            async function processStaffRfidEvent(eventData) {
-                const { userId, role, roomName } = eventData;
-                if (!userId || !role || !roomName) return;
-
+            // ## تعديل: دالة موحدة للتحقق من صلاحية الفتح للمحاضر عبر RFID ##
+            async function updateRoomStateForRfid(roomName, userId) {
                 const roomKey = "Room" + roomName;
+                const activeLectureRef = ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`);
                 const lockRef = ref(rtdb, `locks/${roomKey}`);
-                
-                const lockSnap = await get(lockRef);
-                const currentStatus = lockSnap.exists() ? lockSnap.val().status : 'closed';
-                const newStatus = (currentStatus === 'open') ? 'closed' : 'open';
+                const user = allUsersData[userId];
 
-                if (role === 'مشرف' || role === 'عامل نظافة') {
-                    const updates = {};
-                    updates[`locks/${roomKey}/status`] = newStatus;
-                    updates[`locks/${roomKey}/last_user_uid`] = userId;
-                    if (newStatus === 'open') {
-                        updates[`schedules_by_room/${roomKey}/active_lecture`] = "none";
-                    }
-                    await update(ref(rtdb), updates);
+                // هذه الدالة مخصصة لأعضاء هيئة التدريس فقط
+                if (!user || user.role !== 'عضو هيئة تدريس') {
+                    await set(lockRef, { status: 'closed', last_user_uid: 'none' });
                     return;
                 }
 
-                if (role === 'عضو هيئة تدريس') {
-                    const now = new Date();
-                    const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-                    const currentDay = days[now.getDay()];
-                    const currentTime = now.getHours() * 60 + now.getMinutes();
+                const now = new Date();
+                const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+                const currentDay = days[now.getDay()];
+                const currentTime = now.getHours() * 60 + now.getMinutes();
 
-                    const validLecture = allSchedulesData.find(schedule => {
-                        if (schedule.lecturerId !== userId || schedule.room !== roomName || schedule.day !== currentDay) {
-                            return false;
-                        }
-                        const timeParts = schedule.time.split('-');
-                        const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
-                        const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]);
-                        return currentTime >= startTime && currentTime < endTime;
-                    });
-
-                    if (!validLecture) {
-                        console.log(`Lecturer ${userId} access denied: No valid lecture now.`);
-                        return;
+                const validLecture = allSchedulesData.find(schedule => {
+                    if (schedule.lecturerId !== userId || schedule.room !== roomName || schedule.day !== currentDay) {
+                        return false;
                     }
+                    const timeParts = schedule.time.split('-');
+                    const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
+                    const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]);
+                    return currentTime >= startTime && currentTime < endTime;
+                });
 
-                    const updates = {};
-                    updates[`locks/${roomKey}/status`] = newStatus;
-                    updates[`locks/${roomKey}/last_user_uid`] = userId;
-
-                    if (newStatus === 'open') {
-                        const lecturerName = allUsersData[userId]?.displayName || 'غير محدد';
-                        updates[`schedules_by_room/${roomKey}/active_lecture`] = {
-                            courseName: validLecture.courseName,
-                            lecturerName: lecturerName,
-                            lecturerId: validLecture.lecturerId,
-                            time: validLecture.time,
-                            groups: validLecture.groups || [],
-                            scheduleId: validLecture.id 
-                        };
-                    } else {
-                        updates[`schedules_by_room/${roomKey}/active_lecture`] = "none";
-                    }
-                    await update(ref(rtdb), updates);
+                if (validLecture) {
+                    // تم العثور على محاضرة صالحة، افتح القاعة وحدث المعلومات
+                    const lecturerName = user.displayName || 'غير محدد';
+                    const activeLectureData = {
+                        courseName: validLecture.courseName,
+                        lecturerName: lecturerName,
+                        lecturerId: validLecture.lecturerId,
+                        time: validLecture.time,
+                        groups: validLecture.groups || [],
+                        scheduleId: validLecture.id 
+                    };
+                    await set(activeLectureRef, activeLectureData);
+                    // تحديث القفل مع إزالة حقل المصدر لكي لا يتم تشغيل هذه الدالة مرة أخرى
+                    await set(lockRef, { status: 'open', last_user_uid: userId });
+                } else {
+                    // لا توجد محاضرة صالحة، تأكد من أن القاعة مغلقة
+                    await set(activeLectureRef, "none");
+                    await set(lockRef, { status: 'closed', last_user_uid: 'none' });
                 }
             }
 
@@ -516,35 +488,6 @@
                 closeModal('schedule-modal');
             });
 
-            // ## تعديل: دالة منفصلة لعرض الجداول ##
-            function renderSchedulesTable() {
-                // تأكد من أن كلتا المجموعتين من البيانات متاحة
-                if (allSchedulesData.length === 0 || Object.keys(allUsersData).length === 0) {
-                    return; // لا تفعل شيئًا إذا كانت إحدى القائمتين فارغة
-                }
-
-                const scheduleDataByDept = {};
-                departments.forEach(d => scheduleDataByDept[d] = []);
-
-                allSchedulesData.forEach(s => {
-                    if (s.department && scheduleDataByDept[s.department]) {
-                        scheduleDataByDept[s.department].push(s);
-                    }
-                });
-
-                departments.forEach(deptName => {
-                    const container = document.querySelector(`#schedule-tabs-content-${deptName.replace(/\s/g, '-')}`);
-                    if (!container) return;
-                    const tbody = container.querySelector('table tbody');
-                    tbody.innerHTML = '';
-                    scheduleDataByDept[deptName].forEach(s => {
-                        const lecturerName = allUsersData[s.lecturerId]?.displayName || 'محاضر محذوف';
-                        const manageStudentsBtn = `<button class="btn btn-info" onclick="openManageStudentsModal('${s.id}', '${s.department}', '${s.courseName} (${s.courseCode})')">إدارة الطلاب</button>`;
-                        tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${lecturerName}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td>${(s.groups||[]).join(', ')}</td><td><button class="btn btn-warning" onclick="editItem('Schedules','${s.id}','schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules','${s.id}','الجدول')">حذف</button>${manageStudentsBtn}</td></tr>`;
-                    });
-                });
-            }
-
             onSnapshot(collection(db, "Users"), (snap) => {
                 allUsersData = {};
                 allStudentsData = [];
@@ -588,12 +531,30 @@
                     });
                 });
                 syncAllowedRfids();
-                renderSchedulesTable(); // ## تعديل: استدعاء الدالة بعد جلب المستخدمين ##
             });
 
             onSnapshot(collection(db, "Schedules"), (snap) => {
                 allSchedulesData = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
-                renderSchedulesTable(); // ## تعديل: استدعاء الدالة بعد جلب الجداول ##
+                const scheduleDataByDept = {};
+                departments.forEach(d => scheduleDataByDept[d] = []);
+
+                allSchedulesData.forEach(s => {
+                    if (s.department && scheduleDataByDept[s.department]) {
+                        scheduleDataByDept[s.department].push(s);
+                    }
+                });
+
+                departments.forEach(deptName => {
+                    const container = document.querySelector(`#schedule-tabs-content-${deptName.replace(/\s/g, '-')}`);
+                    if (!container) return;
+                    const tbody = container.querySelector('table tbody');
+                    tbody.innerHTML = '';
+                    scheduleDataByDept[deptName].forEach(s => {
+                        const lecturerName = allUsersData[s.lecturerId]?.displayName || 'محاضر محذوف';
+                        const manageStudentsBtn = `<button class="btn btn-info" onclick="openManageStudentsModal('${s.id}', '${s.department}', '${s.courseName} (${s.courseCode})')">إدارة الطلاب</button>`;
+                        tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${lecturerName}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td>${(s.groups||[]).join(', ')}</td><td><button class="btn btn-warning" onclick="editItem('Schedules','${s.id}','schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules','${s.id}','الجدول')">حذف</button>${manageStudentsBtn}</td></tr>`;
+                    });
+                });
             });
 
             onSnapshot(collection(db, "Rooms"), (snapshot) => {
@@ -612,7 +573,33 @@
                     roomsTableTbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td><div class="qr-code-container">${r.qrUrl?`<img src="${qrCodeDataUrl}" alt="QR Code">`:'لا يوجد'}</div></td><td><button class="btn btn-warning" onclick="editItem('Rooms','${d.id}','room')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms','${d.id}','القاعة')">حذف</button><button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}','${r.qrUrl}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadQRCodeAsPNG('${r.name}', '${r.qrUrl}')">تحميل صورة الرمز</button></td></tr>`;
                 });
             });
-            };
+
+            const locksRef = ref(rtdb, 'locks');
+            onValue(locksRef, (snapshot) => {
+                const allLocksStatus = snapshot.val();
+                if (!allLocksStatus) return;
+
+                Object.keys(allLocksStatus).forEach(roomKey => {
+                    const lockData = allLocksStatus[roomKey];
+                    const roomDoc = Object.values(roomDataStore).find(r => "Room" + r.name === roomKey);
+
+                    if (roomDoc && lockData.source === 'rfid') {
+                        updateRoomStateForRfid(roomDoc.name, lockData.last_user_uid);
+                    }
+                });
+
+                for (const docId in roomDataStore) {
+                    const roomName = roomDataStore[docId].name;
+                    const lockName = "Room" + roomName;
+                    const lockData = allLocksStatus[lockName];
+                    if (lockData) {
+                        roomDataStore[docId].status = lockData.status;
+                    } else {
+                        roomDataStore[docId].status = 'closed';
+                    }
+                    updateDashboardCard(docId);
+                }
+            });
             function createDashboardCard(docId, roomData) {
                 roomDataStore[docId] = roomData;
                 const statusContainer = document.getElementById('room-status-container');
@@ -627,14 +614,14 @@
                 const roomData = roomDataStore[docId];
                 if (!card || !roomData) return; 
                 
-                const lockSnap = await get(ref(rtdb, `locks/Room${roomData.name}`));
-                const status = lockSnap.exists() ? lockSnap.val().status : 'closed';
+                const status = roomData.status || 'closed';
                 const statusText = status === 'open' ? 'مفتوحة' : 'مغلقة';
                 card.className = `room-card ${status}`;
 
                 let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
                 
                 if (status === 'open') {
+                    // إذا كانت القاعة مفتوحة، اعرض المحاضرة النشطة المسجلة
                     const scheduleRef = ref(rtdb, `schedules_by_room/Room${roomData.name}/active_lecture`);
                     const scheduleSnap = await get(scheduleRef);
                     const activeLecture = scheduleSnap.val();
@@ -642,6 +629,7 @@
                         detailsHtml = `<div class="details"><p>${activeLecture.lecturerName}</p><p>${activeLecture.courseName}</p></div>`;
                     }
                 } else { 
+                    // ## تعديل: إذا كانت القاعة مغلقة، ابحث دائمًا عن المحاضرة التالية ##
                     const now = new Date();
                     const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
                     const currentDay = days[now.getDay()];
@@ -672,11 +660,9 @@
                 const adminUser = JSON.parse(sessionStorage.getItem('user'));
                 const userUid = newStatus === 'open' ? adminUser.id : 'none';
                 
-                const updates = {};
-                updates[`locks/Room${roomName}/status`] = newStatus;
-                updates[`locks/Room${roomName}/last_user_uid`] = userUid;
-                updates[`schedules_by_room/Room${roomName}/active_lecture`] = "none";
-                await update(ref(rtdb), updates);
+                // عند الفتح أو الإغلاق اليدوي، لا يتم تحديد محاضرة نشطة
+                await set(ref(rtdb, `schedules_by_room/Room${roomName}/active_lecture`), "none");
+                await set(ref(rtdb, 'locks/Room' + roomName), { status: newStatus, last_user_uid: userUid });
             };
 
             window.editItem = async (collectionName, id, type) => {
@@ -1022,20 +1008,6 @@
                 }
             }
 
-            function listenForStaffRfidEvents() {
-                const eventsRef = ref(rtdb, 'staff_rfid_events');
-                onSnapshot(eventsRef, (snap) => {
-                    if (!snap.exists()) return;
-                    const events = snap.val();
-                    const updatesToDelete = {};
-                    for (const eventId in events) {
-                        processStaffRfidEvent(events[eventId]);
-                        updatesToDelete[eventId] = null;
-                    }
-                    update(eventsRef, updatesToDelete);
-                });
-            }
-
             window.downloadIdCardAsPDF = (name, role, barcodeValue) => {
                 const prepareArea = document.getElementById('pdf-prepare-area');
                 const cardElement = document.createElement('div');
@@ -1094,13 +1066,9 @@
                 });
             }
 
+            // --- التشغيل الأولي للدوال داخل النطاق الآمن ---
             showPage('dashboard');
-            setInterval(processPendingAttendanceEvents, 10000);
-            listenForStaffRfidEvents();
-
-            onValue(ref(rtdb, 'locks'), () => {
-                Object.keys(roomDataStore).forEach(docId => updateDashboardCard(docId));
-            });
+            setInterval(processPendingAttendanceEvents, 15000);
             
             setupTabs('student-tabs', 'student-tabs-content', departments, (tabContent, deptName) => {
                 tabContent.innerHTML = `<table id="students-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
@@ -1109,13 +1077,32 @@
             setupTabs('schedule-tabs', 'schedule-tabs-content', departments, (tabContent, deptName) => {
                 tabContent.innerHTML = `<table id="schedules-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>المجموعات</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
             });
-        }
+        } // نهاية دالة initializeAppLogic
 
+        // ## تعديل: الكود الذي يتم تشغيله عند تحميل الصفحة ##
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where, arrayUnion, arrayRemove, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getDatabase, ref, set, onValue, get, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
+            authDomain: "gggg-dc7d0.firebaseapp.com",
+            projectId: "gggg-dc7d0",
+            storageBucket: "gggg-dc7d0.appspot.com",
+            messagingSenderId: "151376454562",
+            appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
+        };
+
+        // تهيئة التطبيق تتم مرة واحدة فقط
+        const app = initializeApp(firebaseConfig);
+
+        // التحقق من صلاحية المستخدم قبل تشغيل أي منطق آخر
         const loggedInUser = JSON.parse(sessionStorage.getItem('user'));
         if (!loggedInUser || !loggedInUser.role || loggedInUser.role.trim().toLowerCase() !== 'admin') {
             alert('ليس لديك صلاحية للوصول إلى هذه الصفحة.');
             window.location.href = 'index.html';
         } else {
+            // إذا كان المستخدم أدمن، قم بتشغيل كل منطق التطبيق
             initializeAppLogic();
         }
 
