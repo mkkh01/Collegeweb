@@ -5,8 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>لوحة تحكم الأدمن</title>
     <!-- مكتبات إنشاء الرموز وتحويلها لـ PDF -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator/qrcode.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         :root { --primary-color: #007bff; --secondary-color: #6c757d; --success-color: #28a745; --danger-color: #dc3545; --warning-color: #ffc107; --light-color: #f8f9fa; --dark-color: #343a40; --info-color: #17a2b8; }
@@ -44,7 +42,6 @@
         .room-card .details p:first-child { font-weight: bold; font-size: 1.1rem; }
         .room-card .details .next-lecture { font-size: 0.9rem; font-style: italic; opacity: 0.8; }
         .qr-code-container img { max-width: 80px; height: auto; }
-        .barcode-container svg { height: 50px; width: auto; }
         .pdf-prepare-area { position: absolute; left: -9999px; opacity: 0; }
         .id-card { border: 2px solid #343a40; padding: 20px; border-radius: 10px; width: 320px; background: white; text-align: center; }
         .id-card h4 { margin: 0 0 10px 0; font-size: 20px; }
@@ -95,15 +92,8 @@
             <div class="card">
                 <h3>المستخدمون</h3>
                 <button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم</button>
-                <h4>أعضاء هيئة التدريس</h4>
-                <table id="lecturers-table"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>
-                <h4>المشرفون</h4>
-                <table id="supervisors-table"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>
-                <h4>عمال النظافة</h4>
-                <table id="cleaners-table"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>
-                <h4>الطلاب</h4>
-                <div class="tabs" id="student-tabs"></div>
-                <div id="student-tabs-content"></div>
+                <div class="tabs" id="user-tabs"></div>
+                <div id="user-tabs-content"></div>
             </div>
         </div>
 
@@ -162,7 +152,6 @@
                 <div class="form-group"><label>كلمة المرور</label><input type="password" id="password"><small>اترك الحقل فارغًا لعدم التغيير</small></div>
                 <div class="form-group"><label>الدور</label><select id="role" required onchange="toggleDepartmentSelect()"><option value="admin">أدمن</option><option value="عضو هيئة تدريس">عضو هيئة تدريس</option><option value="مشرف">مشرف</option><option value="عامل نظافة">عامل نظافة</option><option value="طالب">طالب</option></select></div>
                 <div class="form-group" id="department-group" style="display:none;"><label>القسم</label><select id="department"></select></div>
-                <div class="form-group"><label>رمز الباركود (رقم)</label><input type="text" id="barcodeId"></div>
                 <div class="form-group"><label>رمز RFID (UID)</label><input type="text" id="rfid"></div>
                 <button type="submit" class="btn btn-success">حفظ</button>
             </form>
@@ -258,6 +247,8 @@
                 "القسم العام", "قسم الهندسة الكهربائية والالكترونية", "قسم الهندسة الكيميائية", 
                 "قسم الهندسة المدنية", "قسم الهندسة الميكانيكية", "قسم الهندسة المعمارية"
             ];
+            const userRoles = ["أعضاء هيئة التدريس", "المشرفون", "عمال النظافة", "الطلاب"];
+
 
             let currentManagingSchedule = {
                 id: null,
@@ -460,7 +451,6 @@
                     displayName: document.getElementById('displayName').value, 
                     username: document.getElementById('username').value, 
                     role: role, 
-                    barcodeId: document.getElementById('barcodeId').value, 
                     rfid: document.getElementById('rfid').value, 
                 }; 
                 if (role === 'طالب') {
@@ -523,45 +513,86 @@
             onSnapshot(collection(db, "Users"), (snap) => {
                 allUsersData = {};
                 allStudentsData = [];
-                snap.forEach(d => {
-                    const userData = d.data();
-                    allUsersData[d.id] = userData;
-                    if (userData.role === 'طالب') {
-                        allStudentsData.push({ id: d.id, ...userData });
-                    }
-                });
-
-                const tables = { 'عضو هيئة تدريس': document.querySelector('#lecturers-table tbody'), 'مشرف': document.querySelector('#supervisors-table tbody'), 'عامل نظافة': document.querySelector('#cleaners-table tbody') };
-                const studentDataByDept = {};
-                departments.forEach(d => studentDataByDept[d] = []);
-                Object.values(tables).forEach(tbody => tbody.innerHTML = '');
+                const usersByRole = {
+                    'أعضاء هيئة التدريس': [],
+                    'المشرفون': [],
+                    'عمال النظافة': [],
+                    'الطلاب': {}
+                };
+                departments.forEach(d => usersByRole['الطلاب'][d] = []);
 
                 snap.forEach(d => {
-                    const u = d.data();
-                    const id = d.id;
-                    const actionsHtml = `<button class="btn btn-warning" onclick="editItem('Users','${id}','user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users','${id}','المستخدم')">حذف</button><button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}','${u.role}','${u.barcodeId}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadBarcodeAsPNG('${u.displayName}', '${u.barcodeId}')">تحميل صورة الرمز</button>`;
-                    if (u.role === 'طالب') {
-                        if (u.department && studentDataByDept[u.department]) {
-                            studentDataByDept[u.department].push({ id, ...u });
+                    const user = { id: d.id, ...d.data() };
+                    allUsersData[d.id] = user;
+                    if (user.role === 'طالب') {
+                        allStudentsData.push(user);
+                        if (user.department && usersByRole['الطلاب'][user.department]) {
+                            usersByRole['الطلاب'][user.department].push(user);
                         }
-                    } else if (tables[u.role]) {
-                        const tbody = tables[u.role];
-                        tbody.innerHTML += `<tr><td>${u.displayName||''}</td><td><div class="barcode-container">${u.barcodeId?`<svg id="barcode-${id}"></svg>`:'لا يوجد'}</div></td><td>${u.rfid||'لا يوجد'}</td><td>${actionsHtml}</td></tr>`;
-                        if (u.barcodeId) JsBarcode(`#barcode-${id}`, u.barcodeId);
+                    } else if (user.role === 'عضو هيئة تدريس') {
+                        usersByRole['أعضاء هيئة التدريس'].push(user);
+                    } else if (user.role === 'مشرف') {
+                        usersByRole['المشرفون'].push(user);
+                    } else if (user.role === 'عامل نظافة') {
+                        usersByRole['عمال النظافة'].push(user);
                     }
                 });
 
+                // إعادة بناء التبويبات والمحتوى
+                const userTabsContainer = document.getElementById('user-tabs');
+                const userTabsContentContainer = document.getElementById('user-tabs-content');
+                userTabsContainer.innerHTML = '';
+                userTabsContentContainer.innerHTML = '';
+                let isFirstTab = true;
+
+                // إنشاء تبويبات للموظفين
+                ["أعضاء هيئة التدريس", "المشرفون", "عمال النظافة"].forEach(role => {
+                    const tabLink = document.createElement('a');
+                    tabLink.className = 'tab-link';
+                    tabLink.textContent = role;
+                    tabLink.onclick = (e) => openTab(e, role, 'user-tabs-content');
+                    userTabsContainer.appendChild(tabLink);
+
+                    const tabContent = document.createElement('div');
+                    tabContent.id = `user-tabs-content-${role.replace(/\s/g, '-')}`;
+                    tabContent.className = 'tab-content';
+                    tabContent.innerHTML = `<table><thead><tr><th>الاسم الكامل</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
+                    userTabsContentContainer.appendChild(tabContent);
+                    
+                    const tbody = tabContent.querySelector('tbody');
+                    usersByRole[role].forEach(u => {
+                        const actionsHtml = `<button class="btn btn-warning" onclick="editItem('Users','${u.id}','user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users','${u.id}','المستخدم')">حذف</button>`;
+                        tbody.innerHTML += `<tr><td>${u.displayName||''}</td><td>${u.rfid||'لا يوجد'}</td><td>${actionsHtml}</td></tr>`;
+                    });
+
+                    if (isFirstTab) {
+                        tabLink.classList.add('active');
+                        tabContent.classList.add('active');
+                        isFirstTab = false;
+                    }
+                });
+
+                // إنشاء تبويبات للطلاب حسب القسم
                 departments.forEach(deptName => {
-                    const container = document.querySelector(`#student-tabs-content-${deptName.replace(/\s/g, '-')}`);
-                    if (!container) return;
-                    const tbody = container.querySelector('table tbody');
-                    tbody.innerHTML = '';
-                    studentDataByDept[deptName].forEach(u => {
-                        const actionsHtml = `<button class="btn btn-warning" onclick="editItem('Users','${u.id}','user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users','${u.id}','الطالب')">حذف</button><button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}','${u.role}','${u.barcodeId}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadBarcodeAsPNG('${u.displayName}', '${u.barcodeId}')">تحميل صورة الرمز</button>`;
-                        tbody.innerHTML += `<tr><td>${u.displayName||''}</td><td><div class="barcode-container">${u.barcodeId?`<svg id="barcode-${u.id}"></svg>`:'لا يوجد'}</div></td><td>${u.rfid||'لا يوجد'}</td><td>${actionsHtml}</td></tr>`;
-                        if (u.barcodeId) JsBarcode(`#barcode-${u.id}`, u.barcodeId);
+                    const tabLink = document.createElement('a');
+                    tabLink.className = 'tab-link';
+                    tabLink.textContent = `طلاب ${deptName}`;
+                    tabLink.onclick = (e) => openTab(e, `طلاب-${deptName}`, 'user-tabs-content');
+                    userTabsContainer.appendChild(tabLink);
+
+                    const tabContent = document.createElement('div');
+                    tabContent.id = `user-tabs-content-طلاب-${deptName.replace(/\s/g, '-')}`;
+                    tabContent.className = 'tab-content';
+                    tabContent.innerHTML = `<table><thead><tr><th>الاسم الكامل</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
+                    userTabsContentContainer.appendChild(tabContent);
+
+                    const tbody = tabContent.querySelector('tbody');
+                    usersByRole['الطلاب'][deptName].forEach(u => {
+                        const actionsHtml = `<button class="btn btn-warning" onclick="editItem('Users','${u.id}','user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users','${u.id}','الطالب')">حذف</button>`;
+                        tbody.innerHTML += `<tr><td>${u.displayName||''}</td><td>${u.rfid||'لا يوجد'}</td><td>${actionsHtml}</td></tr>`;
                     });
                 });
+
                 syncAllowedRfids();
             });
 
@@ -614,10 +645,7 @@
                     const lockData = allLocksStatus[roomKey];
                     const roomDoc = Object.values(roomDataStore).find(r => "Room" + r.name === roomKey);
                     
-                    // ## تعديل: التحقق من مصدر الطلب (source)
-                    // إذا كان المصدر هو 'rfid_lecturer_request'، يتم استدعاء دالة التحقق
                     if (roomDoc && lockData.source === 'rfid_lecturer_request') {
-                        // استدعاء الدالة مع الوسيط 'action' الذي يحدد نية المحاضر
                         updateRoomStateForRfid(roomDoc.name, lockData.last_user_uid, lockData.action);
                     }
                 });
@@ -654,16 +682,13 @@
 
                 let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
                 
-                // ## تعديل: عرض بيانات المحاضرة فقط إذا كانت القاعة مفتوحة **و** هناك محاضرة نشطة مسجلة
                 const scheduleRef = ref(rtdb, `schedules_by_room/Room${roomData.name}/active_lecture`);
                 const scheduleSnap = await get(scheduleRef);
                 const activeLecture = scheduleSnap.val();
 
                 if (status === 'open' && activeLecture && activeLecture !== 'none') {
-                    // عرض بيانات المحاضرة النشطة
                     detailsHtml = `<div class="details"><p>${activeLecture.lecturerName}</p><p>${activeLecture.courseName}</p></div>`;
                 } else if (status === 'closed') { 
-                    // إذا كانت القاعة مغلقة، ابحث عن المحاضرة التالية
                     const now = new Date();
                     const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
                     const currentDay = days[now.getDay()];
@@ -684,7 +709,6 @@
                         detailsHtml = `<div class="details"><p>القاعة فارغة</p><p class="next-lecture">التالية: ${nextLecture.courseName} (${lecturerName})</p></div>`;
                     }
                 }
-                // إذا كانت القاعة مفتوحة ولكن لا توجد محاضرة نشطة (activeLecture === 'none')، سيبقى `detailsHtml` بالقيمة الافتراضية "القاعة فارغة"
 
                 card.innerHTML = `<div><h4>${roomData.name}</h4><p>${statusText}</p>${detailsHtml}</div><button class="btn btn-warning" onclick="toggleRoomStatus('${docId}', '${status}')">تغيير الحالة</button>`;
             }
@@ -694,9 +718,7 @@
                 const adminUser = JSON.parse(sessionStorage.getItem('user'));
                 const userUid = newStatus === 'open' ? adminUser.id : 'none';
                 
-                // ## تعديل: عند الفتح أو الإغلاق اليدوي، تأكد من مسح المحاضرة النشطة
                 await set(ref(rtdb, `schedules_by_room/Room${roomName}/active_lecture`), "none");
-                // تحديث القفل مع تحديد المصدر لتمييزه عن طلبات RFID
                 await set(ref(rtdb, 'locks/Room' + roomName), { status: newStatus, last_user_uid: userUid, source: 'admin_panel' });
             };
 
@@ -711,7 +733,6 @@
                     document.getElementById('username').value = data.username;
                     document.getElementById('role').value = data.role;
                     document.getElementById('rfid').value = data.rfid || '';
-                    document.getElementById('barcodeId').value = data.barcodeId || '';
                     toggleDepartmentSelect();
                     if (data.role === 'طالب') {
                         document.getElementById('department').value = data.department;
@@ -894,7 +915,6 @@
                 if (confirm('هل أنت متأكد من حذف سجل الحضور هذا بشكل نهائي؟ لا يمكن التراجع عن هذا الإجراء.')) {
                     try {
                         await deleteDoc(doc(db, "AttendanceRecords", recordId));
-                        // لا حاجة لاستدعاء renderAttendanceTable() يدوياً لأن onSnapshot سيقوم بذلك تلقائياً
                     } catch (error) {
                         console.error("خطأ في حذف سجل الحضور: ", error);
                         alert('حدث خطأ أثناء محاولة حذف السجل.');
@@ -1055,15 +1075,13 @@
                 }
             }
 
-            window.downloadIdCardAsPDF = (name, role, barcodeValue) => {
+            window.downloadIdCardAsPDF = (name, role) => {
                 const prepareArea = document.getElementById('pdf-prepare-area');
                 const cardElement = document.createElement('div');
                 cardElement.className = 'id-card';
-                cardElement.innerHTML = `<h4>${name}</h4><p>${role}</p><svg id="pdf-barcode"></svg>`;
+                cardElement.innerHTML = `<h4>${name}</h4><p>${role}</p>`;
                 prepareArea.innerHTML = '';
                 prepareArea.appendChild(cardElement);
-                if (barcodeValue) JsBarcode("#pdf-barcode", barcodeValue);
-                else cardElement.querySelector('svg').remove();
                 html2pdf().from(cardElement).set({ filename: `${name}_ID_Card.pdf` }).save();
             };
 
@@ -1086,17 +1104,13 @@
                 link.click(); 
             };
 
-            window.downloadBarcodeAsPNG = (name, barcodeValue) => { 
-                if (!barcodeValue) { alert('لا يوجد رمز باركود لهذا المستخدم.'); return; } 
-                const canvas = document.createElement('canvas'); 
-                JsBarcode(canvas, barcodeValue, { format: "CODE128" }); 
-                const link = document.createElement('a'); 
-                link.download = `${name}_Barcode.png`; 
-                link.href = canvas.toDataURL("image/png"); 
-                link.click(); 
-            };
-
-            function generateQRCode(text) { if (!text) return ''; const qr = qrcode(4, 'L'); qr.addData(text); qr.make(); return qr.createDataURL(4); }
+            function generateQRCode(text) {
+                if (!text) return '';
+                const qr = qrcode(4, 'L');
+                qr.addData(text);
+                qr.make();
+                return qr.createDataURL(4);
+            }
             
             async function populateSelects() { 
                 const usersSnap = await getDocs(query(collection(db, "Users"), where("role", "==", "عضو هيئة تدريس")));
@@ -1117,16 +1131,19 @@
             showPage('dashboard');
             setInterval(processPendingAttendanceEvents, 15000);
             
-            setupTabs('student-tabs', 'student-tabs-content', departments, (tabContent, deptName) => {
-                tabContent.innerHTML = `<table id="students-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
+            setupTabs('user-tabs', 'user-tabs-content', userRoles.concat(departments.map(d => `طلاب ${d}`)), (tabContent, tabName) => {
+                let tableHTML = `<table><thead><tr><th>الاسم الكامل</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
+                if (tabName.startsWith('طلاب')) {
+                    // لا حاجة لتغيير الهيكل هنا، سيتم ملؤه لاحقًا
+                }
+                tabContent.innerHTML = tableHTML;
             });
 
             setupTabs('schedule-tabs', 'schedule-tabs-content', departments, (tabContent, deptName) => {
                 tabContent.innerHTML = `<table id="schedules-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>المجموعات</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
             });
-        } // نهاية دالة initializeAppLogic
+        }
 
-        // ## تعديل: الكود الذي يتم تشغيله عند تحميل الصفحة ##
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where, arrayUnion, arrayRemove, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getDatabase, ref, set, onValue, get, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
@@ -1140,16 +1157,13 @@
             appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
         };
 
-        // تهيئة التطبيق تتم مرة واحدة فقط
         const app = initializeApp(firebaseConfig);
 
-        // التحقق من صلاحية المستخدم قبل تشغيل أي منطق آخر
         const loggedInUser = JSON.parse(sessionStorage.getItem('user'));
         if (!loggedInUser || !loggedInUser.role || loggedInUser.role.trim().toLowerCase() !== 'admin') {
             alert('ليس لديك صلاحية للوصول إلى هذه الصفحة.');
             window.location.href = 'index.html';
         } else {
-            // إذا كان المستخدم أدمن، قم بتشغيل كل منطق التطبيق
             initializeAppLogic();
         }
 
