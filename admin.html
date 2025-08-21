@@ -473,13 +473,24 @@
                 const data = {
                     name: roomName,
                     capacity: parseInt(document.getElementById('roomCapacity').value),
-                    qrUrl: `${SITE_URL}/open.html?room=${encodeURIComponent(roomName)}`
                 };
-                if (id) await updateDoc(doc(db, "Rooms", id), data);
-                else {
+
+                if (id) { // حالة التعديل
+                    // نحافظ على الرابط القديم إذا لم يتغير الاسم، أو ننشئ رابطًا جديدًا
+                    const oldDoc = await getDoc(doc(db, "Rooms", id));
+                    const oldData = oldDoc.data();
+                    if (oldData.name !== roomName) {
+                        data.qrUrl = `${SITE_URL}/open.html?room=${encodeURIComponent(roomName)}`;
+                    } else {
+                        data.qrUrl = oldData.qrUrl;
+                    }
+                    await updateDoc(doc(db, "Rooms", id), data);
+                } else { // حالة الإضافة الجديدة
+                    data.qrUrl = `${SITE_URL}/open.html?room=${encodeURIComponent(roomName)}`; // **الإصلاح هنا**
                     data.status = 'closed';
                     await addDoc(collection(db, "Rooms"), data);
-                    set(ref(rtdb, 'locks/Room' + roomName), { status: 'closed', last_user_uid: 'none' });
+                    // إنشاء العقد في قاعدة البيانات اللحظية
+                    set(ref(rtdb, 'locks/Room' + roomName), { status: 'closed', last_user_uid: 'none', source: 'admin_panel' });
                     set(ref(rtdb, 'schedules_by_room/Room' + roomName), { active_lecture: 'none' });
                 }
                 closeModal('room-modal');
@@ -620,26 +631,24 @@
             });
             onSnapshot(collection(db, "Rooms"), (snapshot) => {
                 const roomsTableTbody = document.querySelector('#rooms-table tbody');
-                // مسح الجدول والبيانات القديمة قبل إعادة بنائها
+                const statusContainer = document.getElementById('room-status-container');
+
+                // الخطوة 1: مسح المحتوى القديم بالكامل لضمان عدم وجود تكرار
                 roomsTableTbody.innerHTML = '';
+                statusContainer.innerHTML = '';
                 
-                // المرور على جميع القاعات الموجودة في قاعدة البيانات
+                // مسح مخزن البيانات المحلي ليعكس الحالة الحالية فقط
+                Object.keys(roomDataStore).forEach(key => delete roomDataStore[key]);
+
+                // الخطوة 2: إعادة بناء كل شيء من البيانات الجديدة
                 snapshot.forEach(doc => {
                     const docId = doc.id;
                     const roomData = doc.data();
 
-                    // تحديث أو إضافة القاعة في مخزن البيانات المحلي
+                    // تحديث مخزن البيانات المحلي
                     roomDataStore[docId] = roomData;
 
-                    // إعادة بناء بطاقة لوحة الإعلانات
-                    const dashboardCard = document.getElementById(docId);
-                    if (!dashboardCard) {
-                        createDashboardCard(docId, roomData);
-                    } else {
-                        updateDashboardCard(docId);
-                    }
-
-                    // إضافة صف جديد إلى جدول إدارة القاعات
+                    // --- إعادة بناء جدول إدارة القاعات ---
                     const qrCodeDataUrl = generateQRCode(roomData.qrUrl || '');
                     const actionsHtml = `
                         <button class="btn btn-warning" onclick="editItem('Rooms','${docId}','room')">تعديل</button>
@@ -648,102 +657,95 @@
                         <button class="btn btn-info" onclick="downloadQRCodeAsPNG('${roomData.name}', '${roomData.qrUrl}')">تحميل صورة الرمز</button>
                     `;
                     const qrHtml = roomData.qrUrl ? `<img src="${qrCodeDataUrl}" alt="QR Code">` : 'لا يوجد';
-
-                    roomsTableTbody.innerHTML += `
+                    const tableRow = `
                         <tr>
-                            <td>${roomData.name}</td>
-                            <td>${roomData.capacity}</td>
+                            <td>${roomData.name || ''}</td>
+                            <td>${roomData.capacity || ''}</td>
                             <td><div class="qr-code-container">${qrHtml}</div></td>
                             <td>${actionsHtml}</td>
                         </tr>
                     `;
+                    roomsTableTbody.innerHTML += tableRow;
+
+                    // --- إعادة بناء لوحة الإعلانات ---
+                    createDashboardCard(docId, roomData);
                 });
 
-                // التعامل مع القاعات المحذوفة
-                const currentIds = snapshot.docs.map(d => d.id);
-                Object.keys(roomDataStore).forEach(storedId => {
-                    if (!currentIds.includes(storedId)) {
-                        delete roomDataStore[storedId];
-                        const card = document.getElementById(storedId);
-                        if (card) card.remove();
-                    }
-                });
+                // بعد إعادة بناء كل شيء، نطلب تحديث الحالات من قاعدة البيانات اللحظية
+                updateAllDashboardCardsStatus();
             });
+
+            // دالة onValue تبقى كما هي تقريبًا لكنها ستستدعي دالة تحديث جماعية
             const locksRef = ref(rtdb, 'locks');
             onValue(locksRef, (snapshot) => {
                 const allLocksStatus = snapshot.val();
                 if (!allLocksStatus) return;
 
-                Object.keys(allLocksStatus).forEach(roomKey => {
-                    const lockData = allLocksStatus[roomKey];
-                    const roomDoc = Object.values(roomDataStore).find(r => "Room" + r.name === roomKey);
-                    
-                    if (roomDoc && lockData.source === 'rfid_lecturer_request') {
-                        updateRoomStateForRfid(roomDoc.name, lockData.last_user_uid, lockData.action);
-                    }
-                });
-
-                for (const docId in roomDataStore) {
-                    const roomName = roomDataStore[docId].name;
-                    const lockName = "Room" + roomName;
-                    const lockData = allLocksStatus[lockName];
-                    if (lockData) {
-                        roomDataStore[docId].status = lockData.status;
-                    } else {
-                        roomDataStore[docId].status = 'closed';
-                    }
-                    updateDashboardCard(docId);
-                }
+                // عند وصول تحديث للحالات، قم بتحديث جميع البطاقات
+                updateAllDashboardCardsStatus(allLocksStatus);
             });
+
             function createDashboardCard(docId, roomData) {
-                roomDataStore[docId] = roomData;
                 const statusContainer = document.getElementById('room-status-container');
                 const card = document.createElement('div');
                 card.id = docId; 
                 statusContainer.appendChild(card);
-                updateDashboardCard(docId); 
+                // لا نحدث الحالة هنا مباشرة، ننتظر البيانات من RTDB
             }
 
-            async function updateDashboardCard(docId) {
-                const card = document.getElementById(docId);
-                const roomData = roomDataStore[docId];
-                if (!card || !roomData) return; 
-                
-                const status = roomData.status || 'closed';
-                const statusText = status === 'open' ? 'مفتوحة' : 'مغلقة';
-                card.className = `room-card ${status}`;
-
-                let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
-                
-                const scheduleRef = ref(rtdb, `schedules_by_room/Room${roomData.name}/active_lecture`);
-                const scheduleSnap = await get(scheduleRef);
-                const activeLecture = scheduleSnap.val();
-
-                if (status === 'open' && activeLecture && activeLecture !== 'none') {
-                    detailsHtml = `<div class="details"><p>${activeLecture.lecturerName}</p><p>${activeLecture.courseName}</p></div>`;
-                } else if (status === 'closed') { 
-                    const now = new Date();
-                    const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-                    const currentDay = days[now.getDay()];
-                    const currentTimeInMinutes = now.getHours() * 60 + now.getMinutes();
-
-                    const nextLecture = allSchedulesData
-                        .filter(s => s.room === roomData.name && s.day === currentDay)
-                        .map(s => {
-                            const timeParts = s.time.split('-');
-                            const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
-                            return { ...s, startTime };
-                        })
-                        .filter(s => s.startTime > currentTimeInMinutes)
-                        .sort((a, b) => a.startTime - b.startTime)[0];
-
-                    if (nextLecture) {
-                        const lecturerName = allUsersData[nextLecture.lecturerId]?.displayName || 'غير محدد';
-                        detailsHtml = `<div class="details"><p>القاعة فارغة</p><p class="next-lecture">التالية: ${nextLecture.courseName} (${lecturerName})</p></div>`;
-                    }
+            async function updateAllDashboardCardsStatus(allLocksStatus = null) {
+                // إذا لم يتم تمرير الحالات، احصل عليها
+                if (!allLocksStatus) {
+                    const snapshot = await get(locksRef);
+                    allLocksStatus = snapshot.val() || {};
                 }
 
-                card.innerHTML = `<div><h4>${roomData.name}</h4><p>${statusText}</p>${detailsHtml}</div><button class="btn btn-warning" onclick="toggleRoomStatus('${docId}', '${status}')">تغيير الحالة</button>`;
+                // الآن قم بتحديث كل بطاقة موجودة على الشاشة
+                for (const docId in roomDataStore) {
+                    const card = document.getElementById(docId);
+                    const roomData = roomDataStore[docId];
+                    if (!card || !roomData) continue;
+
+                    const roomName = roomData.name;
+                    const lockName = "Room" + roomName;
+                    const lockData = allLocksStatus[lockName];
+                    const status = lockData ? lockData.status : 'closed';
+                    
+                    const statusText = status === 'open' ? 'مفتوحة' : 'مغلقة';
+                    card.className = `room-card ${status}`;
+
+                    let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
+                    
+                    const scheduleRef = ref(rtdb, `schedules_by_room/Room${roomData.name}/active_lecture`);
+                    const scheduleSnap = await get(scheduleRef);
+                    const activeLecture = scheduleSnap.val();
+
+                    if (status === 'open' && activeLecture && activeLecture !== 'none') {
+                        detailsHtml = `<div class="details"><p>${activeLecture.lecturerName}</p><p>${activeLecture.courseName}</p></div>`;
+                    } else if (status === 'closed') { 
+                        const now = new Date();
+                        const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+                        const currentDay = days[now.getDay()];
+                        const currentTimeInMinutes = now.getHours() * 60 + now.getMinutes();
+
+                        const nextLecture = allSchedulesData
+                            .filter(s => s.room === roomData.name && s.day === currentDay)
+                            .map(s => {
+                                const timeParts = s.time.split('-');
+                                const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
+                                return { ...s, startTime };
+                            })
+                            .filter(s => s.startTime > currentTimeInMinutes)
+                            .sort((a, b) => a.startTime - b.startTime)[0];
+
+                        if (nextLecture) {
+                            const lecturerName = allUsersData[nextLecture.lecturerId]?.displayName || 'غير محدد';
+                            detailsHtml = `<div class="details"><p>القاعة فارغة</p><p class="next-lecture">التالية: ${nextLecture.courseName} (${lecturerName})</p></div>`;
+                        }
+                    }
+
+                    card.innerHTML = `<div><h4>${roomData.name}</h4><p>${statusText}</p>${detailsHtml}</div><button class="btn btn-warning" onclick="toggleRoomStatus('${docId}', '${status}')">تغيير الحالة</button>`;
+                }
             }
             window.toggleRoomStatus = async (id, currentStatus) => {
                 const newStatus = currentStatus === 'open' ? 'closed' : 'open';
