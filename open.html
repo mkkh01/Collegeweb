@@ -87,14 +87,14 @@
         let roomDocRef = null;
         let authenticatedUser = null;
         let roomStatusUnsubscribe = null;
-        // ## تعديل: إضافة مخزن لجداول المحاضرات ##
         let allSchedules = [];
 
-        // ## تعديل: دالة جديدة لتحديث المحاضرة النشطة ##
+        // الدالة ستحاول مزامنة المحاضرة إن وجدت، لكنها لن تمنع الفتح
         async function syncActiveLecture(user) {
             const roomKey = "Room" + roomName;
             const activeLectureRef = ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`);
 
+            // إذا لم يكن المستخدم عضو هيئة تدريس، يتم تعيين المحاضرة إلى "none"
             if (!user || user.role !== 'عضو هيئة تدريس') {
                 await set(activeLectureRef, "none");
                 return;
@@ -105,6 +105,7 @@
             const currentDay = days[now.getDay()];
             const currentTime = now.getHours() * 60 + now.getMinutes();
 
+            // البحث عن محاضرة حالية للمستخدم
             const currentSchedule = allSchedules.find(schedule => {
                 if (schedule.lecturerId !== user.id || schedule.room !== roomName || schedule.day !== currentDay) {
                     return false;
@@ -116,21 +117,23 @@
             });
 
             if (currentSchedule) {
+                // إذا وجدت محاضرة، يتم تسجيل بياناتها
                 const activeLectureData = {
                     courseName: currentSchedule.courseName,
                     lecturerName: user.displayName,
                     lecturerId: user.id,
                     time: currentSchedule.time,
-                    groups: currentSchedule.groups || []
+                    groups: currentSchedule.groups || [],
+                    scheduleId: currentSchedule.id
                 };
                 await set(activeLectureRef, activeLectureData);
-                console.log("Active lecture synced:", activeLectureData);
             } else {
+                // إذا لم توجد محاضرة، يتم تعيينها إلى "none"
                 await set(activeLectureRef, "none");
-                console.log("No active lecture found for this user at this time.");
             }
         }
 
+        // دالة تغيير الحالة للفتح المباشر عبر QR
         async function setRoomStatus(newStatus, user) {
             if (!roomDocRef || !user) return;
             actionBtn.disabled = true;
@@ -140,8 +143,10 @@
                 const lockName = "Room" + roomName;
                 const lockRef = ref(rtdb, 'locks/' + lockName);
                 
-                // تحديث حالة القفل والمحاضرة النشطة معًا
+                // الخطوة 1: تحديث حالة القفل فوراً
                 await set(lockRef, { status: newStatus, last_user_uid: userUid });
+                
+                // الخطوة 2: محاولة مزامنة المحاضرة (لن تمنع الفتح)
                 if (newStatus === 'open') {
                     await syncActiveLecture(user);
                 } else {
@@ -205,6 +210,7 @@
                 const userDoc = userSnapshot.docs[0];
                 const userData = userDoc.data();
 
+                // التأكد من أن المستخدم ليس طالباً
                 const allowedRoles = ['admin', 'عضو هيئة تدريس', 'مشرف', 'عامل نظافة'];
                 if (!userData.role || !allowedRoles.includes(userData.role.trim())) {
                     throw new Error('ليس لديك صلاحية لفتح القاعة. هذه الميزة مخصصة للموظفين فقط.');
@@ -230,6 +236,7 @@
                     }
                 });
 
+                // الفتح يتم مباشرة دون التحقق من الوقت
                 await setRoomStatus('open', authenticatedUser);
 
             } catch (error) {
@@ -268,10 +275,9 @@
                 }
                 roomDocRef = doc(db, "Rooms", roomSnapshot.docs[0].id);
 
-                // ## تعديل: جلب جميع الجداول مرة واحدة عند تحميل الصفحة ##
+                // جلب جميع الجداول مرة واحدة عند تحميل الصفحة لتتمكن دالة المزامنة من استخدامها
                 const schedulesSnapshot = await getDocs(collection(db, "Schedules"));
                 allSchedules = schedulesSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-                console.log(`Loaded ${allSchedules.length} schedules.`);
 
             } catch (err) {
                 authSection.innerHTML = `<p class="error">حدث خطأ في الاتصال بقاعدة البيانات.</p>`;
