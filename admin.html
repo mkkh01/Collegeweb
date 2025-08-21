@@ -353,7 +353,8 @@
             };
 
             // ## تعديل: دالة موحدة للتحقق من صلاحية الفتح للمحاضر عبر RFID ##
-            async function updateRoomStateForRfid(roomName, userId) {
+            // تم تعديل الدالة لتقبل وسيط 'action' لتحديد ما إذا كان المحاضر يريد الفتح أو الإغلاق
+            async function updateRoomStateForRfid(roomName, userId, action) {
                 const roomKey = "Room" + roomName;
                 const activeLectureRef = ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`);
                 const lockRef = ref(rtdb, `locks/${roomKey}`);
@@ -361,7 +362,9 @@
 
                 // هذه الدالة مخصصة لأعضاء هيئة التدريس فقط
                 if (!user || user.role !== 'عضو هيئة تدريس') {
-                    await set(lockRef, { status: 'closed', last_user_uid: 'none' });
+                    // إذا لم يكن المستخدم محاضراً، أغلق القاعة ولا تسمح بالفتح
+                    await set(lockRef, { status: 'closed', last_user_uid: 'none', source: 'admin_panel' });
+                    await set(activeLectureRef, "none"); // تأكد من مسح المحاضرة النشطة
                     return;
                 }
 
@@ -370,37 +373,66 @@
                 const currentDay = days[now.getDay()];
                 const currentTime = now.getHours() * 60 + now.getMinutes();
 
-                const validLecture = allSchedulesData.find(schedule => {
-                    if (schedule.lecturerId !== userId || schedule.room !== roomName || schedule.day !== currentDay) {
-                        return false;
-                    }
+                // البحث عن المحاضرات الصالحة لهذا المحاضر في هذه القاعة لهذا اليوم
+                const validLectures = allSchedulesData.filter(schedule => {
+                    return schedule.lecturerId === userId && schedule.room === roomName && schedule.day === currentDay;
+                });
+
+                let currentLecture = null;
+                for (const schedule of validLectures) {
                     const timeParts = schedule.time.split('-');
                     const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
                     const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]);
-                    return currentTime >= startTime && currentTime < endTime;
-                });
 
-                if (validLecture) {
-                    // تم العثور على محاضرة صالحة، افتح القاعة وحدث المعلومات
-                    const lecturerName = user.displayName || 'غير محدد';
-                    const activeLectureData = {
-                        courseName: validLecture.courseName,
-                        lecturerName: lecturerName,
-                        lecturerId: validLecture.lecturerId,
-                        time: validLecture.time,
-                        groups: validLecture.groups || [],
-                        scheduleId: validLecture.id 
-                    };
-                    await set(activeLectureRef, activeLectureData);
-                    // تحديث القفل مع إزالة حقل المصدر لكي لا يتم تشغيل هذه الدالة مرة أخرى
-                    await set(lockRef, { status: 'open', last_user_uid: userId });
-                } else {
-                    // لا توجد محاضرة صالحة، تأكد من أن القاعة مغلقة
-                    await set(activeLectureRef, "none");
-                    await set(lockRef, { status: 'closed', last_user_uid: 'none' });
+                    if (currentTime >= startTime && currentTime < endTime) {
+                        currentLecture = schedule;
+                        break;
+                    }
+                }
+
+                if (action === 'open') {
+                    if (currentLecture) {
+                        // تم العثور على محاضرة صالحة، افتح القاعة وحدث المعلومات
+                        const lecturerName = user.displayName || 'غير محدد';
+                        const activeLectureData = {
+                            courseName: currentLecture.courseName,
+                            lecturerName: lecturerName,
+                            lecturerId: currentLecture.lecturerId,
+                            time: currentLecture.time,
+                            groups: currentLecture.groups || [],
+                            scheduleId: currentLecture.id
+                        };
+                        await set(activeLectureRef, activeLectureData);
+                        // تحديث القفل مع تحديد المصدر لكي لا يتم تشغيل هذه الدالة مرة أخرى بشكل متكرر
+                        await set(lockRef, { status: 'open', last_user_uid: userId, source: 'rfid' });
+                        console.log(`Room ${roomName} opened by lecturer ${user.displayName} for lecture ${currentLecture.courseName}`);
+                    } else {
+                        // لا توجد محاضرة صالحة حالياً، أغلق القاعة
+                        await set(activeLectureRef, "none");
+                        await set(lockRef, { status: 'closed', last_user_uid: 'none', source: 'admin_panel' });
+                        console.log(`Room ${roomName} closed: No valid lecture for lecturer ${user.displayName} at this time.`);
+                    }
+                } else if (action === 'close') {
+                    // المحاضر يريد إغلاق القاعة
+                    const currentLockSnap = await get(lockRef);
+                    const currentLockData = currentLockSnap.val();
+
+                    // تأكد أن القاعة مفتوحة حالياً بواسطة هذا المحاضر
+                    if (currentLockData && currentLockData.status === 'open' && currentLockData.last_user_uid === userId) {
+                        // تأكد أن المحاضرة لا تزال سارية (لم ينته وقتها)
+                        if (currentLecture) {
+                            await set(activeLectureRef, "none"); // مسح المحاضرة النشطة
+                            await set(lockRef, { status: 'closed', last_user_uid: userId, source: 'rfid' });
+                            console.log(`Room ${roomName} closed by lecturer ${user.displayName} during their lecture.`);
+                        } else {
+                            // المحاضرة انتهت، لا تسمح له بالإغلاق (يجب أن تغلق تلقائياً أو بواسطة مشرف)
+                            console.log(`Room ${roomName} cannot be closed by lecturer ${user.displayName}: Lecture time has ended.`);
+                        }
+                    } else {
+                        console.log(`Room ${roomName} not opened by this lecturer or already closed.`);
+                    }
                 }
             }
-
             async function syncAllowedRfids() {
                 const usersRef = collection(db, "Users");
                 const usersSnapshot = await getDocs(usersRef);
@@ -582,9 +614,12 @@
                 Object.keys(allLocksStatus).forEach(roomKey => {
                     const lockData = allLocksStatus[roomKey];
                     const roomDoc = Object.values(roomDataStore).find(r => "Room" + r.name === roomKey);
-
-                    if (roomDoc && lockData.source === 'rfid') {
-                        updateRoomStateForRfid(roomDoc.name, lockData.last_user_uid);
+                    
+                    // ## تعديل: التحقق من مصدر الطلب (source)
+                    // إذا كان المصدر هو 'rfid_lecturer_request'، يتم استدعاء دالة التحقق
+                    if (roomDoc && lockData.source === 'rfid_lecturer_request') {
+                        // استدعاء الدالة مع الوسيط 'action' الذي يحدد نية المحاضر
+                        updateRoomStateForRfid(roomDoc.name, lockData.last_user_uid, lockData.action);
                     }
                 });
 
@@ -620,16 +655,16 @@
 
                 let detailsHtml = '<div class="details"><p>القاعة فارغة</p></div>';
                 
-                if (status === 'open') {
-                    // إذا كانت القاعة مفتوحة، اعرض المحاضرة النشطة المسجلة
-                    const scheduleRef = ref(rtdb, `schedules_by_room/Room${roomData.name}/active_lecture`);
-                    const scheduleSnap = await get(scheduleRef);
-                    const activeLecture = scheduleSnap.val();
-                    if (activeLecture && activeLecture !== 'none') {
-                        detailsHtml = `<div class="details"><p>${activeLecture.lecturerName}</p><p>${activeLecture.courseName}</p></div>`;
-                    }
-                } else { 
-                    // ## تعديل: إذا كانت القاعة مغلقة، ابحث دائمًا عن المحاضرة التالية ##
+                // ## تعديل: عرض بيانات المحاضرة فقط إذا كانت القاعة مفتوحة **و** هناك محاضرة نشطة مسجلة
+                const scheduleRef = ref(rtdb, `schedules_by_room/Room${roomData.name}/active_lecture`);
+                const scheduleSnap = await get(scheduleRef);
+                const activeLecture = scheduleSnap.val();
+
+                if (status === 'open' && activeLecture && activeLecture !== 'none') {
+                    // عرض بيانات المحاضرة النشطة
+                    detailsHtml = `<div class="details"><p>${activeLecture.lecturerName}</p><p>${activeLecture.courseName}</p></div>`;
+                } else if (status === 'closed') { 
+                    // إذا كانت القاعة مغلقة، ابحث عن المحاضرة التالية
                     const now = new Date();
                     const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
                     const currentDay = days[now.getDay()];
@@ -650,19 +685,20 @@
                         detailsHtml = `<div class="details"><p>القاعة فارغة</p><p class="next-lecture">التالية: ${nextLecture.courseName} (${lecturerName})</p></div>`;
                     }
                 }
+                // إذا كانت القاعة مفتوحة ولكن لا توجد محاضرة نشطة (activeLecture === 'none')، سيبقى `detailsHtml` بالقيمة الافتراضية "القاعة فارغة"
 
                 card.innerHTML = `<div><h4>${roomData.name}</h4><p>${statusText}</p>${detailsHtml}</div><button class="btn btn-warning" onclick="toggleRoomStatus('${docId}', '${status}')">تغيير الحالة</button>`;
             }
-
             window.toggleRoomStatus = async (id, currentStatus) => {
                 const newStatus = currentStatus === 'open' ? 'closed' : 'open';
                 const roomName = roomDataStore[id].name;
                 const adminUser = JSON.parse(sessionStorage.getItem('user'));
                 const userUid = newStatus === 'open' ? adminUser.id : 'none';
                 
-                // عند الفتح أو الإغلاق اليدوي، لا يتم تحديد محاضرة نشطة
+                // ## تعديل: عند الفتح أو الإغلاق اليدوي، تأكد من مسح المحاضرة النشطة
                 await set(ref(rtdb, `schedules_by_room/Room${roomName}/active_lecture`), "none");
-                await set(ref(rtdb, 'locks/Room' + roomName), { status: newStatus, last_user_uid: userUid });
+                // تحديث القفل مع تحديد المصدر لتمييزه عن طلبات RFID
+                await set(ref(rtdb, 'locks/Room' + roomName), { status: newStatus, last_user_uid: userUid, source: 'admin_panel' });
             };
 
             window.editItem = async (collectionName, id, type) => {
@@ -885,7 +921,6 @@
 
                 openModal('attendance-details-modal');
             };
-
             window.exportAttendanceToPDF = (record) => {
                 const prepareArea = document.getElementById('pdf-prepare-area');
                 const exportContent = document.createElement('div');
