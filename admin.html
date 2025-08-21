@@ -42,7 +42,6 @@
         .room-card .details { margin: 10px 0; min-height: 50px; }
         .room-card .details p { font-size: 1rem; font-weight: normal; margin: 2px 0; }
         .room-card .details p:first-child { font-weight: bold; font-size: 1.1rem; }
-        /* ## تعديل: إضافة تنسيق للمحاضرة التالية ## */
         .room-card .details .next-lecture { font-size: 0.9rem; font-style: italic; opacity: 0.8; }
         .qr-code-container img { max-width: 80px; height: auto; }
         .barcode-container svg { height: 50px; width: auto; }
@@ -374,21 +373,20 @@
             evt.currentTarget.classList.add("active");
         };
 
-        // ## تعديل: دالة جديدة للتحقق من صلاحية فتح القاعة وتحديث حالتها ##
-        async function updateRoomState(roomName, userId, currentStatus) {
+        // ## تعديل: دالة مخصصة للتحقق من صلاحية الفتح عبر RFID فقط ##
+        async function updateRoomStateForRfid(roomName, userId) {
             const roomKey = "Room" + roomName;
             const activeLectureRef = ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`);
             const lockRef = ref(rtdb, `locks/${roomKey}`);
             const user = allUsersData[userId];
 
-            // إذا كان الإجراء هو إغلاق القاعة، أو إذا لم يكن المستخدم عضواً في هيئة التدريس
-            if (currentStatus === 'closed' || !user || user.role !== 'عضو هيئة تدريس') {
-                await set(activeLectureRef, "none");
+            // هذه الدالة مخصصة لأعضاء هيئة التدريس فقط
+            if (!user || user.role !== 'عضو هيئة تدريس') {
+                // إذا حاول غير المحاضر الفتح بـ RFID، أغلق القاعة
                 await set(lockRef, { status: 'closed', last_user_uid: 'none' });
                 return;
             }
 
-            // إذا كان الإجراء هو فتح القاعة بواسطة عضو هيئة تدريس
             const now = new Date();
             const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
             const currentDay = days[now.getDay()];
@@ -416,6 +414,7 @@
                     scheduleId: validLecture.id 
                 };
                 await set(activeLectureRef, activeLectureData);
+                // تحديث القفل مع إزالة حقل المصدر لكي لا يتم تشغيل هذه الدالة مرة أخرى
                 await set(lockRef, { status: 'open', last_user_uid: userId });
             } else {
                 // لا توجد محاضرة صالحة، تأكد من أن القاعة مغلقة
@@ -602,20 +601,19 @@
             const allLocksStatus = snapshot.val();
             if (!allLocksStatus) return;
 
-            // ## تعديل: منطق التحقق من صلاحية الفتح عند تغيير حالة القفل ##
+            // ## تعديل: منطق مركزي للتحقق من مصدر التغيير ##
             Object.keys(allLocksStatus).forEach(roomKey => {
                 const lockData = allLocksStatus[roomKey];
                 const roomDoc = Object.values(roomDataStore).find(r => "Room" + r.name === roomKey);
-                if (roomDoc && lockData.last_user_uid !== 'none') {
-                    const user = allUsersData[lockData.last_user_uid];
-                    // نطبق القواعد فقط على أعضاء هيئة التدريس
-                    if (user && user.role === 'عضو هيئة تدريس') {
-                        updateRoomState(roomDoc.name, lockData.last_user_uid, lockData.status);
-                    }
+
+                // الشرط الأساسي: هل مصدر التغيير هو RFID؟
+                if (roomDoc && lockData.source === 'rfid') {
+                    // إذا كان المصدر RFID، قم بتطبيق القواعد الصارمة
+                    updateRoomStateForRfid(roomDoc.name, lockData.last_user_uid);
                 }
             });
 
-            // تحديث بطاقات العرض بناءً على الحالة النهائية
+            // تحديث بطاقات العرض بناءً على الحالة النهائية في قاعدة البيانات
             for (const docId in roomDataStore) {
                 const roomName = roomDataStore[docId].name;
                 const lockName = "Room" + roomName;
@@ -637,7 +635,6 @@
             updateDashboardCard(docId); 
         }
 
-        // ## تعديل: تحسين عرض لوحة الإعلانات لعرض المحاضرة التالية ##
         async function updateDashboardCard(docId) {
             const card = document.getElementById(docId);
             const roomData = roomDataStore[docId];
@@ -681,18 +678,18 @@
             card.innerHTML = `<div><h4>${roomData.name}</h4><p>${statusText}</p>${detailsHtml}</div><button class="btn btn-warning" onclick="toggleRoomStatus('${docId}', '${status}')">تغيير الحالة</button>`;
         }
 
-        // ## تعديل: تبسيط دالة تغيير الحالة ##
+        // دالة التغيير اليدوي من قبل الأدمن (لا تخضع لأي قيود)
         window.toggleRoomStatus = async (id, currentStatus) => {
             const newStatus = currentStatus === 'open' ? 'closed' : 'open';
             const roomName = roomDataStore[id].name;
             const adminUser = JSON.parse(sessionStorage.getItem('user'));
-            // عند التغيير اليدوي، نستخدم 'none' كـ UID للإغلاق، و UID الأدمن للفتح (للتوافق مع QR)
             const userUid = newStatus === 'open' ? adminUser.id : 'none';
             
-            // المنطق الجديد: إذا كان الفتح يدويًا من قبل الأدمن، فإنه لا يخضع لقيود الوقت
+            // عند الفتح اليدوي، لا يتم تحديد محاضرة نشطة
             if (newStatus === 'open') {
                  await set(ref(rtdb, `schedules_by_room/Room${roomName}/active_lecture`), "none");
             }
+            // يتم التحديث مباشرة دون حقل "source" لكي لا يتم تفعيل منطق RFID
             await set(ref(rtdb, 'locks/Room' + roomName), { status: newStatus, last_user_uid: userUid });
         };
 
@@ -798,8 +795,7 @@
             await updateDoc(scheduleRef, { enrolledStudents: arrayRemove(studentId) });
             currentManagingSchedule.enrolledStudents = currentManagingSchedule.enrolledStudents.filter(id => id !== studentId);
             renderEnrolledStudents();
-        }
-        // ======================================================================
+          // ======================================================================
         // ## دوال إدارة وعرض سجلات الحضور (مع الفلترة الجديدة) ##
         // ======================================================================
         
@@ -956,7 +952,7 @@
         };
 
         // ======================================================================
-        // ## "دالة الجسر" التي تربط بين RTDB و Firestore (معدلة بالكامل) ##
+        // ## "دالة الجسر" التي تربط بين RTDB و Firestore (مع قيود الحضور) ##
         // ======================================================================
         async function processPendingAttendanceEvents() {
             const eventsRef = ref(rtdb, 'attendance_events');
@@ -1122,3 +1118,4 @@
     </script>
 </body>
 </html>
+      }
