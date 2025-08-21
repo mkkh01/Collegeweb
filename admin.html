@@ -244,7 +244,6 @@
         </div>
     </div>
     <script type="module">
-        // ## تعديل: وضع جميع استدعاءات import في الأعلى مرة واحدة فقط ##
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where, arrayUnion, arrayRemove, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getDatabase, ref, set, onValue, get, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
@@ -325,7 +324,6 @@
             window.toggleDepartmentSelect = () => {
                 const role = document.getElementById('role').value;
                 document.getElementById('department-group').style.display = (role === 'طالب') ? 'block' : 'none';
-            };
             // ======================================================================
             // ## الجزء الثاني: منطق التطبيق (عرض البيانات ومعالجتها) ##
             // ======================================================================
@@ -518,6 +516,35 @@
                 closeModal('schedule-modal');
             });
 
+            // ## تعديل: دالة منفصلة لعرض الجداول ##
+            function renderSchedulesTable() {
+                // تأكد من أن كلتا المجموعتين من البيانات متاحة
+                if (allSchedulesData.length === 0 || Object.keys(allUsersData).length === 0) {
+                    return; // لا تفعل شيئًا إذا كانت إحدى القائمتين فارغة
+                }
+
+                const scheduleDataByDept = {};
+                departments.forEach(d => scheduleDataByDept[d] = []);
+
+                allSchedulesData.forEach(s => {
+                    if (s.department && scheduleDataByDept[s.department]) {
+                        scheduleDataByDept[s.department].push(s);
+                    }
+                });
+
+                departments.forEach(deptName => {
+                    const container = document.querySelector(`#schedule-tabs-content-${deptName.replace(/\s/g, '-')}`);
+                    if (!container) return;
+                    const tbody = container.querySelector('table tbody');
+                    tbody.innerHTML = '';
+                    scheduleDataByDept[deptName].forEach(s => {
+                        const lecturerName = allUsersData[s.lecturerId]?.displayName || 'محاضر محذوف';
+                        const manageStudentsBtn = `<button class="btn btn-info" onclick="openManageStudentsModal('${s.id}', '${s.department}', '${s.courseName} (${s.courseCode})')">إدارة الطلاب</button>`;
+                        tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${lecturerName}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td>${(s.groups||[]).join(', ')}</td><td><button class="btn btn-warning" onclick="editItem('Schedules','${s.id}','schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules','${s.id}','الجدول')">حذف</button>${manageStudentsBtn}</td></tr>`;
+                    });
+                });
+            }
+
             onSnapshot(collection(db, "Users"), (snap) => {
                 allUsersData = {};
                 allStudentsData = [];
@@ -561,30 +588,12 @@
                     });
                 });
                 syncAllowedRfids();
+                renderSchedulesTable(); // ## تعديل: استدعاء الدالة بعد جلب المستخدمين ##
             });
 
             onSnapshot(collection(db, "Schedules"), (snap) => {
                 allSchedulesData = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
-                const scheduleDataByDept = {};
-                departments.forEach(d => scheduleDataByDept[d] = []);
-
-                allSchedulesData.forEach(s => {
-                    if (s.department && scheduleDataByDept[s.department]) {
-                        scheduleDataByDept[s.department].push(s);
-                    }
-                });
-
-                departments.forEach(deptName => {
-                    const container = document.querySelector(`#schedule-tabs-content-${deptName.replace(/\s/g, '-')}`);
-                    if (!container) return;
-                    const tbody = container.querySelector('table tbody');
-                    tbody.innerHTML = '';
-                    scheduleDataByDept[deptName].forEach(s => {
-                        const lecturerName = allUsersData[s.lecturerId]?.displayName || 'محاضر محذوف';
-                        const manageStudentsBtn = `<button class="btn btn-info" onclick="openManageStudentsModal('${s.id}', '${s.department}', '${s.courseName} (${s.courseCode})')">إدارة الطلاب</button>`;
-                        tbody.innerHTML += `<tr><td>${s.courseCode}</td><td>${s.courseName}</td><td>${lecturerName}</td><td>${s.room}</td><td>${s.day}</td><td>${s.time}</td><td>${(s.groups||[]).join(', ')}</td><td><button class="btn btn-warning" onclick="editItem('Schedules','${s.id}','schedule')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Schedules','${s.id}','الجدول')">حذف</button>${manageStudentsBtn}</td></tr>`;
-                    });
-                });
+                renderSchedulesTable(); // ## تعديل: استدعاء الدالة بعد جلب الجداول ##
             });
 
             onSnapshot(collection(db, "Rooms"), (snapshot) => {
@@ -603,6 +612,7 @@
                     roomsTableTbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td><div class="qr-code-container">${r.qrUrl?`<img src="${qrCodeDataUrl}" alt="QR Code">`:'لا يوجد'}</div></td><td><button class="btn btn-warning" onclick="editItem('Rooms','${d.id}','room')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms','${d.id}','القاعة')">حذف</button><button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}','${r.qrUrl}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadQRCodeAsPNG('${r.name}', '${r.qrUrl}')">تحميل صورة الرمز</button></td></tr>`;
                 });
             });
+            };
             function createDashboardCard(docId, roomData) {
                 roomDataStore[docId] = roomData;
                 const statusContainer = document.getElementById('room-status-container');
@@ -1101,7 +1111,6 @@
             });
         }
 
-        // ## تعديل: الكود الذي يتم تشغيله عند تحميل الصفحة (أصبح في مكانه الصحيح) ##
         const loggedInUser = JSON.parse(sessionStorage.getItem('user'));
         if (!loggedInUser || !loggedInUser.role || loggedInUser.role.trim().toLowerCase() !== 'admin') {
             alert('ليس لديك صلاحية للوصول إلى هذه الصفحة.');
