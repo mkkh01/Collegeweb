@@ -605,7 +605,6 @@
                     roomsTableTbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td><div class="qr-code-container">${r.qrUrl?`<img src="${qrCodeDataUrl}" alt="QR Code">`:'لا يوجد'}</div></td><td><button class="btn btn-warning" onclick="editItem('Rooms','${d.id}','room')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms','${d.id}','القاعة')">حذف</button><button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}','${r.qrUrl}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadQRCodeAsPNG('${r.name}', '${r.qrUrl}')">تحميل صورة الرمز</button></td></tr>`;
                 });
             });
-
             const locksRef = ref(rtdb, 'locks');
             onValue(locksRef, (snapshot) => {
                 const allLocksStatus = snapshot.val();
@@ -884,11 +883,24 @@
                             <td>${record.attendees?.length || 0}</td>
                             <td>
                                 <button class="btn btn-info" onclick="window.showAttendanceDetails('${record.id}')">عرض التفاصيل</button>
+                                <button class="btn btn-danger" onclick="window.deleteAttendanceRecord('${record.id}')">حذف السجل</button>
                             </td>
                         </tr>
                     `;
                 });
             }
+            
+            window.deleteAttendanceRecord = async (recordId) => {
+                if (confirm('هل أنت متأكد من حذف سجل الحضور هذا بشكل نهائي؟ لا يمكن التراجع عن هذا الإجراء.')) {
+                    try {
+                        await deleteDoc(doc(db, "AttendanceRecords", recordId));
+                        // لا حاجة لاستدعاء renderAttendanceTable() يدوياً لأن onSnapshot سيقوم بذلك تلقائياً
+                    } catch (error) {
+                        console.error("خطأ في حذف سجل الحضور: ", error);
+                        alert('حدث خطأ أثناء محاولة حذف السجل.');
+                    }
+                }
+            };
 
             window.showAttendanceDetails = (recordId) => {
                 const record = allAttendanceData.find(r => r.id === recordId);
