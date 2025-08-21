@@ -342,7 +342,6 @@
                 contentContainer.querySelector(`#${contentContainerId}-${tabName.replace(/\s/g, '-')}`).style.display = "block";
                 evt.currentTarget.classList.add("active");
             };
-
             // ## تعديل: دالة موحدة للتحقق من صلاحية الفتح للمحاضر عبر RFID ##
             // تم تعديل الدالة لتقبل وسيط 'action' لتحديد ما إذا كان المحاضر يريد الفتح أو الإغلاق
             async function updateRoomStateForRfid(roomName, userId, action) {
@@ -619,21 +618,55 @@
                     });
                 });
             });
-
             onSnapshot(collection(db, "Rooms"), (snapshot) => {
                 const roomsTableTbody = document.querySelector('#rooms-table tbody');
+                // مسح الجدول والبيانات القديمة قبل إعادة بنائها
                 roomsTableTbody.innerHTML = '';
-                snapshot.docChanges().forEach((change) => {
-                    const docId = change.doc.id;
-                    const roomData = change.doc.data();
-                    if (change.type === "added") createDashboardCard(docId, roomData);
-                    if (change.type === "modified") roomDataStore[docId] = { ...roomDataStore[docId], ...roomData };
-                    if (change.type === "removed") { delete roomDataStore[docId]; const card = document.getElementById(docId); if (card) card.remove(); }
+                
+                // المرور على جميع القاعات الموجودة في قاعدة البيانات
+                snapshot.forEach(doc => {
+                    const docId = doc.id;
+                    const roomData = doc.data();
+
+                    // تحديث أو إضافة القاعة في مخزن البيانات المحلي
+                    roomDataStore[docId] = roomData;
+
+                    // إعادة بناء بطاقة لوحة الإعلانات
+                    const dashboardCard = document.getElementById(docId);
+                    if (!dashboardCard) {
+                        createDashboardCard(docId, roomData);
+                    } else {
+                        updateDashboardCard(docId);
+                    }
+
+                    // إضافة صف جديد إلى جدول إدارة القاعات
+                    const qrCodeDataUrl = generateQRCode(roomData.qrUrl || '');
+                    const actionsHtml = `
+                        <button class="btn btn-warning" onclick="editItem('Rooms','${docId}','room')">تعديل</button>
+                        <button class="btn btn-danger" onclick="deleteItem('Rooms','${docId}','القاعة')">حذف</button>
+                        <button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${roomData.name}','${roomData.qrUrl}')">تحميل بطاقة (PDF)</button>
+                        <button class="btn btn-info" onclick="downloadQRCodeAsPNG('${roomData.name}', '${roomData.qrUrl}')">تحميل صورة الرمز</button>
+                    `;
+                    const qrHtml = roomData.qrUrl ? `<img src="${qrCodeDataUrl}" alt="QR Code">` : 'لا يوجد';
+
+                    roomsTableTbody.innerHTML += `
+                        <tr>
+                            <td>${roomData.name}</td>
+                            <td>${roomData.capacity}</td>
+                            <td><div class="qr-code-container">${qrHtml}</div></td>
+                            <td>${actionsHtml}</td>
+                        </tr>
+                    `;
                 });
-                snapshot.forEach(d => {
-                    const r = d.data();
-                    const qrCodeDataUrl = generateQRCode(r.qrUrl || '');
-                    roomsTableTbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td><div class="qr-code-container">${r.qrUrl?`<img src="${qrCodeDataUrl}" alt="QR Code">`:'لا يوجد'}</div></td><td><button class="btn btn-warning" onclick="editItem('Rooms','${d.id}','room')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms','${d.id}','القاعة')">حذف</button><button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}','${r.qrUrl}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadQRCodeAsPNG('${r.name}', '${r.qrUrl}')">تحميل صورة الرمز</button></td></tr>`;
+
+                // التعامل مع القاعات المحذوفة
+                const currentIds = snapshot.docs.map(d => d.id);
+                Object.keys(roomDataStore).forEach(storedId => {
+                    if (!currentIds.includes(storedId)) {
+                        delete roomDataStore[storedId];
+                        const card = document.getElementById(storedId);
+                        if (card) card.remove();
+                    }
                 });
             });
             const locksRef = ref(rtdb, 'locks');
@@ -990,7 +1023,6 @@
 
                 html2pdf().from(exportContent).set(options).save();
             };
-
             async function processPendingAttendanceEvents() {
                 const eventsRef = ref(rtdb, 'attendance_events');
                 const eventsSnapshot = await get(eventsRef);
