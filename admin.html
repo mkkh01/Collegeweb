@@ -595,6 +595,7 @@
 
                 syncAllowedRfids();
             });
+
             onSnapshot(collection(db, "Schedules"), (snap) => {
                 allSchedulesData = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
                 const scheduleDataByDept = {};
@@ -619,78 +620,22 @@
                 });
             });
 
-            // ======================================================================
-            // ## تعديل: هذا هو الجزء الذي تم تعديله لضمان المزامنة ##
-            // ======================================================================
             onSnapshot(collection(db, "Rooms"), (snapshot) => {
                 const roomsTableTbody = document.querySelector('#rooms-table tbody');
-            
+                roomsTableTbody.innerHTML = '';
                 snapshot.docChanges().forEach((change) => {
                     const docId = change.doc.id;
                     const roomData = change.doc.data();
-                    const rowId = `room-row-${docId}`;
-            
-                    if (change.type === "added") {
-                        // إضافة بطاقة إلى لوحة الإعلانات
-                        createDashboardCard(docId, roomData);
-            
-                        // إضافة صف إلى جدول إدارة القاعات
-                        const qrCodeDataUrl = generateQRCode(roomData.qrUrl || '');
-                        const newRow = document.createElement('tr');
-                        newRow.id = rowId;
-                        newRow.innerHTML = `
-                            <td>${roomData.name}</td>
-                            <td>${roomData.capacity}</td>
-                            <td><div class="qr-code-container">${roomData.qrUrl ? `<img src="${qrCodeDataUrl}" alt="QR Code">` : 'لا يوجد'}</div></td>
-                            <td>
-                                <button class="btn btn-warning" onclick="editItem('Rooms','${docId}','room')">تعديل</button>
-                                <button class="btn btn-danger" onclick="deleteItem('Rooms','${docId}','القاعة')">حذف</button>
-                                <button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${roomData.name}','${roomData.qrUrl}')">تحميل بطاقة (PDF)</button>
-                                <button class="btn btn-info" onclick="downloadQRCodeAsPNG('${roomData.name}', '${roomData.qrUrl}')">تحميل صورة الرمز</button>
-                            </td>`;
-                        roomsTableTbody.appendChild(newRow);
-                    }
-            
-                    if (change.type === "modified") {
-                        // تحديث البيانات في المتجر المحلي ولوحة الإعلانات
-                        roomDataStore[docId] = { ...roomDataStore[docId], ...roomData };
-                        updateDashboardCard(docId);
-            
-                        // تحديث الصف في جدول إدارة القاعات
-                        const rowToUpdate = document.getElementById(rowId);
-                        if (rowToUpdate) {
-                            const qrCodeDataUrl = generateQRCode(roomData.qrUrl || '');
-                            rowToUpdate.innerHTML = `
-                                <td>${roomData.name}</td>
-                                <td>${roomData.capacity}</td>
-                                <td><div class="qr-code-container">${roomData.qrUrl ? `<img src="${qrCodeDataUrl}" alt="QR Code">` : 'لا يوجد'}</div></td>
-                                <td>
-                                    <button class="btn btn-warning" onclick="editItem('Rooms','${docId}','room')">تعديل</button>
-                                    <button class="btn btn-danger" onclick="deleteItem('Rooms','${docId}','القاعة')">حذف</button>
-                                    <button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${roomData.name}','${roomData.qrUrl}')">تحميل بطاقة (PDF)</button>
-                                    <button class="btn btn-info" onclick="downloadQRCodeAsPNG('${roomData.name}', '${roomData.qrUrl}')">تحميل صورة الرمز</button>
-                                </td>`;
-                        }
-                    }
-            
-                    if (change.type === "removed") {
-                        // حذف البيانات من المتجر المحلي
-                        delete roomDataStore[docId];
-            
-                        // حذف البطاقة من لوحة الإعلانات
-                        const card = document.getElementById(docId);
-                        if (card) card.remove();
-            
-                        // حذف الصف من جدول إدارة القاعات
-                        const rowToRemove = document.getElementById(rowId);
-                        if (rowToRemove) rowToRemove.remove();
-                    }
+                    if (change.type === "added") createDashboardCard(docId, roomData);
+                    if (change.type === "modified") roomDataStore[docId] = { ...roomDataStore[docId], ...roomData };
+                    if (change.type === "removed") { delete roomDataStore[docId]; const card = document.getElementById(docId); if (card) card.remove(); }
+                });
+                snapshot.forEach(d => {
+                    const r = d.data();
+                    const qrCodeDataUrl = generateQRCode(r.qrUrl || '');
+                    roomsTableTbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td><div class="qr-code-container">${r.qrUrl?`<img src="${qrCodeDataUrl}" alt="QR Code">`:'لا يوجد'}</div></td><td><button class="btn btn-warning" onclick="editItem('Rooms','${d.id}','room')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms','${d.id}','القاعة')">حذف</button><button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}','${r.qrUrl}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadQRCodeAsPNG('${r.name}', '${r.qrUrl}')">تحميل صورة الرمز</button></td></tr>`;
                 });
             });
-            // ======================================================================
-            // ## نهاية الجزء المعدل ##
-            // ======================================================================
-
             const locksRef = ref(rtdb, 'locks');
             onValue(locksRef, (snapshot) => {
                 const allLocksStatus = snapshot.val();
@@ -809,6 +754,7 @@
                     document.querySelectorAll('#groups-checkboxes input').forEach(cb => { cb.checked = (data.groups || []).includes(cb.value); });
                 }
             };
+
             window.deleteItem = async (collectionName, id, itemName) => { 
                 if (confirmDelete(itemName)) {
                     if (collectionName === 'Rooms') {
