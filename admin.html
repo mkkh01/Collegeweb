@@ -244,10 +244,25 @@
         </div>
     </div>
     <script type="module">
-        function initializeAppLogic() {
-            const db = getFirestore(app);
-            const rtdb = getDatabase(app);
+        // ## تعديل: وضع جميع استدعاءات import في الأعلى مرة واحدة فقط ##
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where, arrayUnion, arrayRemove, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getDatabase, ref, set, onValue, get, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
+        const firebaseConfig = {
+            apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
+            authDomain: "gggg-dc7d0.firebaseapp.com",
+            projectId: "gggg-dc7d0",
+            storageBucket: "gggg-dc7d0.appspot.com",
+            messagingSenderId: "151376454562",
+            appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const rtdb = getDatabase(app);
+
+        function initializeAppLogic() {
             const SITE_URL = "https://cpld.netlify.app";
             const roomDataStore = {};
             let allSchedulesData = [];
@@ -352,25 +367,21 @@
                 evt.currentTarget.classList.add("active");
             };
 
-            // ## تعديل: الدالة الجديدة التي تعالج جميع أحداث الموظفين من RFID ##
             async function processStaffRfidEvent(eventData) {
                 const { userId, role, roomName } = eventData;
                 if (!userId || !role || !roomName) return;
 
                 const roomKey = "Room" + roomName;
                 const lockRef = ref(rtdb, `locks/${roomKey}`);
-                const activeLectureRef = ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`);
-
+                
                 const lockSnap = await get(lockRef);
                 const currentStatus = lockSnap.exists() ? lockSnap.val().status : 'closed';
                 const newStatus = (currentStatus === 'open') ? 'closed' : 'open';
 
-                // الحالة 1: مشرف أو عامل نظافة (وصول مباشر)
                 if (role === 'مشرف' || role === 'عامل نظافة') {
                     const updates = {};
                     updates[`locks/${roomKey}/status`] = newStatus;
                     updates[`locks/${roomKey}/last_user_uid`] = userId;
-                    // عند الفتح، تأكد من مسح المحاضرة النشطة
                     if (newStatus === 'open') {
                         updates[`schedules_by_room/${roomKey}/active_lecture`] = "none";
                     }
@@ -378,7 +389,6 @@
                     return;
                 }
 
-                // الحالة 2: عضو هيئة تدريس (يجب التحقق من الوقت)
                 if (role === 'عضو هيئة تدريس') {
                     const now = new Date();
                     const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
@@ -395,19 +405,16 @@
                         return currentTime >= startTime && currentTime < endTime;
                     });
 
-                    // إذا لم تكن هناك محاضرة صالحة، لا تفعل شيئًا
                     if (!validLecture) {
                         console.log(`Lecturer ${userId} access denied: No valid lecture now.`);
                         return;
                     }
 
-                    // إذا كانت هناك محاضرة صالحة، قم بعكس الحالة
                     const updates = {};
                     updates[`locks/${roomKey}/status`] = newStatus;
                     updates[`locks/${roomKey}/last_user_uid`] = userId;
 
                     if (newStatus === 'open') {
-                        // عند الفتح، سجل بيانات المحاضرة
                         const lecturerName = allUsersData[userId]?.displayName || 'غير محدد';
                         updates[`schedules_by_room/${roomKey}/active_lecture`] = {
                             courseName: validLecture.courseName,
@@ -418,7 +425,6 @@
                             scheduleId: validLecture.id 
                         };
                     } else {
-                        // عند الإغلاق، امسح بيانات المحاضرة
                         updates[`schedules_by_room/${roomKey}/active_lecture`] = "none";
                     }
                     await update(ref(rtdb), updates);
@@ -597,8 +603,6 @@
                     roomsTableTbody.innerHTML += `<tr><td>${r.name}</td><td>${r.capacity}</td><td><div class="qr-code-container">${r.qrUrl?`<img src="${qrCodeDataUrl}" alt="QR Code">`:'لا يوجد'}</div></td><td><button class="btn btn-warning" onclick="editItem('Rooms','${d.id}','room')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Rooms','${d.id}','القاعة')">حذف</button><button class="btn btn-primary" onclick="downloadRoomCardAsPDF('${r.name}','${r.qrUrl}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadQRCodeAsPNG('${r.name}', '${r.qrUrl}')">تحميل صورة الرمز</button></td></tr>`;
                 });
             });
-
-            // ## تعديل: تم حذف onValue لـ locks، لأن الأحداث هي ما يهمنا الآن ##
             function createDashboardCard(docId, roomData) {
                 roomDataStore[docId] = roomData;
                 const statusContainer = document.getElementById('room-status-container');
@@ -613,7 +617,6 @@
                 const roomData = roomDataStore[docId];
                 if (!card || !roomData) return; 
                 
-                // ## تعديل: جلب الحالة مباشرة من قاعدة البيانات لضمان الدقة ##
                 const lockSnap = await get(ref(rtdb, `locks/Room${roomData.name}`));
                 const status = lockSnap.exists() ? lockSnap.val().status : 'closed';
                 const statusText = status === 'open' ? 'مفتوحة' : 'مغلقة';
@@ -1009,7 +1012,6 @@
                 }
             }
 
-            // ## تعديل: دالة جديدة للاستماع لأحداث الموظفين ##
             function listenForStaffRfidEvents() {
                 const eventsRef = ref(rtdb, 'staff_rfid_events');
                 onSnapshot(eventsRef, (snap) => {
@@ -1082,12 +1084,10 @@
                 });
             }
 
-            // --- التشغيل الأولي للدوال داخل النطاق الآمن ---
             showPage('dashboard');
-            setInterval(processPendingAttendanceEvents, 10000); // تقليل الفاصل الزمني قليلاً
-            listenForStaffRfidEvents(); // ## تعديل: بدء الاستماع لأحداث الموظفين ##
+            setInterval(processPendingAttendanceEvents, 10000);
+            listenForStaffRfidEvents();
 
-            // ## تعديل: إضافة مستمع لتحديث الواجهة عند تغير حالة القفل ##
             onValue(ref(rtdb, 'locks'), () => {
                 Object.keys(roomDataStore).forEach(docId => updateDashboardCard(docId));
             });
@@ -1099,24 +1099,9 @@
             setupTabs('schedule-tabs', 'schedule-tabs-content', departments, (tabContent, deptName) => {
                 tabContent.innerHTML = `<table id="schedules-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>رمز المادة</th><th>اسم المادة</th><th>المحاضر</th><th>القاعة</th><th>اليوم</th><th>الوقت</th><th>المجموعات</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
             });
-        } // نهاية دالة initializeAppLogic
+        }
 
-        // ## تعديل: الكود الذي يتم تشغيله عند تحميل الصفحة ##
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, query, where, arrayUnion, arrayRemove, setDoc, writeBatch, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { getDatabase, ref, set, onValue, get, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyBvBj7uYIM7m0WiZonfVGyS3CJjh8RaZOA",
-            authDomain: "gggg-dc7d0.firebaseapp.com",
-            projectId: "gggg-dc7d0",
-            storageBucket: "gggg-dc7d0.appspot.com",
-            messagingSenderId: "151376454562",
-            appId: "1:151376454562:web:1dc3064431b5c7e35388fb"
-        };
-
-        const app = initializeApp(firebaseConfig);
-
+        // ## تعديل: الكود الذي يتم تشغيله عند تحميل الصفحة (أصبح في مكانه الصحيح) ##
         const loggedInUser = JSON.parse(sessionStorage.getItem('user'));
         if (!loggedInUser || !loggedInUser.role || loggedInUser.role.trim().toLowerCase() !== 'admin') {
             alert('ليس لديك صلاحية للوصول إلى هذه الصفحة.');
