@@ -35,7 +35,7 @@
         <h1 id="room-title"></h1>
         
         <div id="auth-section">
-            <p>أدخل بياناتك للمصادقة.</p>
+            <p>امسح الـ QR أو أدخل بياناتك للمصادقة.</p>
             <form id="auth-form">
                 <div class="form-group"><label for="username">اسم المستخدم</label><input type="text" id="username" required></div>
                 <div class="form-group"><label for="password">كلمة المرور</label><input type="password" id="password" required></div>
@@ -90,7 +90,7 @@
         let allSchedules = [];
 
         // ## تعديل: دالة تحديث الحالة تأخذ الآن المحاضرة كمعامل اختياري ##
-        async function setRoomStatus(newStatus, user, validLecture = null) {
+        async function setRoomStatus(newStatus, user, lectureToShow = null) {
             if (!roomDocRef || !user) return;
             actionBtn.disabled = true;
             logoutBtn.disabled = true;
@@ -103,19 +103,20 @@
                 // تحديث حالة القفل
                 await set(lockRef, { status: newStatus, last_user_uid: userUid });
 
-                // تحديث المحاضرة النشطة بناءً على المعامل
-                if (newStatus === 'open' && validLecture) {
+                // ## تعديل: تحديث المحاضرة النشطة فقط إذا تم توفير محاضرة صالحة ##
+                if (newStatus === 'open' && lectureToShow) {
+                    // إذا كان هناك محاضرة صالحة، اعرض بياناتها
                     const activeLectureData = {
-                        courseName: validLecture.courseName,
+                        courseName: lectureToShow.courseName,
                         lecturerName: user.displayName,
                         lecturerId: user.id,
-                        time: validLecture.time,
-                        groups: validLecture.groups || [],
-                        scheduleId: validLecture.id
+                        time: lectureToShow.time,
+                        groups: lectureToShow.groups || [],
+                        scheduleId: lectureToShow.id
                     };
                     await set(activeLectureRef, activeLectureData);
                 } else {
-                    // عند الإغلاق أو الفتح بدون محاضرة صالحة، قم بإزالة المحاضرة النشطة
+                    // عند الإغلاق، أو الفتح بواسطة مشرف/عامل، أو محاضر خارج وقته، قم بإزالة بيانات المحاضرة
                     await set(activeLectureRef, "none");
                 }
 
@@ -144,7 +145,7 @@
                 controlMessage.textContent = `مرحبًا ${authenticatedUser.displayName}.`;
                 actionBtn.textContent = 'إنهاء الجلسة وإغلاق القاعة';
                 actionBtn.className = 'btn btn-close';
-                actionBtn.onclick = () => setRoomStatus('closed', authenticatedUser);
+                actionBtn.onclick = () => setRoomStatus('closed', authenticatedUser, null); // ## تعديل: عند الإغلاق، لا نمرر محاضرة
             } else {
                 statusIndicator.textContent = `القاعة ${roomName} مغلقة`;
                 statusIndicator.className = 'status-display status-closed';
@@ -153,12 +154,12 @@
                 actionBtn.className = 'btn btn-open';
                 actionBtn.onclick = () => {
                     // ## تعديل: إعادة التحقق من الوقت عند محاولة الفتح مرة أخرى ##
+                    let lectureToShow = null;
                     if (authenticatedUser.role === 'عضو هيئة تدريس') {
-                        const validLecture = findValidLectureForUser(authenticatedUser);
-                        setRoomStatus('open', authenticatedUser, validLecture);
-                    } else {
-                        setRoomStatus('open', authenticatedUser, null);
+                        lectureToShow = findValidLectureForUser(authenticatedUser);
                     }
+                    // إذا كان محاضرًا في وقته، سيتم تمرير بيانات المحاضرة، وإلا سيتم تمرير null
+                    setRoomStatus('open', authenticatedUser, lectureToShow);
                 };
             }
         }
@@ -177,7 +178,8 @@
                 const timeParts = schedule.time.split('-');
                 const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
                 const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]);
-                return currentTime >= startTime && currentTime < endTime;
+                // السماح بفتح القاعة قبل 10 دقائق من بدء المحاضرة
+                return currentTime >= (startTime - 10) && currentTime < endTime;
             });
         }
 
@@ -209,14 +211,20 @@
                     id: userDoc.id,
                     username: userData.username,
                     displayName: userData.displayName || userData.username,
-                    role: userData.role
+                    role: userData.role.trim() // ## تعديل: استخدام trim لضمان عدم وجود مسافات
                 };
 
-                // ## تعديل: التحقق من الوقت لعضو هيئة التدريس قبل الفتح ##
-                let validLecture = null;
+                // ## تعديل: التحقق من الوقت لعضو هيئة التدريس وتحديد ما إذا كان سيتم عرض بياناته ##
+                let lectureToShow = null; // القيمة الافتراضية هي عدم عرض أي شيء
                 if (authenticatedUser.role === 'عضو هيئة تدريس') {
-                    validLecture = findValidLectureForUser(authenticatedUser);
+                    const validLecture = findValidLectureForUser(authenticatedUser);
+                    if (validLecture) {
+                        // إذا وجدنا محاضرة صالحة، سنقوم بتمريرها للعرض
+                        lectureToShow = validLecture;
+                    }
+                    // إذا لم يجد محاضرة، ستبقى lectureToShow بقيمة null، وبالتالي لن يتم عرض بياناته
                 }
+                // بالنسبة للأدوار الأخرى (مشرف، عامل نظافة، أدمن)، ستبقى lectureToShow بقيمة null دائمًا
 
                 showSection(controlSection);
                 
@@ -231,8 +239,8 @@
                     }
                 });
 
-                // استدعاء دالة الفتح مع تمرير المحاضرة الصالحة (أو null)
-                await setRoomStatus('open', authenticatedUser, validLecture);
+                // ## تعديل: استدعاء دالة الفتح مع تمرير المحاضرة الصالحة (أو null) ##
+                await setRoomStatus('open', authenticatedUser, lectureToShow);
 
             } catch (error) {
                 messageElement.textContent = error.message;
@@ -268,6 +276,7 @@
                 }
                 roomDocRef = doc(db, "Rooms", roomSnapshot.docs[0].id);
 
+                // جلب الجداول الزمنية مرة واحدة عند تحميل الصفحة
                 const schedulesSnapshot = await getDocs(collection(db, "Schedules"));
                 allSchedules = schedulesSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
