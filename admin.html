@@ -74,6 +74,48 @@
         #attendance-pdf-export-area table { width: 100%; border-collapse: collapse; }
         #attendance-pdf-export-area th, #attendance-pdf-export-area td { border: 1px solid #333; padding: 8px; }
         #attendance-pdf-export-area th { background-color: #f2f2f2; }
+        /* ## تعديل: تنسيقات جديدة لعرض المستخدمين بنظام الخانات ## */
+        .users-grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .user-grid-card {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+        }
+        .user-grid-card p {
+            margin: 4px 0;
+            font-size: 14px;
+        }
+        .user-grid-card .user-name {
+            font-weight: bold;
+            font-size: 16px;
+            color: var(--primary-color);
+        }
+        .user-grid-card .user-role {
+            font-style: italic;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .user-grid-card .user-actions {
+            margin-top: auto; /* يدفع الأزرار لأسفل الخانة */
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        .user-grid-card .user-actions .btn {
+            font-size: 12px;
+            padding: 5px 8px;
+        }
     </style>
 </head>
 <body>
@@ -91,16 +133,21 @@
     <div class="main-content">
         <div id="dashboard" class="page"><div class="card"><h3>لوحة الإعلانات</h3><div id="room-status-container" class="room-status-container"></div></div></div>
         
+        <!-- ## تعديل: تغيير طريقة عرض المستخدمين من جداول إلى خانات ## -->
         <div id="users" class="page">
             <div class="card">
                 <h3>المستخدمون</h3>
                 <button class="btn btn-primary" onclick="openModal('user-modal')">إضافة مستخدم</button>
+                
                 <h4>أعضاء هيئة التدريس</h4>
-                <table id="lecturers-table"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>
+                <div id="lecturers-grid" class="users-grid-container"></div>
+
                 <h4>المشرفون</h4>
-                <table id="supervisors-table"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>
+                <div id="supervisors-grid" class="users-grid-container"></div>
+
                 <h4>عمال النظافة</h4>
-                <table id="cleaners-table"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>
+                <div id="cleaners-grid" class="users-grid-container"></div>
+
                 <h4>الطلاب</h4>
                 <div class="tabs" id="student-tabs"></div>
                 <div id="student-tabs-content"></div>
@@ -139,6 +186,8 @@
                             <th>اسم المحاضر</th>
                             <th>عدد الحضور</th>
                             <th>إجراء</th>
+                            <!-- ## تعديل: إضافة خانة الحذف ## -->
+                            <th>حذف</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -272,6 +321,9 @@
                 document.querySelector(`.nav-link[href="#${pageId}"]`).classList.add('active');
                 if (pageId === 'attendance') {
                     initializeAttendanceFilters();
+                }
+                 if (pageId === 'users') {
+                    renderUserGrids();
                 }
             };
 
@@ -520,37 +572,49 @@
                 closeModal('schedule-modal');
             });
 
-            onSnapshot(collection(db, "Users"), (snap) => {
-                allUsersData = {};
-                allStudentsData = [];
-                snap.forEach(d => {
-                    const userData = d.data();
-                    allUsersData[d.id] = userData;
-                    if (userData.role === 'طالب') {
-                        allStudentsData.push({ id: d.id, ...userData });
-                    }
-                });
+            // ## تعديل: دالة عرض المستخدمين في خانات ##
+            function renderUserGrids() {
+                const grids = {
+                    'عضو هيئة تدريس': document.getElementById('lecturers-grid'),
+                    'مشرف': document.getElementById('supervisors-grid'),
+                    'عامل نظافة': document.getElementById('cleaners-grid')
+                };
+                Object.values(grids).forEach(grid => grid.innerHTML = '');
 
-                const tables = { 'عضو هيئة تدريس': document.querySelector('#lecturers-table tbody'), 'مشرف': document.querySelector('#supervisors-table tbody'), 'عامل نظافة': document.querySelector('#cleaners-table tbody') };
                 const studentDataByDept = {};
                 departments.forEach(d => studentDataByDept[d] = []);
-                Object.values(tables).forEach(tbody => tbody.innerHTML = '');
 
-                snap.forEach(d => {
-                    const u = d.data();
-                    const id = d.id;
-                    const actionsHtml = `<button class="btn btn-warning" onclick="editItem('Users','${id}','user')">تعديل</button><button class="btn btn-danger" onclick="deleteItem('Users','${id}','المستخدم')">حذف</button><button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}','${u.role}','${u.barcodeId}')">تحميل بطاقة (PDF)</button><button class="btn btn-info" onclick="downloadBarcodeAsPNG('${u.displayName}', '${u.barcodeId}')">تحميل صورة الرمز</button>`;
+                Object.values(allUsersData).forEach((u, index) => {
+                    const id = Object.keys(allUsersData)[index];
+                    const actionsHtml = `
+                        <div class="user-actions">
+                            <button class="btn btn-warning" onclick="editItem('Users','${id}','user')">تعديل</button>
+                            <button class="btn btn-danger" onclick="deleteItem('Users','${id}','المستخدم')">حذف</button>
+                            <button class="btn btn-primary" onclick="downloadIdCardAsPDF('${u.displayName}','${u.role}','${u.barcodeId}')">بطاقة PDF</button>
+                            <button class="btn btn-info" onclick="downloadBarcodeAsPNG('${u.displayName}', '${u.barcodeId}')">صورة الرمز</button>
+                        </div>`;
+
                     if (u.role === 'طالب') {
                         if (u.department && studentDataByDept[u.department]) {
                             studentDataByDept[u.department].push({ id, ...u });
                         }
-                    } else if (tables[u.role]) {
-                        const tbody = tables[u.role];
-                        tbody.innerHTML += `<tr><td>${u.displayName||''}</td><td><div class="barcode-container">${u.barcodeId?`<svg id="barcode-${id}"></svg>`:'لا يوجد'}</div></td><td>${u.rfid||'لا يوجد'}</td><td>${actionsHtml}</td></tr>`;
-                        if (u.barcodeId) JsBarcode(`#barcode-${id}`, u.barcodeId);
+                    } else if (grids[u.role]) {
+                        const gridContainer = grids[u.role];
+                        const card = document.createElement('div');
+                        card.className = 'user-grid-card';
+                        card.innerHTML = `
+                            <p class="user-name">${u.displayName || ''}</p>
+                            <p class="user-role">${u.role}</p>
+                            <p><strong>اسم المستخدم:</strong> ${u.username || 'لا يوجد'}</p>
+                            <p><strong>رمز الباركود:</strong> ${u.barcodeId || 'لا يوجد'}</p>
+                            <p><strong>رمز RFID:</strong> ${u.rfid || 'لا يوجد'}</p>
+                            ${actionsHtml}
+                        `;
+                        gridContainer.appendChild(card);
                     }
                 });
 
+                // عرض الطلاب في جداولهم الخاصة داخل التابات
                 departments.forEach(deptName => {
                     const container = document.querySelector(`#student-tabs-content-${deptName.replace(/\s/g, '-')}`);
                     if (!container) return;
@@ -562,6 +626,19 @@
                         if (u.barcodeId) JsBarcode(`#barcode-${u.id}`, u.barcodeId);
                     });
                 });
+            }
+
+            onSnapshot(collection(db, "Users"), (snap) => {
+                allUsersData = {};
+                allStudentsData = [];
+                snap.forEach(d => {
+                    const userData = d.data();
+                    allUsersData[d.id] = userData;
+                    if (userData.role === 'طالب') {
+                        allStudentsData.push({ id: d.id, ...userData });
+                    }
+                });
+                renderUserGrids(); // استدعاء دالة العرض الجديدة
                 syncAllowedRfids();
             });
 
@@ -803,8 +880,7 @@
                 await updateDoc(scheduleRef, { enrolledStudents: arrayRemove(studentId) });
                 currentManagingSchedule.enrolledStudents = currentManagingSchedule.enrolledStudents.filter(id => id !== studentId);
                 renderEnrolledStudents();
-            }
-            // ======================================================================
+              // ======================================================================
             // ## دوال إدارة وعرض سجلات الحضور (مع الفلترة الجديدة) ##
             // ======================================================================
             
@@ -824,7 +900,7 @@
                     deptFilter.innerHTML += `<option value="${dep}">${dep}</option>`;
                 });
                 document.getElementById('attendance-course-filter').innerHTML = '<option value="">اختر مادة...</option>';
-                document.querySelector('#attendance-summary-table tbody').innerHTML = '<tr><td colspan="5">الرجاء اختيار قسم ثم مادة لعرض السجلات.</td></tr>';
+                document.querySelector('#attendance-summary-table tbody').innerHTML = '<tr><td colspan="6">الرجاء اختيار قسم ثم مادة لعرض السجلات.</td></tr>';
             }
 
             window.populateCourseFilterForDepartment = (selectedDept) => {
@@ -833,7 +909,7 @@
                 
                 if (!selectedDept) {
                     courseFilter.innerHTML = '<option value="">اختر مادة...</option>';
-                    tbody.innerHTML = '<tr><td colspan="5">الرجاء اختيار قسم ثم مادة لعرض السجلات.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6">الرجاء اختيار قسم ثم مادة لعرض السجلات.</td></tr>';
                     return;
                 }
 
@@ -846,7 +922,7 @@
                         courseFilter.innerHTML += `<option value="${course.courseCode}">${course.courseName} (${course.courseCode})</option>`;
                     });
                 }
-                tbody.innerHTML = '<tr><td colspan="5">الرجاء اختيار مادة لعرض السجلات.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6">الرجاء اختيار مادة لعرض السجلات.</td></tr>';
             };
 
             window.renderAttendanceTable = () => {
@@ -856,9 +932,9 @@
 
                 if (!selectedDept || !selectedCourseCode) {
                     if (!selectedDept) {
-                        tbody.innerHTML = '<tr><td colspan="5">الرجاء اختيار قسم ثم مادة لعرض السجلات.</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="6">الرجاء اختيار قسم ثم مادة لعرض السجلات.</td></tr>';
                     } else {
-                        tbody.innerHTML = '<tr><td colspan="5">الرجاء اختيار مادة لعرض السجلات.</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="6">الرجاء اختيار مادة لعرض السجلات.</td></tr>';
                     }
                     return;
                 }
@@ -868,7 +944,7 @@
                 const filteredData = allAttendanceData.filter(record => relevantScheduleIds.includes(record.scheduleId));
 
                 if (filteredData.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5">لا توجد سجلات حضور لهذه المادة.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6">لا توجد سجلات حضور لهذه المادة.</td></tr>';
                     return;
                 }
                 
@@ -876,6 +952,7 @@
                 filteredData.sort((a, b) => new Date(b.lectureDate) - new Date(a.lectureDate));
 
                 filteredData.forEach(record => {
+                    // ## تعديل: إضافة زر الحذف إلى جانب زر عرض التفاصيل ##
                     tbody.innerHTML += `
                         <tr>
                             <td>${record.courseName || 'غير محدد'}</td>
@@ -884,6 +961,9 @@
                             <td>${record.attendees?.length || 0}</td>
                             <td>
                                 <button class="btn btn-info" onclick="window.showAttendanceDetails('${record.id}')">عرض التفاصيل</button>
+                            </td>
+                            <td>
+                                <button class="btn btn-danger" onclick="deleteItem('AttendanceRecords', '${record.id}', 'سجل الحضور')">حذف</button>
                             </td>
                         </tr>
                     `;
@@ -1042,7 +1122,7 @@
                     await update(ref(rtdb, 'attendance_events'), updatesToDelete);
                 }
             }
-
+          }
             window.downloadIdCardAsPDF = (name, role, barcodeValue) => {
                 const prepareArea = document.getElementById('pdf-prepare-area');
                 const cardElement = document.createElement('div');
@@ -1105,7 +1185,9 @@
             showPage('dashboard');
             setInterval(processPendingAttendanceEvents, 15000);
             
+            // ## تعديل: تغيير طريقة عرض الطلاب من خانات إلى جداول داخل التابات ##
             setupTabs('student-tabs', 'student-tabs-content', departments, (tabContent, deptName) => {
+                // الطلاب سيعرضون في جدول وليس خانات للحفاظ على الوضوح
                 tabContent.innerHTML = `<table id="students-table-${deptName.replace(/\s/g, '-')}"><thead><tr><th>الاسم الكامل</th><th>رمز الباركود</th><th>رمز RFID</th><th>إجراء</th></tr></thead><tbody></tbody></table>`;
             });
 
