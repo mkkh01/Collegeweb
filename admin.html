@@ -6,8 +6,8 @@
     <title>لوحة تحكم الأدمن</title>
     <!-- مكتبات إنشاء الرموز وتحويلها لـ PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <!-- ## الإصلاح هنا: إضافة مكتبة QR Code المفقودة ## -->
-    <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+    <!-- ## الإصلاح النهائي: استخدام رابط CDN صحيح وموثوق لمكتبة QR Code ## -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         :root { --primary-color: #007bff; --secondary-color: #6c757d; --success-color: #28a745; --danger-color: #dc3545; --warning-color: #ffc107; --light-color: #f8f9fa; --dark-color: #343a40; --info-color: #17a2b8; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; }
@@ -147,11 +147,11 @@
 
                 // --- Render Table Row ---
                 const tr = roomsTableTbody.insertRow();
-                const qrCell = tr.insertCell();
-                const actionsCell = tr.insertCell();
-                
                 tr.insertCell(0).textContent = roomData.name || '';
                 tr.insertCell(1).textContent = roomData.capacity || '';
+                const qrCell = tr.insertCell(2);
+                qrCell.className = 'qr-code-cell';
+                const actionsCell = tr.insertCell(3);
                 
                 // Generate QR Code
                 new QRCode(qrCell, {
@@ -181,5 +181,3 @@
     </script>
 </body>
 </html>
-
-
