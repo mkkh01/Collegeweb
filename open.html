@@ -89,52 +89,8 @@
         let roomStatusUnsubscribe = null;
         let allSchedules = [];
 
-        // الدالة ستحاول مزامنة المحاضرة إن وجدت، لكنها لن تمنع الفتح
-        async function syncActiveLecture(user) {
-            const roomKey = "Room" + roomName;
-            const activeLectureRef = ref(rtdb, `schedules_by_room/${roomKey}/active_lecture`);
-
-            // إذا لم يكن المستخدم عضو هيئة تدريس، يتم تعيين المحاضرة إلى "none"
-            if (!user || user.role !== 'عضو هيئة تدريس') {
-                await set(activeLectureRef, "none");
-                return;
-            }
-
-            const now = new Date();
-            const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-            const currentDay = days[now.getDay()];
-            const currentTime = now.getHours() * 60 + now.getMinutes();
-
-            // البحث عن محاضرة حالية للمستخدم
-            const currentSchedule = allSchedules.find(schedule => {
-                if (schedule.lecturerId !== user.id || schedule.room !== roomName || schedule.day !== currentDay) {
-                    return false;
-                }
-                const timeParts = schedule.time.split('-');
-                const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
-                const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]);
-                return currentTime >= startTime && currentTime < endTime;
-            });
-
-            if (currentSchedule) {
-                // إذا وجدت محاضرة، يتم تسجيل بياناتها
-                const activeLectureData = {
-                    courseName: currentSchedule.courseName,
-                    lecturerName: user.displayName,
-                    lecturerId: user.id,
-                    time: currentSchedule.time,
-                    groups: currentSchedule.groups || [],
-                    scheduleId: currentSchedule.id
-                };
-                await set(activeLectureRef, activeLectureData);
-            } else {
-                // إذا لم توجد محاضرة، يتم تعيينها إلى "none"
-                await set(activeLectureRef, "none");
-            }
-        }
-
-        // دالة تغيير الحالة للفتح المباشر عبر QR
-        async function setRoomStatus(newStatus, user) {
+        // ## تعديل: دالة تحديث الحالة تأخذ الآن المحاضرة كمعامل اختياري ##
+        async function setRoomStatus(newStatus, user, validLecture = null) {
             if (!roomDocRef || !user) return;
             actionBtn.disabled = true;
             logoutBtn.disabled = true;
@@ -142,16 +98,24 @@
                 const userUid = newStatus === 'open' ? user.id : 'none';
                 const lockName = "Room" + roomName;
                 const lockRef = ref(rtdb, 'locks/' + lockName);
-                
-                // الخطوة 1: تحديث حالة القفل فوراً
+                const activeLectureRef = ref(rtdb, `schedules_by_room/${lockName}/active_lecture`);
+
+                // تحديث حالة القفل
                 await set(lockRef, { status: newStatus, last_user_uid: userUid });
-                
-                // الخطوة 2: محاولة مزامنة المحاضرة (لن تمنع الفتح)
-                if (newStatus === 'open') {
-                    await syncActiveLecture(user);
+
+                // تحديث المحاضرة النشطة بناءً على المعامل
+                if (newStatus === 'open' && validLecture) {
+                    const activeLectureData = {
+                        courseName: validLecture.courseName,
+                        lecturerName: user.displayName,
+                        lecturerId: user.id,
+                        time: validLecture.time,
+                        groups: validLecture.groups || [],
+                        scheduleId: validLecture.id
+                    };
+                    await set(activeLectureRef, activeLectureData);
                 } else {
-                    // عند الإغلاق، قم بإزالة المحاضرة النشطة
-                    const activeLectureRef = ref(rtdb, `schedules_by_room/${lockName}/active_lecture`);
+                    // عند الإغلاق أو الفتح بدون محاضرة صالحة، قم بإزالة المحاضرة النشطة
                     await set(activeLectureRef, "none");
                 }
 
@@ -187,8 +151,34 @@
                 controlMessage.textContent = 'القاعة مغلقة حاليًا.';
                 actionBtn.textContent = 'فتح القاعة';
                 actionBtn.className = 'btn btn-open';
-                actionBtn.onclick = () => setRoomStatus('open', authenticatedUser);
+                actionBtn.onclick = () => {
+                    // ## تعديل: إعادة التحقق من الوقت عند محاولة الفتح مرة أخرى ##
+                    if (authenticatedUser.role === 'عضو هيئة تدريس') {
+                        const validLecture = findValidLectureForUser(authenticatedUser);
+                        setRoomStatus('open', authenticatedUser, validLecture);
+                    } else {
+                        setRoomStatus('open', authenticatedUser, null);
+                    }
+                };
             }
+        }
+
+        // ## تعديل: دالة مساعدة للبحث عن محاضرة صالحة ##
+        function findValidLectureForUser(user) {
+            const now = new Date();
+            const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+            const currentDay = days[now.getDay()];
+            const currentTime = now.getHours() * 60 + now.getMinutes();
+
+            return allSchedules.find(schedule => {
+                if (schedule.lecturerId !== user.id || schedule.room !== roomName || schedule.day !== currentDay) {
+                    return false;
+                }
+                const timeParts = schedule.time.split('-');
+                const startTime = parseInt(timeParts[0].split(':')[0]) * 60 + parseInt(timeParts[0].split(':')[1]);
+                const endTime = parseInt(timeParts[1].split(':')[0]) * 60 + parseInt(timeParts[1].split(':')[1]);
+                return currentTime >= startTime && currentTime < endTime;
+            });
         }
 
         document.getElementById('auth-form').addEventListener('submit', async (e) => {
@@ -210,7 +200,6 @@
                 const userDoc = userSnapshot.docs[0];
                 const userData = userDoc.data();
 
-                // التأكد من أن المستخدم ليس طالباً
                 const allowedRoles = ['admin', 'عضو هيئة تدريس', 'مشرف', 'عامل نظافة'];
                 if (!userData.role || !allowedRoles.includes(userData.role.trim())) {
                     throw new Error('ليس لديك صلاحية لفتح القاعة. هذه الميزة مخصصة للموظفين فقط.');
@@ -222,6 +211,12 @@
                     displayName: userData.displayName || userData.username,
                     role: userData.role
                 };
+
+                // ## تعديل: التحقق من الوقت لعضو هيئة التدريس قبل الفتح ##
+                let validLecture = null;
+                if (authenticatedUser.role === 'عضو هيئة تدريس') {
+                    validLecture = findValidLectureForUser(authenticatedUser);
+                }
 
                 showSection(controlSection);
                 
@@ -236,8 +231,8 @@
                     }
                 });
 
-                // الفتح يتم مباشرة دون التحقق من الوقت
-                await setRoomStatus('open', authenticatedUser);
+                // استدعاء دالة الفتح مع تمرير المحاضرة الصالحة (أو null)
+                await setRoomStatus('open', authenticatedUser, validLecture);
 
             } catch (error) {
                 messageElement.textContent = error.message;
@@ -255,7 +250,6 @@
             showSection(authSection);
         });
 
-        // --- التهيئة الأولية للصفحة ---
         async function initializePage() {
             if (!roomName) {
                 roomTitleElement.textContent = 'خطأ';
@@ -266,7 +260,6 @@
             roomTitleElement.textContent = `إدارة القاعة: ${roomName}`;
             
             try {
-                // جلب بيانات القاعة
                 const roomQuery = query(collection(db, "Rooms"), where("name", "==", roomName));
                 const roomSnapshot = await getDocs(roomQuery);
                 if (roomSnapshot.empty) {
@@ -275,7 +268,6 @@
                 }
                 roomDocRef = doc(db, "Rooms", roomSnapshot.docs[0].id);
 
-                // جلب جميع الجداول مرة واحدة عند تحميل الصفحة لتتمكن دالة المزامنة من استخدامها
                 const schedulesSnapshot = await getDocs(collection(db, "Schedules"));
                 allSchedules = schedulesSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
